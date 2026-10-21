@@ -1,0 +1,122 @@
+// AURA-JKN PostgreSQL Database Schema (Prisma ORM)
+// Aligned with Proposal AURA-JKN & Phase 2-3 FastAPI Service (app.py)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Facility {
+  facilityId    String   @id @map("facility_id")
+  facilityClass String   @map("facility_class") // FKTP | FKRTL
+  latitude      Float
+  longitude     Float
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  doctors Doctor[]
+  claims  Claim[]
+
+  @@map("facilities")
+}
+
+model Doctor {
+  doctorId       String   @id @map("doctor_id")
+  sipNumber      String   @map("sip_number")
+  specialty      String
+  homeFacilityId String   @map("home_facility_id")
+  scheduleHours  Int      @map("schedule_hours")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  homeFacility Facility @relation(fields: [homeFacilityId], references: [facilityId])
+  claims       Claim[]
+
+  @@map("doctors")
+}
+
+model Patient {
+  patientId  String   @id @map("patient_id") // Salted SHA-256 Pseudonymized ID (UU PDP Compliant)
+  homeRegion String   @map("home_region")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  claims Claim[]
+
+  @@map("patients")
+}
+
+model Claim {
+  claimId       String   @id @map("claim_id")
+  patientId     String   @map("patient_id")
+  doctorId      String   @map("doctor_id")
+  facilityId    String   @map("facility_id")
+  icd10Code     String   @map("icd10_code")
+  icd9Code      String?  @map("icd9_code")
+  serviceDate   String   @map("service_date") // YYYY-MM-DD
+  serviceTime   String   @map("service_time") // HH:MM:SS
+  inaCbgsTariff Float    @map("ina_cbgs_tariff")
+  lengthOfStay  Int      @default(0) @map("length_of_stay")
+  fraudScenario String?  @map("fraud_scenario") // A | B | C | null
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  patient        Patient         @relation(fields: [patientId], references: [patientId])
+  doctor         Doctor          @relation(fields: [doctorId], references: [doctorId])
+  facility       Facility        @relation(fields: [facilityId], references: [facilityId])
+  riskAssessment RiskAssessment?
+  humanReviews   HumanReview[]
+
+  @@index([doctorId, serviceDate])
+  @@index([facilityId])
+  @@map("claims")
+}
+
+model RiskAssessment {
+  id                      String   @id @default(cuid())
+  claimId                 String   @unique @map("claim_id")
+  fraudProbability        Float    @map("fraud_probability") // 0.0 - 1.0
+  fraudRiskIndex          Int      @map("fraud_risk_index") // FRI 0 - 100
+  riskLevel               String   @map("risk_level") // HIGH | MEDIUM | LOW
+  prePaymentGate          String   @map("pre_payment_gate") // REJECT_FOR_HUMAN_REVIEW | FLAGGED_WARNING | AUTO_APPROVE
+  spatialConflictDetected Boolean  @map("spatial_conflict_detected")
+  doctorDailyVolume       Int      @map("doctor_daily_volume")
+  spatiotemporalRiskScore Float    @map("spatiotemporal_risk_score")
+  primaryFraudTrigger     String   @map("primary_fraud_trigger")
+  evidenceReasons         Json     @map("evidence_reasons") // string[]
+  subgraphEvidence        Json     @map("subgraph_evidence") // { nodes: [], edges: [] }
+  evaluatedAt             DateTime @default(now()) @map("evaluated_at")
+
+  claim Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
+
+  @@index([riskLevel, fraudRiskIndex(sort: Desc)])
+  @@map("risk_assessments")
+}
+
+model HumanReview {
+  id            String   @id @default(cuid())
+  claimId       String   @map("claim_id")
+  reviewerName  String   @map("reviewer_name")
+  reviewerRole  String   @map("reviewer_role") // VERIFIKATOR_BPJS | DOKTER_PENASIHAT | AUDITOR
+  decision      String // RELEASE | CLARIFY | ESCALATE_AUDIT
+  notes         String
+  feedbackLabel Int?     @map("feedback_label") // 0 = Legitimate, 1 = Confirmed Fraud (Controlled Feedback Loop)
+  reviewedAt    DateTime @default(now()) @map("reviewed_at")
+
+  claim Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
+
+  @@index([claimId])
+  @@map("human_reviews")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorName  String   @map("actor_name")
+  actorRole  String   @map("actor_role")
+  action     String
+  targetId   String   @map("target_id")
+  metadata   Json?
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  @@map("audit_logs")
+}

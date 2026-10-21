@@ -1,0 +1,28 @@
+{
+  "name": "aura-jkn-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AURA-JKN Investigative Decision-Support Dashboard (React.js + Vite + Tailwind CSS + React Flow)",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 5173"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.3.2",
+    "lucide-react": "^0.454.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.10"
+  }
+}
