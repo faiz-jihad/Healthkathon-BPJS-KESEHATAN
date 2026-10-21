@@ -76,7 +76,7 @@ flowchart TB
 
 Gambar di bawah ini merangkum alur kerja operasional dari Langkah 1 hingga Langkah 9 dengan contoh konkret agar mudah dipahami oleh seluruh anggota tim:
 
-![Flowchart End-to-End Sistem AURA-JKN](C:/Users/Ravli/.gemini/antigravity/brain/b0ec8b35-d0ae-4027-be94-0d19fea34c60/flowchart_end_to_end_aura_jkn.png)
+![Flowchart End-to-End Sistem AURA-JKN](./assets/flowchart_end_to_end_aura_jkn.png)
 
 ---
 

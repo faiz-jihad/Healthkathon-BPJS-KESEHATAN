@@ -6,6 +6,8 @@
 
 ## Arsitektur & Struktur Proyek
 
+![Flowchart End-to-End Sistem AURA-JKN](./docs/assets/flowchart_end_to_end_aura_jkn.png)
+
 Repositori ini mengimplementasikan arsitektur modular **AURA-JKN** yang terdiri dari 4 komponen utama:
 
 ```text
