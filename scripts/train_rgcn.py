@@ -5,8 +5,16 @@ Architecture: Relational Graph Convolutional Network (R-GCN) via PyTorch Geometr
 Task: Fraud Detection on BPJS Kesehatan Healthcare Claims Graph
 """
 
+import argparse
 import sys
 from pathlib import Path
+
+# Resolve project root whether executed from root or inside scripts/
+CURRENT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = CURRENT_DIR.parent if CURRENT_DIR.name == "scripts" else CURRENT_DIR
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
@@ -22,31 +30,27 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from torch_geometric.data import HeteroData
-from torch_geometric.nn import HeteroConv, SAGEConv
+
+from src.config import (
+    CLASSIFIER_DROPOUT,
+    CONV_DROPOUT,
+    GRAPH_DATA_PATH,
+    HIDDEN_CHANNELS,
+    MODEL_CHECKPOINT_PATH,
+    NODE_INPUT_DIMS,
+    RANDOM_SEED,
+)
+from src.models import AuraJKNRGCN
 
 # ==============================================================================
 # Configuration & Hyperparameters
 # ==============================================================================
-GRAPH_DATA_PATH = Path("aura_jkn_hetero_graph.pt")
-CHECKPOINT_PATH = Path("aura_jkn_rgcn_model.pt")
-
-NODE_INPUT_DIMS = {
-    "patient": 34,
-    "doctor": 6,
-    "facility": 4,
-    "claim": 23,
-    "diagnosis": 10,
-}
-
-HIDDEN_CHANNELS = 64
-CLASSIFIER_DROPOUT = 0.3
-CONV_DROPOUT = 0.2
+CHECKPOINT_PATH = MODEL_CHECKPOINT_PATH
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
-MAX_EPOCHS = 100
+MAX_EPOCHS = 200
 EARLY_STOPPING_PATIENCE = 15
 DECISION_THRESHOLD = 0.5
-RANDOM_SEED = 42
 
 SCENARIO_METADATA = {
     "A": "Fake Patient Cluster",
@@ -116,115 +120,6 @@ def load_hetero_graph(file_path: Path, device: torch.device) -> HeteroData:
     print(f"  - Test Claims:  {data['claim'].test_mask.sum().item():,}")
 
     return data
-
-
-# ==============================================================================
-# 2. Model Architecture: AuraJKNRGCN
-# ==============================================================================
-class AuraJKNRGCN(nn.Module):
-    """
-    Relational Graph Convolutional Network (R-GCN) tailored for AURA-JKN.
-
-    Architecture Components:
-    1. Projection Layer:
-       ModuleDict mapping diverse raw input dimensions to uniform hidden_channels.
-    2. Message Passing:
-       2-layer HeteroConv using relational SAGE convolutions across all 10 edge types.
-    3. Classifier Head:
-       Multi-Layer Perceptron (hidden -> hidden//2 -> ReLU -> Dropout -> 1)
-       specifically dedicated to predicting claim-level fraud probability.
-    """
-
-    def __init__(
-        self,
-        edge_types: List[Tuple[str, str, str]],
-        in_channels_dict: Dict[str, int],
-        hidden_channels: int = HIDDEN_CHANNELS,
-        classifier_dropout: float = CLASSIFIER_DROPOUT,
-        conv_dropout: float = CONV_DROPOUT,
-    ):
-        super().__init__()
-        self.hidden_channels = hidden_channels
-        self.conv_dropout = conv_dropout
-        self.classifier_dropout = classifier_dropout
-
-        # a. Projection Layer: Project heterogeneous raw feature dimensions
-        self.projection = nn.ModuleDict({
-            node_type: nn.Linear(in_dim, hidden_channels)
-            for node_type, in_dim in in_channels_dict.items()
-        })
-
-        # b. Message Passing: 2-layer HeteroConv across all relational edge types
-        conv1_relations = {
-            edge_type: SAGEConv((hidden_channels, hidden_channels), hidden_channels)
-            for edge_type in edge_types
-        }
-        self.conv1 = HeteroConv(conv1_relations, aggr="sum")
-
-        conv2_relations = {
-            edge_type: SAGEConv((hidden_channels, hidden_channels), hidden_channels)
-            for edge_type in edge_types
-        }
-        self.conv2 = HeteroConv(conv2_relations, aggr="sum")
-
-        # c. Classifier Head: Dedicated binary fraud scoring head on 'claim' node
-        self.classifier = nn.Sequential(
-            nn.Linear(hidden_channels, hidden_channels // 2),
-            nn.ReLU(),
-            nn.Dropout(p=self.classifier_dropout),
-            nn.Linear(hidden_channels // 2, 1),
-        )
-
-    def forward(
-        self,
-        x_dict: Dict[str, torch.Tensor],
-        edge_index_dict: Dict[Tuple[str, str, str], torch.Tensor],
-    ) -> torch.Tensor:
-        """
-        Forward propagation across the heterogeneous relational graph.
-
-        Args:
-            x_dict: Dictionary mapping node_type to raw feature tensor.
-            edge_index_dict: Dictionary mapping edge_type tuple to edge_index tensor.
-
-        Returns:
-            Logits tensor for 'claim' nodes with shape [num_claims].
-        """
-        # Step 1: Feature Projection with Non-Linearity
-        h_dict: Dict[str, torch.Tensor] = {}
-        for node_type, x in x_dict.items():
-            if node_type in self.projection:
-                h_dict[node_type] = F.relu(self.projection[node_type](x))
-            else:
-                h_dict[node_type] = x
-
-        # Step 2: First Relational Message Passing Layer
-        h_dict_layer1 = self.conv1(h_dict, edge_index_dict)
-        h_dict = {
-            node_type: F.dropout(
-                F.relu(h_dict_layer1[node_type]),
-                p=self.conv_dropout,
-                training=self.training,
-            )
-            if node_type in h_dict_layer1
-            else h_dict[node_type]
-            for node_type in h_dict
-        }
-
-        # Step 3: Second Relational Message Passing Layer
-        h_dict_layer2 = self.conv2(h_dict, edge_index_dict)
-        h_dict = {
-            node_type: F.relu(h_dict_layer2[node_type])
-            if node_type in h_dict_layer2
-            else h_dict[node_type]
-            for node_type in h_dict
-        }
-
-        # Step 4: Extract 'claim' Node Embeddings and Pass Through Classifier Head
-        claim_embeddings = h_dict["claim"]
-        logits = self.classifier(claim_embeddings).squeeze(-1)
-
-        return logits
 
 
 # ==============================================================================
@@ -574,14 +469,25 @@ def _display_test_results(
     print("+-------+--------------------------+---------+----------+----------+-------------+\n")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="AURA-JKN R-GCN Model Training Pipeline")
+    parser.add_argument("--epochs", type=int, default=MAX_EPOCHS, help=f"Max training epochs (default: {MAX_EPOCHS})")
+    parser.add_argument("--patience", type=int, default=EARLY_STOPPING_PATIENCE, help=f"Early stopping patience (default: {EARLY_STOPPING_PATIENCE})")
+    parser.add_argument("--lr", type=float, default=LEARNING_RATE, help=f"Learning rate (default: {LEARNING_RATE})")
+    return parser.parse_args()
+
+
 # ==============================================================================
 # Main Orchestration Function
 # ==============================================================================
 def main() -> None:
     """Main execution pipeline for Phase 2 Model Training & Evaluation."""
+    args = parse_args()
+
     print("=" * 78)
     print(f"{'AURA-JKN: PHASE 2 (R-GCN TRAINING & EVALUATION)':^78}")
     print("=" * 78)
+    print(f"Hyperparameters: Max Epochs={args.epochs}, Patience={args.patience}, LR={args.lr}")
 
     # 1. Determinism and Hardware Setup
     set_seed(RANDOM_SEED)
@@ -609,7 +515,7 @@ def main() -> None:
     criterion, optimizer = create_criterion_and_optimizer(
         model=model,
         data=data,
-        learning_rate=LEARNING_RATE,
+        learning_rate=args.lr,
         weight_decay=WEIGHT_DECAY,
         device=device,
     )
@@ -620,8 +526,8 @@ def main() -> None:
         data=data,
         optimizer=optimizer,
         criterion=criterion,
-        max_epochs=MAX_EPOCHS,
-        patience=EARLY_STOPPING_PATIENCE,
+        max_epochs=args.epochs,
+        patience=args.patience,
         checkpoint_path=CHECKPOINT_PATH,
     )
 

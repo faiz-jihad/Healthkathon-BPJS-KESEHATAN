@@ -1,2 +1,23 @@
-_pycache__/
+# Python bytecode & cache
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Environment & secrets
+.env
+.env.local
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Large checkpoints / outputs (optional if checkpoints are distributed via registry)
+# models/*.pt

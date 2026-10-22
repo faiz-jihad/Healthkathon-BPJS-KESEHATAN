@@ -3,13 +3,27 @@ AURA-JKN Phase 3: Automated API Verification Script
 ===================================================
 Tests the Phase 3 FastAPI service against sample claims:
 1. Health check (/health)
-2. Scenario C: Spatio-Temporal Conflict (CLMC00001104)
-3. Normal Claim: Low Risk Auto-Approve (CLM00010650)
+2. Normal Claim: Low Risk Auto-Approve (CLM00010650)
+3. Scenario C: Spatio-Temporal Conflict (CLMC00001104)
 4. Novel / Ad-Hoc Simulated Claim (POST /api/v1/predict-claim)
 """
 
-import json
-from app import get_claim_by_id, get_health_status, predict_claim, ClaimPredictionRequest, registry, model_engine
+import sys
+from pathlib import Path
+
+# Ensure project root is in sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from app import (
+    ClaimPredictionRequest,
+    get_claim_by_id,
+    get_health_status,
+    model_engine,
+    predict_claim,
+    registry,
+)
 
 
 def run_tests():
