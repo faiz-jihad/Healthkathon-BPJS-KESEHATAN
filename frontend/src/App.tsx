@@ -1230,77 +1230,86 @@ export function App() {
                       </div>
                     </div>
 
-                    {/* XAI Evidence Box */}
+                    {/* 5-Tier Evidence Engine Architecture */}
                     <div
                       className="card"
-                      style={{ padding: "16px", borderRadius: "18px", background: "var(--surface)" }}
+                      style={{ padding: "18px", borderRadius: "18px", background: "var(--surface)" }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                        <Activity size={16} className="text-green" />
-                        <span className="eyebrow" style={{ color: "#282d26" }}>
-                          PEMICU ANOMALI (PRIMARY FRAUD TRIGGER):
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderBottom: "1px solid var(--line)", paddingBottom: "10px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <Layers size={18} className="text-green" />
+                          <span className="eyebrow" style={{ color: "#1e241f", fontSize: "12px" }}>
+                            ARSITEKTUR BUKTI 5 TINGKAT (EVIDENCE ENGINE):
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: "#e5f4ec", color: "var(--dark-green)" }}>
+                          CASE-{selectedClaim.claim_id}
                         </span>
                       </div>
-                      <div
-                        style={{
-                          background: "#ffffff",
-                          padding: "10px 14px",
-                          borderRadius: "12px",
-                          border: "1px solid var(--line)",
-                          fontWeight: 700,
-                          fontSize: "13px",
-                          marginBottom: "12px",
-                        }}
-                      >
-                        {selectedClaim.xai_explanation?.primary_fraud_trigger || "Klaim Wajar Tanpa Pemicu Fraud"}
-                      </div>
 
-                      <div className="eyebrow" style={{ fontSize: "11px", marginBottom: "8px" }}>
-                        BUKTI RELASIONAL &amp; INDIKATOR LAPANGAN:
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {selectedClaim.xai_explanation?.evidence_reasons &&
-                        selectedClaim.xai_explanation.evidence_reasons.length > 0 ? (
-                          selectedClaim.xai_explanation.evidence_reasons.map((r, i) => (
-                            <div
-                              key={i}
-                              style={{
-                                background: "#ffffff",
-                                padding: "10px 14px",
-                                borderRadius: "12px",
-                                border: "1px solid var(--line)",
-                                fontSize: "12px",
-                                display: "flex",
-                                alignItems: "flex-start",
-                                gap: "10px",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: "20px",
-                                  height: "20px",
-                                  borderRadius: "50%",
-                                  background: "#e5f4ec",
-                                  color: "var(--dark-green)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  fontSize: "11px",
-                                  fontWeight: 800,
-                                  flexShrink: 0,
-                                  marginTop: "1px",
-                                }}
-                              >
-                                {i + 1}
-                              </span>
-                              <span style={{ lineHeight: 1.5 }}>{r}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ fontSize: "12px", color: "var(--muted)", fontStyle: "italic" }}>
-                            Tidak ada indikator anomali yang ditandai oleh model.
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {/* Tier 1: Observed Facts */}
+                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: "#f0f4f1", color: "#3e463b" }}>
+                              TINGKAT 1: FAKTA DATA SUMBER (OBSERVED FACTS)
+                            </span>
                           </div>
-                        )}
+                          <div style={{ fontSize: "12px", color: "#4b5563", lineHeight: 1.5 }}>
+                            Klaim terdaftar pada <strong>{selectedClaim.service_date}</strong> jam <strong>{selectedClaim.service_time}</strong> di Faskes <strong>{selectedClaim.facility_id}</strong> ({selectedClaim.facility_class}) oleh Dokter <strong>{selectedClaim.doctor_id}</strong> (SIP: {selectedClaim.sip_number}) untuk Pasien <strong>{selectedClaim.patient_id.substring(0, 16)}...</strong> dengan diagnosis <strong>{selectedClaim.icd10_code}</strong> senilai <strong>{formatIDR(selectedClaim.ina_cbgs_tariff)}</strong>.
+                          </div>
+                        </div>
+
+                        {/* Tier 2: Detected Patterns */}
+                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: selectedClaim.spatiotemporal_metrics?.spatial_conflict_detected ? "#faecec" : "#f0f4f1", color: selectedClaim.spatiotemporal_metrics?.spatial_conflict_detected ? "#c95353" : "#3e463b" }}>
+                              TINGKAT 2: POLA TERDETEKSI (DETECTED PATTERNS)
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#4b5563" }}>
+                            <div style={{ fontWeight: 700, color: "#1e241f", marginBottom: "4px" }}>
+                              Pemicu Anomali: {selectedClaim.xai_explanation?.primary_fraud_trigger || "Klaim Wajar Tanpa Pemicu Fraud"}
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                              {selectedClaim.xai_explanation?.evidence_reasons?.map((r, i) => (
+                                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "11.5px" }}>
+                                  <span style={{ color: "#098a58", fontWeight: 800 }}>&bull;</span>
+                                  <span>{r}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Tier 3: Model Outputs */}
+                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: "#f0f4f1", color: "#3e463b" }}>
+                              TINGKAT 3: PREDIKSI MODEL (MODEL OUTPUTS)
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#4b5563", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                            <span>Model: <strong>PyG Hetero R-GCN v1.0</strong></span>
+                            <span>Skor Anomali: <strong>{selectedClaim.fraud_probability !== null ? `${(selectedClaim.fraud_probability * 100).toFixed(1)}%` : "Belum dihitung"}</strong></span>
+                            <span>Rekomendasi Gate: <strong>{selectedClaim.pre_payment_gate}</strong></span>
+                          </div>
+                        </div>
+
+                        {/* Tier 4 & 5: Investigator Findings & Outcomes */}
+                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: "#f0f4f1", color: "#3e463b" }}>
+                              TINGKAT 4 &amp; 5: HASIL TELAAH &amp; OUTCOME (VERIFIER FINDINGS &amp; OUTCOMES)
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#4b5563" }}>
+                            <span>Status Telaah Saat Ini: <strong>{selectedClaim.review_status}</strong> ({selectedClaim.human_reviews.length} catatan telaah tersimpan di audit log).</span>
+                            <div style={{ marginTop: "6px", padding: "8px 10px", borderRadius: "8px", background: "#f9fafb", border: "1px dashed #d1d5db", fontSize: "10.5px", color: "#6b7280" }}>
+                              ⚖️ <strong>Integritas Yuridis:</strong> Relasi graf dan skor anomali adalah instrumen pendukung keputusan verifikasi pra-pembayaran (Decision-Support), bukan pembuktian mutlak vonis kecurangan (fraud) yuridis.
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 

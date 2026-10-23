@@ -137,6 +137,42 @@ export async function GET(
           }
         : null,
     model_version: ra?.modelVersion ?? null,
+    structured_evidence: {
+      case_id: `CASE-${c.claimId}`,
+      claim_id: c.claimId,
+      observed_facts: {
+        service_date: c.serviceDate,
+        service_time: c.serviceTime,
+        patient_id: c.patientId,
+        doctor_id: c.doctorId,
+        facility_id: c.facilityId,
+        tariff_idr: c.inaCbgsTariff,
+        icd10_code: c.icd10Code,
+        length_of_stay: c.lengthOfStay,
+      },
+      detected_patterns: {
+        spatial_conflict: ra?.spatialConflictDetected ?? false,
+        doctor_daily_volume: ra?.doctorDailyVolume ?? 0,
+        pattern_label: ra?.primaryFraudTrigger ?? (c.fraudScenario ? `Skenario ${c.fraudScenario}` : "Pola Wajar"),
+      },
+      model_outputs: {
+        model_name: "PyTorch Geometric Hetero R-GCN v1.0",
+        anomaly_score: ra?.fraudProbability ?? null,
+        decision_gate: ra?.prePaymentGate ?? "PENDING_ASSESSMENT",
+        evaluation_status: analysisStatus,
+      },
+      investigator_findings: c.humanReviews.map((r: any) => ({
+        reviewer_name: r.reviewerName,
+        reviewer_role: r.reviewerRole,
+        decision: r.decision,
+        notes: r.notes,
+        reviewed_at: r.reviewedAt.toISOString(),
+      })),
+      confirmed_outcome: {
+        status: reviewStatus,
+        legal_disclaimer: "Skor anomali dan topologi graf merupakan alat bantu analitis pra-pembayaran, bukan pembuktian mutlak fraud yuridis.",
+      },
+    },
     human_reviews: c.humanReviews.map((r: any) => ({
       id: r.id,
       reviewer_name: r.reviewerName,

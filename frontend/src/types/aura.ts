@@ -56,7 +56,40 @@ export interface ClaimRecord {
       edges: SubgraphEdge[];
     };
   };
-  model_version?: string;
+  structured_evidence?: {
+    observed_facts: {
+      service_date: string;
+      service_time: string;
+      patient_id: string;
+      doctor_id: string;
+      facility_id: string;
+      tariff_idr: number;
+      icd10_code: string;
+      length_of_stay: number;
+    };
+    detected_patterns: {
+      spatial_conflict: boolean;
+      doctor_daily_volume: number;
+      pattern_label: string;
+    };
+    model_outputs: {
+      model_name: string;
+      anomaly_score: number | null;
+      decision_gate: string;
+      evaluation_status: string;
+    };
+    investigator_findings: Array<{
+      reviewer_name: string;
+      reviewer_role: string;
+      decision: string;
+      notes: string;
+      reviewed_at: string;
+    }>;
+    confirmed_outcome: {
+      status: string;
+      legal_disclaimer: string;
+    };
+  };
   human_reviews: Array<{
     id: string;
     reviewer_name: string;
