@@ -1,6 +1,11 @@
-# AURA-JKN (Autonomous Relational Anti-Fraud)
-**Sistem Deteksi Risiko Klaim Fiktif Berbasis Graf Heterogen, Analisis Spasiotemporal, dan R-GCN**  
-*Decision-Support System untuk Deteksi Dini & Pencegahan Phantom Billing serta Repeat Billing pada Klaim BPJS Kesehatan — Healthkathon 2026*
+<div align="center">
+  <img src="docs/assets/aura-jkn-logo.png" alt="AURA JKN Logo" width="220" />
+
+  # AURA-JKN (Autonomous Relational Anti-Fraud)
+  ### PREDICT • PREVENT • PROTECT
+  **Sistem Deteksi Risiko Klaim Fiktif Berbasis Graf Heterogen, Analisis Spasiotemporal, dan R-GCN**  
+  *Decision-Support System untuk Deteksi Dini & Pencegahan Phantom Billing serta Repeat Billing pada Klaim BPJS Kesehatan — Healthkathon 2026*
+</div>
 
 ---
 

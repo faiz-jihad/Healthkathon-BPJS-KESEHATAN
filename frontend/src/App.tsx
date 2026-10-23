@@ -423,18 +423,28 @@ export function App() {
       {/* 1. TOPBAR (Template Native Styling) */}
       <header className="topbar">
         <div className="topbar-brand">
-          <div className="brand">
-            <span className="brand-symbol">
-              <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-                <path
-                  d="m32 8 9 21-9 3-9-3zm24 24-21 9-3-9 3-9zM32 56l-9-21 9-3 9 3zM8 32l21-9 3 9-3 9z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
-            <span className="brand-name">
-              aura<span>ANTI-FRAUD</span>
-            </span>
+          <div className="brand" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <img
+              src="/aura-jkn-logo.png"
+              alt="AURA JKN Logo"
+              style={{
+                height: "44px",
+                width: "auto",
+                objectFit: "contain",
+                borderRadius: "8px",
+                background: "#ffffff",
+                padding: "2px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              }}
+            />
+            <div>
+              <div style={{ fontSize: "19px", fontWeight: "800", letterSpacing: "-0.5px", lineHeight: "1.1", color: "#0F2942" }}>
+                AURA <span style={{ color: "#0284C7" }}>JKN</span>
+              </div>
+              <div style={{ fontSize: "8.5px", fontWeight: "700", letterSpacing: "1.6px", color: "#0284C7", textTransform: "uppercase", marginTop: "2px" }}>
+                PREDICT • PREVENT • PROTECT
+              </div>
+            </div>
           </div>
         </div>
 
