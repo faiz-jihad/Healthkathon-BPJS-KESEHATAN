@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Path as FastApiPath, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ==============================================================================
 # Configuration & Paths
@@ -72,6 +72,47 @@ class ClaimPredictionRequest(BaseModel):
     service_time: str = Field(..., description="Time of Service (HH:MM:SS)", examples=["09:30:00"])
     ina_cbgs_tariff: float = Field(..., description="Claim Tariff Amount in IDR", examples=[850000.0])
     length_of_stay: int = Field(0, description="Length of Inpatient Stay in Days", examples=[2])
+
+    @field_validator("claim_id", "patient_id", "doctor_id", "facility_id", "icd10_code")
+    @classmethod
+    def validate_non_empty_strings(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Field identifier tidak boleh kosong.")
+        return v.strip()
+
+    @field_validator("service_date")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("service_date harus berformat YYYY-MM-DD dan merupakan tanggal kalender yang valid.")
+        return v
+
+    @field_validator("service_time")
+    @classmethod
+    def validate_time(cls, v: str) -> str:
+        for fmt in ("%H:%M:%S", "%H:%M"):
+            try:
+                datetime.strptime(v, fmt)
+                return v
+            except ValueError:
+                pass
+        raise ValueError("service_time harus berformat HH:MM atau HH:MM:SS.")
+
+    @field_validator("ina_cbgs_tariff")
+    @classmethod
+    def validate_tariff(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("ina_cbgs_tariff harus berupa angka positif (> 0).")
+        return v
+
+    @field_validator("length_of_stay")
+    @classmethod
+    def validate_los(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("length_of_stay harus bernilai >= 0.")
+        return v
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -134,14 +175,20 @@ class ClaimPredictionResponse(BaseModel):
     """Complete response payload for AURA-JKN Pre-Payment Verification Gate."""
 
     claim_id: str
-    fraud_probability: float = Field(..., description="Calibrated fraud score from 0.0 to 1.0")
-    risk_level: str = Field(..., description="Risk categorization: HIGH, MEDIUM, LOW")
+    analysis_status: str = Field(
+        default="ANALYSIS_SUCCESS",
+        description="Status asesmen: ANALYSIS_SUCCESS | NOT_ANALYZED | ANALYSIS_UNAVAILABLE",
+    )
+    fraud_probability: Optional[float] = Field(
+        None, description="Calibrated fraud score from 0.0 to 1.0 (None jika belum dianalisis/gagal)"
+    )
+    risk_level: str = Field(..., description="Risk categorization: HIGH, MEDIUM, LOW, UNASSESSED")
     pre_payment_gate: str = Field(
         ...,
-        description="Automated gate action: REJECT_FOR_HUMAN_REVIEW, FLAGGED_WARNING, or AUTO_APPROVE",
+        description="Automated gate screening recommendation: REJECT_FOR_HUMAN_REVIEW, FLAGGED_WARNING, AUTO_APPROVE, or PENDING_ASSESSMENT",
     )
-    spatiotemporal_metrics: SpatiotemporalMetrics
-    xai_explanation: XAIExplanation
+    spatiotemporal_metrics: Optional[SpatiotemporalMetrics] = None
+    xai_explanation: Optional[XAIExplanation] = None
 
 
 class HealthCheckResponse(BaseModel):
@@ -514,17 +561,17 @@ class RGCNModelEngine:
         self.graph_path = graph_path
         self.device = "cpu"
         self.is_loaded = False
+        self.load_error: Optional[str] = None
         self.model: Optional[Any] = None
         self.hetero_data: Optional[Any] = None
 
-        # Precomputed fast prediction map for graph claims: claim_id -> probability
+        # Genuine indexed prediction map evaluated directly from PyG R-GCN
         self.cached_predictions: Dict[str, float] = {}
 
     def initialize(self, registry: DatasetRegistry) -> None:
-        """Loads weights and precomputes calibrated prediction index."""
+        """Loads weights and executes R-GCN inference across the heterogeneous graph."""
         print("\n[RGCNModelEngine] Initializing Model Engine...")
 
-        # 1. Try PyTorch / PyG initialization
         try:
             import torch
             import torch.nn as nn
@@ -533,110 +580,66 @@ class RGCNModelEngine:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             print(f"[RGCNModelEngine] PyTorch runtime detected on device: {self.device}")
 
-            if self.graph_path.exists() and self.checkpoint_path.exists():
-                print(f"[RGCNModelEngine] Loading graph from {self.graph_path}...")
-                self.hetero_data = torch.load(self.graph_path, weights_only=False, map_location=self.device)
+            if not self.graph_path.exists():
+                raise FileNotFoundError(f"Hetero graph data file not found at {self.graph_path}")
+            if not self.checkpoint_path.exists():
+                raise FileNotFoundError(f"Model checkpoint file not found at {self.checkpoint_path}")
 
-                print(f"[RGCNModelEngine] Loading model weights from {self.checkpoint_path}...")
-                from train_rgcn import AuraJKNRGCN
+            print(f"[RGCNModelEngine] Loading graph from {self.graph_path}...")
+            self.hetero_data = torch.load(self.graph_path, weights_only=False, map_location=self.device)
 
-                model = AuraJKNRGCN(
-                    edge_types=self.hetero_data.edge_types,
-                    in_channels_dict=NODE_INPUT_DIMS,
-                    hidden_channels=HIDDEN_CHANNELS,
-                ).to(self.device)
+            print(f"[RGCNModelEngine] Loading model weights from {self.checkpoint_path}...")
+            from train_rgcn import AuraJKNRGCN
 
-                ckpt = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
-                state_dict = ckpt.get("model_state_dict", ckpt)
-                model.load_state_dict(state_dict)
-                model.eval()
-                self.model = model
+            model = AuraJKNRGCN(
+                edge_types=self.hetero_data.edge_types,
+                in_channels_dict=NODE_INPUT_DIMS,
+                hidden_channels=HIDDEN_CHANNELS,
+            ).to(self.device)
 
-                # Compute inference across all claims
-                with torch.no_grad():
-                    logits = model(self.hetero_data.x_dict, self.hetero_data.edge_index_dict)
-                    probs = torch.sigmoid(logits).cpu().numpy()
+            ckpt = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
+            state_dict = ckpt.get("model_state_dict", ckpt)
+            model.load_state_dict(state_dict)
+            model.eval()
+            self.model = model
 
-                # Align with claim_ids in registry
-                if not registry.claims_df.empty:
-                    for idx, cid in enumerate(registry.claims_df["claim_id"]):
-                        if idx < len(probs):
-                            self.cached_predictions[str(cid)] = float(probs[idx])
+            # Compute genuine inference across all graph claim nodes
+            with torch.no_grad():
+                logits = model(self.hetero_data.x_dict, self.hetero_data.edge_index_dict)
+                probs = torch.sigmoid(logits).cpu().numpy()
 
-                self.is_loaded = True
-                print(
-                    f"[RGCNModelEngine] PyG R-GCN Model active with "
-                    f"{len(self.cached_predictions):,} indexed graph claims."
-                )
-                return
-
-        except Exception as exc:
-            print(
-                f"[RGCNModelEngine] PyTorch direct graph inference notice: {exc}. "
-                "Engaging high-fidelity feature calibration mode."
-            )
-
-        # 2. Resilient Fallback / Calibration Mode:
-        # If PyTorch binary has host DLL restrictions in this specific shell,
-        # we index known claims from parquet and synthesize calibrated R-GCN probabilities
-        if not registry.claims_df.empty:
-            for _, row in registry.claims_df.iterrows():
-                cid = str(row["claim_id"])
-                is_fraud = int(row.get("is_fraud", 0))
-                scenario = row.get("fraud_scenario")
-
-                if is_fraud == 1:
-                    # Calibrate probability based on validated test metrics (PR-AUC 0.8294, ROC-AUC 0.9612)
-                    base_prob = 0.885 if scenario == "C" else (0.912 if scenario == "B" else 0.845)
-                    jitter = (hash(cid) % 100) / 1000.0  # Stable deterministic variation
-                    self.cached_predictions[cid] = round(min(0.985, base_prob + jitter), 4)
-                else:
-                    jitter = (hash(cid) % 250) / 1000.0
-                    self.cached_predictions[cid] = round(max(0.025, 0.120 + jitter), 4)
+            # Align predictions with authoritative claim_ids in registry
+            if not registry.claims_df.empty:
+                for idx, cid in enumerate(registry.claims_df["claim_id"]):
+                    if idx < len(probs):
+                        self.cached_predictions[str(cid)] = float(probs[idx])
 
             self.is_loaded = True
+            self.load_error = None
             print(
-                f"[RGCNModelEngine] Calibrated graph registry active with "
-                f"{len(self.cached_predictions):,} indexed claims."
+                f"[RGCNModelEngine] PyG R-GCN Model active with "
+                f"{len(self.cached_predictions):,} genuine graph claim predictions."
+            )
+            return
+
+        except Exception as exc:
+            self.is_loaded = False
+            self.load_error = str(exc)
+            self.cached_predictions = {}
+            print(
+                f"[RGCNModelEngine] ZERO MOCK POLICY: PyTorch graph inference unavailable: {exc}. "
+                "No synthetic fallback probabilities or fake random scores will be generated."
             )
 
-    def predict_claim_probability(
-        self,
-        claim_id: str,
-        spatio_metrics: SpatiotemporalMetrics,
-        tariff: float,
-        length_of_stay: int,
-    ) -> float:
+    def predict_claim_probability(self, claim_id: str) -> Optional[float]:
         """
-        Retrieves graph probability for existing claim, or computes inductive
-        relational probability score for simulated / novel claims.
+        Retrieves graph inference probability for an existing graph claim.
+        Returns None if claim is not present in the evaluated HeteroData graph topology.
+        Zero Mock Policy: Never generates arbitrary heuristic synthetic probabilities.
         """
-        # A. Existing Graph Claim Match
         if claim_id in self.cached_predictions:
             return self.cached_predictions[claim_id]
-
-        # B. Novel / Simulated Claim Inductive Inference
-        # Combines structural risk signals (spatiotemporal conflict, volume, and tariff)
-        base_score = 0.15
-
-        if spatio_metrics.spatial_conflict_detected:
-            base_score += 0.55
-
-        if spatio_metrics.doctor_daily_volume >= DOCTOR_EXTREME_CAPACITY_LIMIT:
-            base_score += 0.25
-        elif spatio_metrics.doctor_daily_volume > DOCTOR_NORMAL_CAPACITY_LIMIT:
-            base_score += 0.12
-
-        if tariff > 1_200_000:
-            base_score += 0.05
-
-        if length_of_stay > 10:
-            base_score += 0.03
-
-        # Deterministic variation
-        hash_factor = ((hash(claim_id) % 50) - 25) / 1000.0
-        calculated = min(0.995, max(0.015, base_score + hash_factor))
-        return round(calculated, 4)
+        return None
 
 
 # ==============================================================================
@@ -695,7 +698,7 @@ app.add_middleware(
 def get_health_status() -> HealthCheckResponse:
     """Verifies operational readiness, loaded graph volume, and model state."""
     return HealthCheckResponse(
-        status="healthy",
+        status="healthy" if model_engine.is_loaded else "degraded",
         service="AURA-JKN Phase 3 Inference API",
         version="1.0.0",
         device=model_engine.device,
@@ -716,16 +719,27 @@ def get_health_status() -> HealthCheckResponse:
 )
 def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
     """
-    Complete Phase 3 Automated Verification Pipeline:
-    1. Evaluates Spatiotemporal constraints (spatial trajectory & doctor peer volume).
-    2. Executes R-GCN Graph inference to obtain calibrated fraud probability.
-    3. Categorizes Pre-Payment Gate action:
-       - >= 0.70: REJECT_FOR_HUMAN_REVIEW
+    Zero Mock Data Phase 3 Automated Verification Pipeline:
+    1. Verifies model & graph readiness. If model is offline, raises 503 ANALYSIS_UNAVAILABLE.
+    2. Evaluates Spatiotemporal constraints from genuine registry records.
+    3. Executes R-GCN Graph inference. If claim is not indexed in HeteroData graph,
+       returns NOT_ANALYZED honestly without fabricating probability or risk score.
+    4. Categorizes Pre-Payment Gate action for analyzed claims:
+       - >= 0.70: REJECT_FOR_HUMAN_REVIEW (Screening recommendation, not legal adjudication)
        - 0.40 - 0.69: FLAGGED_WARNING
        - < 0.40: AUTO_APPROVE
-    4. Generates NetworkX Explainability (XAI) Subgraph and text rationales.
+    5. Generates NetworkX Explainability (XAI) Subgraph grounded strictly in real entities.
     """
-    # 1. Spatiotemporal Risk Analysis
+    if not model_engine.is_loaded:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "status": "ANALYSIS_UNAVAILABLE",
+                "message": f"Engine inferensi model AI tidak aktif atau artefak model tidak tersedia: {model_engine.load_error}. Sesuai Zero Mock Data Policy, sistem menolak pembuatan skor tiruan.",
+            },
+        )
+
+    # 1. Spatiotemporal Risk Analysis (Computed from genuine records)
     spatio_metrics, spatio_notes, conflict_record = spatio_analyzer.analyze(
         claim_id=payload.claim_id,
         doctor_id=payload.doctor_id,
@@ -735,14 +749,41 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
     )
 
     # 2. Model R-GCN Inference
-    fraud_prob = model_engine.predict_claim_probability(
-        claim_id=payload.claim_id,
-        spatio_metrics=spatio_metrics,
-        tariff=payload.ina_cbgs_tariff,
-        length_of_stay=payload.length_of_stay,
-    )
+    fraud_prob = model_engine.predict_claim_probability(claim_id=payload.claim_id)
 
-    # 3. Decision Gate Determination
+    # 3. Handle Claim Not in Evaluated Graph (Zero Mock Policy: Do NOT fabricate score)
+    if fraud_prob is None:
+        xai_explanation = xai_service.generate_explanation(
+            claim_id=payload.claim_id,
+            patient_id=payload.patient_id,
+            doctor_id=payload.doctor_id,
+            facility_id=payload.facility_id,
+            icd10_code=payload.icd10_code,
+            fraud_proba=0.0,
+            spatio_metrics=spatio_metrics,
+            spatio_notes=spatio_notes,
+            conflicting_record=conflict_record,
+        )
+        xai_explanation.primary_fraud_trigger = (
+            "Spatiotemporal Evaluated / GNN Unanalyzed"
+            if (spatio_metrics.spatial_conflict_detected or spatio_metrics.doctor_daily_volume > 45)
+            else "Not Analyzed by Graph Model"
+        )
+        xai_explanation.evidence_reasons.append(
+            "Klaim ini belum dikonstruksi ke dalam topologi subgraf PyTorch Geometric heterogen. Status: NOT_ANALYZED (skor probabilitas fraud tidak direkayasa)."
+        )
+
+        return ClaimPredictionResponse(
+            claim_id=payload.claim_id,
+            analysis_status="NOT_ANALYZED",
+            fraud_probability=None,
+            risk_level="UNASSESSED",
+            pre_payment_gate="PENDING_ASSESSMENT",
+            spatiotemporal_metrics=spatio_metrics,
+            xai_explanation=xai_explanation,
+        )
+
+    # 4. Decision Gate Determination for Analyzed Claims
     if fraud_prob >= GATE_HIGH_RISK_THRESHOLD:
         pre_payment_gate = "REJECT_FOR_HUMAN_REVIEW"
         risk_level = "HIGH"
@@ -753,7 +794,7 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
         pre_payment_gate = "AUTO_APPROVE"
         risk_level = "LOW"
 
-    # 4. XAI & Evidence Subgraph Generation
+    # 5. XAI & Evidence Subgraph Generation Grounded in Real Inference
     xai_explanation = xai_service.generate_explanation(
         claim_id=payload.claim_id,
         patient_id=payload.patient_id,
@@ -768,6 +809,7 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
 
     return ClaimPredictionResponse(
         claim_id=payload.claim_id,
+        analysis_status="ANALYSIS_SUCCESS",
         fraud_probability=round(fraud_prob, 3),
         risk_level=risk_level,
         pre_payment_gate=pre_payment_gate,

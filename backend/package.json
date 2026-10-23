@@ -5,13 +5,18 @@
   "description": "AURA-JKN Backend Service (Next.js API Routes + Prisma ORM + PostgreSQL + Python R-GCN Bridge)",
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "prisma generate && next build",
+    "dev:backend": "next dev -p 3001",
+    "dev:frontend": "npm --prefix ../frontend run dev",
+    "build": "next build",
     "start": "next start -p 3001",
+    "db:start": "node node_modules/tsx/dist/cli.mjs start_postgres.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev --name init",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:seed": "node node_modules/tsx/dist/cli.mjs prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "test:policy": "node node_modules/tsx/dist/cli.mjs test_zero_mock_policy.ts",
+    "test:master": "node node_modules/tsx/dist/cli.mjs test_master_verification.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -23,6 +28,7 @@
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "embedded-postgres": "^18.4.0-beta.17",
     "prisma": "^5.22.0",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4"

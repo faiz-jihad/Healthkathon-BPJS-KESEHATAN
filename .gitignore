@@ -27,5 +27,12 @@ build/
 # IDE & OS
 .DS_Store
 Thumbs.db
-*.log
 npm-debug.log*
+
+# Database data directories
+.postgres-data/
+**/.postgres-data/
+
+# Temporary templates
+template-extracted/
+*.zip

@@ -6,6 +6,8 @@
   "description": "AURA-JKN Investigative Decision-Support Dashboard (React.js + Vite + Tailwind CSS + React Flow)",
   "scripts": {
     "dev": "vite --port 5173",
+    "dev:frontend": "vite --port 5173",
+    "dev:backend": "npm --prefix ../backend run dev",
     "build": "tsc -b && vite build",
     "preview": "vite preview --port 5173"
   },

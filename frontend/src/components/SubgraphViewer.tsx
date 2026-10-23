@@ -14,27 +14,27 @@ interface SubgraphViewerProps {
   edges: SubgraphEdge[];
 }
 
-const NODE_COLORS: Record<string, { bg: string; border: string; badge: string }> = {
-  claim: { bg: "#1e293b", border: "#f43f5e", badge: "KLAIM" },
-  doctor: { bg: "#0f2942", border: "#38bdf8", badge: "DOKTER (DPJP)" },
-  facility: { bg: "#11221f", border: "#10b981", badge: "FASKES" },
-  patient: { bg: "#27173a", border: "#a855f7", badge: "PASIEN (HASH)" },
-  diagnosis: { bg: "#2a1f0d", border: "#f59e0b", badge: "DIAGNOSIS" },
+const NODE_COLORS: Record<string, { bg: string; border: string; badgeBg: string; text: string; badge: string }> = {
+  claim: { bg: "#ffffff", border: "#c95353", badgeBg: "#f9e8e8", text: "#a53e3e", badge: "KLAIM" },
+  doctor: { bg: "#ffffff", border: "#076641", badgeBg: "#e2eee5", text: "#076641", badge: "DOKTER (DPJP)" },
+  facility: { bg: "#ffffff", border: "#098a58", badgeBg: "#e5f4ec", text: "#098a58", badge: "FASKES" },
+  patient: { bg: "#ffffff", border: "#80729c", badgeBg: "#e8e3f3", text: "#5c4f78", badge: "PASIEN (HASH)" },
+  diagnosis: { bg: "#ffffff", border: "#b2835b", badgeBg: "#f4e4d8", text: "#8c5b30", badge: "DIAGNOSIS" },
 };
 
 export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges }) => {
   const { flowNodes, flowEdges } = useMemo(() => {
-    // Deterministic radial/layered layout around the central doctor/claim nodes
+    // Radial / hierarchical positioning
     const positionsByType: Record<string, { x: number; y: number }[]> = {
       patient: [
         { x: 30, y: 50 },
         { x: 30, y: 180 },
         { x: 30, y: 310 },
       ],
-      doctor: [{ x: 300, y: 90 }],
+      doctor: [{ x: 290, y: 90 }],
       facility: [
-        { x: 300, y: 250 },
-        { x: 560, y: 260 },
+        { x: 290, y: 240 },
+        { x: 560, y: 250 },
       ],
       claim: [{ x: 560, y: 90 }],
       diagnosis: [{ x: 800, y: 90 }],
@@ -54,8 +54,10 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges }) 
           : { x: 140 + (idx % 3) * 250, y: 60 + Math.floor(idx / 3) * 140 };
 
       const styleCfg = NODE_COLORS[t] || {
-        bg: "#1e293b",
-        border: "#64748b",
+        bg: "#ffffff",
+        border: "#838781",
+        badgeBg: "#f5f6f2",
+        text: "#1e241f",
         badge: t.toUpperCase(),
       };
 
@@ -66,17 +68,18 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges }) 
         position: pos,
         data: {
           label: (
-            <div className="text-left">
+            <div className="text-left select-none font-sans">
               <div
-                className="text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded inline-block mb-1"
+                className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full inline-block mb-1.5 border"
                 style={{
-                  backgroundColor: isConflict ? "#dc2626" : styleCfg.border,
-                  color: "#ffffff",
+                  backgroundColor: isConflict ? "#f9e8e8" : styleCfg.badgeBg,
+                  color: isConflict ? "#a53e3e" : styleCfg.text,
+                  borderColor: isConflict ? "#eec5c5" : styleCfg.border,
                 }}
               >
                 {isConflict ? "KONFLIK SPASIAL" : styleCfg.badge}
               </div>
-              <div className="text-xs font-semibold text-slate-100 leading-snug">
+              <div className="text-xs font-bold text-slate-800 leading-snug break-words">
                 {n.label || n.id}
               </div>
             </div>
@@ -84,11 +87,13 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges }) 
         },
         style: {
           background: styleCfg.bg,
-          border: `2px solid ${isConflict ? "#ef4444" : styleCfg.border}`,
-          borderRadius: "10px",
-          padding: "8px 10px",
-          width: 200,
-          boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+          border: `2px solid ${isConflict ? "#c95353" : styleCfg.border}`,
+          borderRadius: "16px",
+          padding: "10px 14px",
+          width: 210,
+          boxShadow: isConflict
+            ? "0 4px 14px rgba(201, 83, 83, 0.16)"
+            : "0 2px 10px rgba(9, 138, 88, 0.08)",
         },
       };
     });
@@ -102,21 +107,26 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges }) 
         label: e.relation,
         animated: true,
         style: {
-          stroke: isConflictEdge ? "#ef4444" : "#38bdf8",
-          strokeWidth: isConflictEdge ? 2.5 : 1.8,
+          stroke: isConflictEdge ? "#c95353" : "#098a58",
+          strokeWidth: isConflictEdge ? 2.5 : 2,
         },
         labelStyle: {
-          fill: isConflictEdge ? "#fca5a5" : "#e2e8f0",
+          fill: isConflictEdge ? "#a53e3e" : "#076641",
           fontWeight: 700,
           fontSize: 10,
+          fontFamily: "Manrope, sans-serif",
         },
         labelBgStyle: {
-          fill: "#0f172a",
-          fillOpacity: 0.85,
+          fill: "#ffffff",
+          fillOpacity: 0.95,
+          stroke: isConflictEdge ? "#f4c6c6" : "#cbe3d7",
+          strokeWidth: 1,
+          rx: 6,
+          ry: 6,
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: isConflictEdge ? "#ef4444" : "#38bdf8",
+          color: isConflictEdge ? "#c95353" : "#098a58",
         },
       };
     });
@@ -125,16 +135,32 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges }) 
   }, [nodes, edges]);
 
   return (
-    <div className="w-full h-[340px] rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+    <div className="w-full h-[360px] rounded-2xl overflow-hidden border border-[#edf0e9] bg-[#f5f6f2] relative shadow-inner">
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges}
         fitView
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#1e293b" gap={18} />
-        <Controls className="!bg-slate-900 !border-slate-700 !text-slate-200" />
+        <Background color="#d8ded2" gap={20} size={1.2} />
+        <Controls className="!bg-white !border-[#edf0e9] !text-[#1e241f] !shadow-sm !rounded-xl" />
       </ReactFlow>
+
+      {/* Floating Legend */}
+      <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm border border-[#edf0e9] rounded-xl px-3 py-1.5 shadow-sm text-[11px] flex items-center gap-3 text-[#1e241f] font-sans">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#098a58]"></span> Faskes
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#076641]"></span> Dokter
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#c95353]"></span> Klaim
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#80729c]"></span> Pasien
+        </span>
+      </div>
     </div>
   );
 };

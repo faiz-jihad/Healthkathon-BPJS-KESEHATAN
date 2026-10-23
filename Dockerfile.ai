@@ -1,0 +1,27 @@
+# Production Dockerfile for AURA-JKN Python AI & PyG R-GCN Inference Service
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system build dependencies for PyTorch Geometric & Psycopg2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy model artifacts, dataset, and code
+COPY app.py .
+COPY aura_jkn_hetero_graph.pt .
+COPY aura_jkn_rgcn_model.pt .
+COPY data/ ./data/
+
+EXPOSE 8000
+
+ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -59,6 +59,7 @@ model Claim {
   inaCbgsTariff Float    @map("ina_cbgs_tariff")
   lengthOfStay  Int      @default(0) @map("length_of_stay")
   fraudScenario String?  @map("fraud_scenario") // A | B | C | null
+  isSynthetic   Boolean  @default(true) @map("is_synthetic") // Explicit synthetic demo indicator (Healthkathon 2026)
   createdAt     DateTime @default(now()) @map("created_at")
 
   patient        Patient         @relation(fields: [patientId], references: [patientId])
@@ -75,10 +76,11 @@ model Claim {
 model RiskAssessment {
   id                      String   @id @default(cuid())
   claimId                 String   @unique @map("claim_id")
+  assessmentStatus        String   @default("COMPLETED") @map("assessment_status") // COMPLETED | FAILED | UNAVAILABLE | NOT_ASSESSED
   fraudProbability        Float    @map("fraud_probability") // 0.0 - 1.0
   fraudRiskIndex          Int      @map("fraud_risk_index") // FRI 0 - 100
-  riskLevel               String   @map("risk_level") // HIGH | MEDIUM | LOW
-  prePaymentGate          String   @map("pre_payment_gate") // REJECT_FOR_HUMAN_REVIEW | FLAGGED_WARNING | AUTO_APPROVE
+  riskLevel               String   @map("risk_level") // HIGH | MEDIUM | LOW | UNASSESSED
+  prePaymentGate          String   @map("pre_payment_gate") // REJECT_FOR_HUMAN_REVIEW | FLAGGED_WARNING | AUTO_APPROVE | PENDING_ASSESSMENT
   spatialConflictDetected Boolean  @map("spatial_conflict_detected")
   doctorDailyVolume       Int      @map("doctor_daily_volume")
   spatiotemporalRiskScore Float    @map("spatiotemporal_risk_score")
@@ -86,6 +88,7 @@ model RiskAssessment {
   evidenceReasons         Json     @map("evidence_reasons") // string[]
   subgraphEvidence        Json     @map("subgraph_evidence") // { nodes: [], edges: [] }
   evaluatedAt             DateTime @default(now()) @map("evaluated_at")
+  modelVersion            String?  @default("1.0.0") @map("model_version")
 
   claim Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
 
@@ -120,3 +123,18 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  salt         String
+  fullName     String   @map("full_name")
+  role         String   @map("role") // ADMINISTRATOR | FRAUD_ANALYST | CLAIM_VERIFIER | AUDITOR
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+

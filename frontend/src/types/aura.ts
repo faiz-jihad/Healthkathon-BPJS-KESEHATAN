@@ -28,11 +28,21 @@ export interface ClaimRecord {
   ina_cbgs_tariff: number;
   length_of_stay: number;
   fraud_scenario: "A" | "B" | "C" | null;
-  fraud_probability: number;
-  fraud_risk_index: number;
-  risk_level: "HIGH" | "MEDIUM" | "LOW";
-  pre_payment_gate: "REJECT_FOR_HUMAN_REVIEW" | "FLAGGED_WARNING" | "AUTO_APPROVE";
-  review_status: "PENDING_REVIEW" | "RELEASED" | "CLARIFICATION_REQUESTED" | "ESCALATED_AUDIT";
+  is_synthetic: boolean;
+  data_source: "POSTGRESQL" | "SYNTHETIC_DEMO";
+  assessment_status: "COMPLETED" | "NOT_ASSESSED" | "UNAVAILABLE" | "FAILED";
+  analysis_status?: "ANALYSIS_SUCCESS" | "ANALYSIS_UNAVAILABLE" | "NOT_ANALYZED";
+  fraud_probability: number | null;
+  fraud_risk_index: number | null;
+  risk_level: "HIGH" | "MEDIUM" | "LOW" | "UNASSESSED";
+  pre_payment_gate: "REJECT_FOR_HUMAN_REVIEW" | "FLAGGED_WARNING" | "AUTO_APPROVE" | "PENDING_ASSESSMENT";
+  review_status:
+    | "PENDING_REVIEW"
+    | "RELEASED"
+    | "CLARIFICATION_REQUESTED"
+    | "ESCALATED_AUDIT"
+    | "PENDING_ASSESSMENT"
+    | "NOT_ASSESSED";
   spatiotemporal_metrics: {
     spatial_conflict_detected: boolean;
     doctor_daily_volume: number;
@@ -46,6 +56,7 @@ export interface ClaimRecord {
       edges: SubgraphEdge[];
     };
   };
+  model_version?: string;
   human_reviews: Array<{
     id: string;
     reviewer_name: string;
@@ -57,12 +68,15 @@ export interface ClaimRecord {
 }
 
 export interface ClaimsListResponse {
-  storage_source: string;
+  storage_source: "postgresql" | "in_memory_demonstration" | string;
+  is_synthetic: boolean;
+  data_source_label: string;
   summary: {
     total_claims: number;
     high_risk_count: number;
     medium_risk_count: number;
     low_risk_count: number;
+    unassessed_count: number;
     held_tariff_idr: number;
   };
   claims: ClaimRecord[];
