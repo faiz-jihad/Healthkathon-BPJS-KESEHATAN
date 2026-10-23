@@ -42,7 +42,8 @@ export interface ClaimRecord {
     | "CLARIFICATION_REQUESTED"
     | "ESCALATED_AUDIT"
     | "PENDING_ASSESSMENT"
-    | "NOT_ASSESSED";
+    | "NOT_ASSESSED"
+    | "NOT_ANALYZED";
   spatiotemporal_metrics: {
     spatial_conflict_detected: boolean;
     doctor_daily_volume: number;
@@ -109,8 +110,46 @@ export interface ClaimsListResponse {
     high_risk_count: number;
     medium_risk_count: number;
     low_risk_count: number;
-    unassessed_count: number;
+    unassessed_count?: number;
+    not_analyzed_count?: number;
     held_tariff_idr: number;
+    avg_fri?: number;
   };
   claims: ClaimRecord[];
+}
+
+export interface FeedbackExportItem {
+  review_id: string;
+  claim_id: string;
+  patient_id: string;
+  doctor_id: string;
+  facility_id: string;
+  icd10_code: string;
+  service_date: string;
+  ina_cbgs_tariff: number;
+  fraud_scenario: string | null;
+  ai_fraud_probability: number | null;
+  ai_fraud_risk_index: number | null;
+  ai_risk_level: string;
+  ai_pre_payment_gate: string;
+  reviewer_name: string;
+  reviewer_role: string;
+  decision: string;
+  feedback_label: number | null;
+  feedback_meaning: string;
+  notes: string;
+  reviewed_at: string;
+}
+
+export interface FeedbackExportResponse {
+  status: string;
+  storage_source: string;
+  summary: {
+    total_reviews: number;
+    labeled_for_retraining_count: number;
+    confirmed_fraud_label_1_count: number;
+    legitimate_label_0_count: number;
+    pending_clarification_count: number;
+  };
+  records: FeedbackExportItem[];
 }

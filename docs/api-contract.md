@@ -19,13 +19,16 @@
 ### 2.1 Modul Klaim & Penilaian Risiko
 
 #### `GET /api/claims`
-Mengambil daftar antrean klaim terverifikasi dari PostgreSQL dengan parameter filter analitis.
+Mengambil daftar antrean klaim terverifikasi dari PostgreSQL dengan parameter filter analitis dan pengurutan skor FRI.
 
 * **Otorisasi:** Opsional (Mendukung Bearer token untuk audit actor).
 * **Query Parameters:**
   * `risk_level` (string, opsional): `HIGH` | `MEDIUM` | `LOW` | `UNASSESSED` | `ALL`
   * `scenario` (string, opsional): `A` | `B` | `C` | `NORMAL` | `ALL`
   * `analysis_status` (string, opsional): `ANALYSIS_SUCCESS` | `NOT_ANALYZED` | `ANALYSIS_UNAVAILABLE` | `ALL`
+  * `pre_payment_gate` (string, opsional): `REJECT_FOR_HUMAN_REVIEW` | `FLAGGED_WARNING` | `AUTO_APPROVE` | `PENDING_ASSESSMENT` | `ALL`
+  * `review_status` (string, opsional): `PENDING_REVIEW` | `RELEASED` | `CLARIFICATION_REQUESTED` | `ESCALATED_AUDIT` | `ALL`
+  * `sort_by` (string, default: `fri_desc`): `fri_desc` | `fri_asc` | `tariff_desc` | `newest`
   * `search` (string, opsional): Pencarian teks pada ID Klaim, ID Dokter, ID Pasien, ICD-10.
   * `limit` (number, default: 300, max: 5000): Batas jumlah rekor yang dikembalikan.
 * **Respon Sukses (200 OK):**
@@ -41,7 +44,8 @@ Mengambil daftar antrean klaim terverifikasi dari PostgreSQL dengan parameter fi
       "medium_risk_count": 3410,
       "low_risk_count": 7492,
       "not_analyzed_count": 7882,
-      "held_tariff_idr": 48250000000
+      "held_tariff_idr": 48250000000,
+      "avg_fri": 41.8
     },
     "claims": [ ... ]
   }
@@ -53,6 +57,13 @@ Mengambil daftar antrean klaim terverifikasi dari PostgreSQL dengan parameter fi
     "error": "Database PostgreSQL tidak dapat dihubungi. Sesuai Zero Mock Data Policy, data tiruan tidak dikembalikan."
   }
   ```
+
+---
+
+#### `POST /api/claims`
+Mengajukan klaim baru melalui *Pre-Payment Gate* (memvalidasi atribut klaim, memanggil inferensi FastAPI R-GCN `POST /api/v1/predict-claim`, dan menyimpan secara atomik ke PostgreSQL beserta jejak audit).
+
+* **Respon Sukses (201 Created):** Mengembalikan hasil evaluasi *Pre-Payment Gate* dan status penyimpanan di PostgreSQL.
 
 ---
 
@@ -87,13 +98,22 @@ Mencatat keputusan telaah verifikasi klaim secara atomik ke tabel `human_reviews
   ```json
   {
     "status": "REVIEW_SAVED",
-    "review_id": "cly1234567890",
     "claim_id": "CLM00010650",
-    "decision": "RELEASE",
     "saved_to_postgres": true,
-    "audit_event_logged": true
+    "storage_source": "postgresql",
+    "review_status": "RELEASED"
   }
   ```
+
+---
+
+#### `GET /api/feedback-export`
+Mengekspor dataset *Controlled Feedback Loop* (`feedback_label`: `0` = Klaim Sah / `RELEASE`, `1` = Konfirmasi Fraud / `ESCALATE_AUDIT`) dari tabel `human_reviews` di PostgreSQL untuk *retraining* terkontrol model R-GCN.
+
+* **Query Parameters:**
+  * `format` (string, default: `json`): `json` | `csv`
+  * `only_labeled` (boolean, default: `false`): Jika `true`, hanya mengekspor rekor yang memiliki label `0` atau `1`.
+* **Respon Sukses (200 OK):** Mengembalikan objek ringkasan & daftar rekor feedback (atau unduhan berkas `aura_jkn_feedback_retraining.csv` jika `format=csv`).
 
 ---
 
@@ -117,20 +137,19 @@ Autentikasi pengguna berbasis username dan password dengan verifikasi kriptograf
 Mengambil daftar catatan jejak audit sistem.
 
 * **Otorisasi:** Wajib role `AUDITOR` atau `ADMINISTRATOR`. Role `CLAIM_VERIFIER` ditolak (403).
-* **Query Parameters:** `limit` (default: 50)
+* **Query Parameters:** `limit` (default: 20)
 * **Respon Sukses (200 OK):**
   ```json
   {
     "status": "SUCCESS",
-    "total": 1,
     "logs": [
       {
         "id": "cly...",
         "actorName": "Verifikator Pra-Pembayaran BPJS",
         "actorRole": "CLAIM_VERIFIER",
-        "action": "CLAIM_REVIEW_SUBMITTED",
+        "action": "HUMAN_REVIEW_RELEASE",
         "targetId": "CLM00010650",
-        "timestamp": "2026-10-23T15:20:00.000Z"
+        "recordedAt": "2026-10-23T15:20:00.000Z"
       }
     ]
   }

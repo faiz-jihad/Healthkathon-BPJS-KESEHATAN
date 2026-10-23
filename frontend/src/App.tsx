@@ -39,9 +39,12 @@ import {
   ChevronDown,
   ArrowDownLeft,
   CircleCheck,
+  PlusCircle,
 } from "lucide-react";
 import { ClaimRecord, ClaimsListResponse } from "./types/aura";
 import { SubgraphViewer } from "./components/SubgraphViewer";
+import { LiveClaimSimulatorModal } from "./components/LiveClaimSimulatorModal";
+import { ControlledFeedbackPanel } from "./components/ControlledFeedbackPanel";
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
@@ -94,6 +97,8 @@ export function App() {
   const [riskFilter, setRiskFilter] = useState<string>("ALL");
   const [scenarioFilter, setScenarioFilter] = useState<string>("ALL");
   const [analysisFilter, setAnalysisFilter] = useState<string>("ALL");
+  const [reviewStatusFilter, setReviewStatusFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<string>("fri_desc");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [dataSourceError, setDataSourceError] = useState<string | null>(null);
@@ -112,7 +117,9 @@ export function App() {
   } | null>(null);
 
   // Modals
+  const [showSimulatorModal, setShowSimulatorModal] = useState<boolean>(false);
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
+  const [auditModalTab, setAuditModalTab] = useState<"audit_logs" | "feedback_export">("audit_logs");
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState<boolean>(false);
 
@@ -168,7 +175,7 @@ export function App() {
     switchRole("CLAIM_VERIFIER");
   }, []);
 
-  const fetchClaims = async () => {
+  const fetchClaims = async (preferClaimId?: string) => {
     setLoading(true);
     setDataSourceError(null);
     try {
@@ -176,6 +183,8 @@ export function App() {
       if (riskFilter !== "ALL") params.set("risk_level", riskFilter);
       if (scenarioFilter !== "ALL") params.set("scenario", scenarioFilter);
       if (analysisFilter !== "ALL") params.set("analysis_status", analysisFilter);
+      if (reviewStatusFilter !== "ALL") params.set("review_status", reviewStatusFilter);
+      if (sortBy) params.set("sort_by", sortBy);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       params.set("limit", "250");
 
@@ -199,6 +208,13 @@ export function App() {
       setData(json);
 
       if (json.claims && json.claims.length > 0) {
+        if (preferClaimId) {
+          const found = json.claims.find((c: ClaimRecord) => c.claim_id === preferClaimId);
+          if (found) {
+            setSelectedClaim(found);
+            return;
+          }
+        }
         if (!selectedClaim) {
           setSelectedClaim(json.claims[0]);
         } else {
@@ -224,7 +240,7 @@ export function App() {
 
   useEffect(() => {
     fetchClaims();
-  }, [riskFilter, scenarioFilter, analysisFilter, currentUser.role]);
+  }, [riskFilter, scenarioFilter, analysisFilter, reviewStatusFilter, sortBy, currentUser.role]);
 
   const handleReviewDecision = async (
     decision: "RELEASE" | "CLARIFY" | "ESCALATE_AUDIT"
@@ -313,7 +329,12 @@ export function App() {
       });
       const json = await res.json();
       if (res.ok && json.logs) {
-        setAuditLogs(json.logs);
+        setAuditLogs(
+          json.logs.map((l: any) => ({
+            ...l,
+            timestamp: l.timestamp || l.recordedAt,
+          }))
+        );
       }
     } catch (err) {
       console.error("Gagal memuat log audit:", err);
@@ -469,13 +490,18 @@ export function App() {
             Peta Graf R-GCN
           </button>
           <button
+            onClick={() => setShowSimulatorModal(true)}
+          >
+            Simulasi Klaim Baru
+          </button>
+          <button
             onClick={() => {
               setShowAuditModal(true);
               fetchAuditLogs();
             }}
             className={activeNav === "audit" ? "active" : ""}
           >
-            Jejak Audit
+            Jejak Audit &amp; Feedback AI
           </button>
           {currentUser.role === "ADMINISTRATOR" && (
             <button
@@ -496,7 +522,7 @@ export function App() {
           <button
             className="icon-button"
             title="Segarkan data dari PostgreSQL"
-            onClick={fetchClaims}
+            onClick={() => fetchClaims()}
             disabled={loading}
           >
             <RefreshCw size={19} className={loading ? "animate-spin text-green" : ""} />
@@ -603,15 +629,23 @@ export function App() {
             <span className="sidebar-tooltip">Peta Graf R-GCN</span>
           </button>
           <button
-            title="Jejak Audit Sistem"
-            aria-label="Jejak Audit Sistem"
+            title="Simulasi Klaim Baru"
+            aria-label="Simulasi Klaim Baru"
+            onClick={() => setShowSimulatorModal(true)}
+          >
+            <PlusCircle size={21} strokeWidth={1.6} />
+            <span className="sidebar-tooltip">Simulasi Klaim Baru</span>
+          </button>
+          <button
+            title="Jejak Audit & Feedback AI"
+            aria-label="Jejak Audit & Feedback AI"
             onClick={() => {
               setShowAuditModal(true);
               fetchAuditLogs();
             }}
           >
             <FileText size={21} strokeWidth={1.6} />
-            <span className="sidebar-tooltip">Log Jejak Audit</span>
+            <span className="sidebar-tooltip">Jejak Audit &amp; Feedback AI</span>
           </button>
         </nav>
 
@@ -647,7 +681,7 @@ export function App() {
           <button
             title="Basis Data PostgreSQL"
             aria-label="Basis Data PostgreSQL"
-            onClick={fetchClaims}
+            onClick={() => fetchClaims()}
           >
             <Database size={21} strokeWidth={1.6} />
             <span className="sidebar-tooltip">19.999 Klaim di PostgreSQL</span>
@@ -698,7 +732,15 @@ export function App() {
               </span>
             </div>
 
-            <button className="button button-secondary" onClick={fetchClaims} disabled={loading}>
+            <button
+              className="button button-primary"
+              onClick={() => setShowSimulatorModal(true)}
+            >
+              <PlusCircle size={15} />
+              Uji Klaim Baru
+            </button>
+
+            <button className="button button-secondary" onClick={() => fetchClaims()} disabled={loading}>
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               Segarkan Antrean
             </button>
@@ -775,7 +817,7 @@ export function App() {
               {data?.summary.total_claims ? data.summary.total_claims.toLocaleString("id-ID") : "19.999"}
             </div>
             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>
-              Otoritatif tersimpan di PostgreSQL port 5432
+              Rata-rata FRI: <strong>{data?.summary.avg_fri ?? "-"}</strong> &bull; PostgreSQL Live
             </div>
           </div>
 
@@ -837,7 +879,10 @@ export function App() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <div>
                 <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>Antrean Verifikasi Klaim</h2>
-                <small className="muted">{data?.claims.length ?? 0} ditampilkan dari 19.999 klaim</small>
+                <small className="muted">
+                  {data?.claims.length ?? 0} ditampilkan dari{" "}
+                  {data?.summary.total_claims ? data.summary.total_claims.toLocaleString("id-ID") : "19.999"} klaim
+                </small>
               </div>
               <span
                 style={{
@@ -873,8 +918,8 @@ export function App() {
               />
             </div>
 
-            {/* Filter Dropdowns */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+            {/* Filter Dropdowns (Task 2.2 & Task 3.2: Risk, Scenario, Review Status, Sort FRI) */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
               <select
                 value={riskFilter}
                 onChange={(e) => setRiskFilter(e.target.value)}
@@ -883,7 +928,7 @@ export function App() {
                   borderRadius: "20px",
                   border: "1px solid var(--line)",
                   background: "var(--surface)",
-                  fontSize: "12px",
+                  fontSize: "11.5px",
                 }}
               >
                 <option value="ALL">Semua Risiko</option>
@@ -901,7 +946,7 @@ export function App() {
                   borderRadius: "20px",
                   border: "1px solid var(--line)",
                   background: "var(--surface)",
-                  fontSize: "12px",
+                  fontSize: "11.5px",
                 }}
               >
                 <option value="ALL">Semua Skenario</option>
@@ -909,6 +954,41 @@ export function App() {
                 <option value="B">Skenario B (Dokter Ekstrem)</option>
                 <option value="A">Skenario A (Phantom Rujukan)</option>
                 <option value="NORMAL">Klaim Wajar (Normal)</option>
+              </select>
+
+              <select
+                value={reviewStatusFilter}
+                onChange={(e) => setReviewStatusFilter(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "20px",
+                  border: "1px solid var(--line)",
+                  background: "var(--surface)",
+                  fontSize: "11.5px",
+                }}
+              >
+                <option value="ALL">Semua Status Review</option>
+                <option value="PENDING_REVIEW">Menunggu Telaah</option>
+                <option value="RELEASED">Disetujui (RELEASED)</option>
+                <option value="CLARIFICATION_REQUESTED">Minta Klarifikasi</option>
+                <option value="ESCALATED_AUDIT">Eskalasi Audit</option>
+              </select>
+
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "20px",
+                  border: "1px solid var(--line)",
+                  background: "var(--surface)",
+                  fontSize: "11.5px",
+                }}
+              >
+                <option value="fri_desc">Urut: Skor FRI Tertinggi</option>
+                <option value="tariff_desc">Urut: Tarif Tertinggi</option>
+                <option value="newest">Urut: Terbaru Masuk</option>
+                <option value="fri_asc">Urut: Skor FRI Terendah</option>
               </select>
             </div>
 
@@ -990,7 +1070,35 @@ export function App() {
                       </div>
 
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "var(--muted)" }}>
-                        <span>{claim.service_date}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span>{claim.service_date}</span>
+                          <span
+                            style={{
+                              fontSize: "9.5px",
+                              fontWeight: 700,
+                              padding: "1px 6px",
+                              borderRadius: "8px",
+                              background:
+                                claim.review_status === "ESCALATED_AUDIT"
+                                  ? "#faecec"
+                                  : claim.review_status === "CLARIFICATION_REQUESTED"
+                                  ? "#f8ecd4"
+                                  : claim.review_status === "RELEASED"
+                                  ? "#e5f4ec"
+                                  : "#f0f4f1",
+                              color:
+                                claim.review_status === "ESCALATED_AUDIT"
+                                  ? "#c95353"
+                                  : claim.review_status === "CLARIFICATION_REQUESTED"
+                                  ? "#b38432"
+                                  : claim.review_status === "RELEASED"
+                                  ? "var(--dark-green)"
+                                  : "#4b5563",
+                            }}
+                          >
+                            {claim.review_status}
+                          </span>
+                        </div>
                         <strong style={{ color: "var(--dark-green)", fontSize: "12px" }}>
                           {formatIDR(claim.ina_cbgs_tariff)}
                         </strong>
@@ -1660,7 +1768,18 @@ export function App() {
         </footer>
       </main>
 
-      {/* MODAL: AUDIT TRAIL LOG */}
+      {/* MODAL: SIMULASI KLAIM BARU (Task 3.6) */}
+      <LiveClaimSimulatorModal
+        isOpen={showSimulatorModal}
+        onClose={() => setShowSimulatorModal(false)}
+        backendUrl={BACKEND_URL}
+        authToken={currentUser.token}
+        onClaimCreated={(newClaimId) => {
+          fetchClaims(newClaimId);
+        }}
+      />
+
+      {/* MODAL: AUDIT TRAIL LOG & CONTROLLED FEEDBACK AI (Task 2.4) */}
       {showAuditModal && (
         <div
           style={{
@@ -1678,66 +1797,99 @@ export function App() {
           <div
             className="card"
             style={{
-              maxWidth: "760px",
+              maxWidth: "820px",
               width: "100%",
-              maxHeight: "85vh",
+              maxHeight: "86vh",
               padding: "24px",
               display: "flex",
               flexDirection: "column",
               borderRadius: "28px",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
               <div>
-                <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0 }}>Jejak Audit Sistem (Audit Trail Log)</h2>
-                <small className="muted">Log imutabel yang disimpan atomik ke PostgreSQL</small>
+                <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0 }}>
+                  Jejak Audit &amp; Controlled Feedback AI
+                </h2>
+                <small className="muted">
+                  Log imutabel &amp; dataset retraining model R-GCN dari PostgreSQL
+                </small>
               </div>
-              <button className="icon-button" onClick={() => setShowAuditModal(false)}>
-                <X size={18} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div className="top-navigation" style={{ padding: "4px", borderRadius: "20px" }}>
+                  <button
+                    onClick={() => setAuditModalTab("audit_logs")}
+                    className={auditModalTab === "audit_logs" ? "active" : ""}
+                    style={{ padding: "6px 12px", fontSize: "11.5px" }}
+                  >
+                    Log Jejak Audit
+                  </button>
+                  <button
+                    onClick={() => setAuditModalTab("feedback_export")}
+                    className={auditModalTab === "feedback_export" ? "active" : ""}
+                    style={{ padding: "6px 12px", fontSize: "11.5px" }}
+                  >
+                    Controlled Feedback AI
+                  </button>
+                </div>
+                <button className="icon-button" onClick={() => setShowAuditModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {loadingAuditLogs ? (
-                <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
-                  <RefreshCw size={20} className="animate-spin text-green" style={{ margin: "0 auto 8px" }} />
-                  Memuat data log audit...
-                </div>
-              ) : auditLogs.length === 0 ? (
-                <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
-                  Belum ada log audit tercatat.
-                </div>
-              ) : (
-                auditLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    style={{
-                      padding: "12px 16px",
-                      borderRadius: "14px",
-                      border: "1px solid var(--line)",
-                      background: "var(--surface)",
-                      fontSize: "12px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <strong style={{ color: "var(--dark-green)" }}>{log.action}</strong>
-                        <span style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--muted)" }}>{log.targetId}</span>
-                      </div>
-                      <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>
-                        Oleh: <strong>{log.actorName}</strong> ({log.actorRole})
-                      </div>
-                    </div>
-                    <span style={{ fontSize: "11px", color: "var(--muted)", fontFamily: "monospace" }}>
-                      {new Date(log.timestamp).toLocaleString("id-ID")}
-                    </span>
+            {auditModalTab === "feedback_export" ? (
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                <ControlledFeedbackPanel
+                  backendUrl={BACKEND_URL}
+                  authToken={currentUser.token}
+                />
+              </div>
+            ) : (
+              <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                {loadingAuditLogs ? (
+                  <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
+                    <RefreshCw size={20} className="animate-spin text-green" style={{ margin: "0 auto 8px" }} />
+                    Memuat data log audit...
                   </div>
-                ))
-              )}
-            </div>
+                ) : auditLogs.length === 0 ? (
+                  <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
+                    {currentUser.role !== "AUDITOR" && currentUser.role !== "ADMINISTRATOR"
+                      ? "Log operasional lengkap memerlukan otorisasi peran AUDITOR atau ADMINISTRATOR. Silakan beralih ke tab Controlled Feedback AI atau ganti peran RBAC di pojok kanan atas."
+                      : "Belum ada log audit tercatat."}
+                  </div>
+                ) : (
+                  auditLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "14px",
+                        border: "1px solid var(--line)",
+                        background: "var(--surface)",
+                        fontSize: "12px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <strong style={{ color: "var(--dark-green)" }}>{log.action}</strong>
+                          <span style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--muted)" }}>{log.targetId}</span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>
+                          Oleh: <strong>{log.actorName}</strong> ({log.actorRole})
+                        </div>
+                      </div>
+                      <span style={{ fontSize: "11px", color: "var(--muted)", fontFamily: "monospace" }}>
+                        {new Date(log.timestamp).toLocaleString("id-ID")}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
 
             <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--line)", textAlign: "right" }}>
               <button className="button button-secondary" onClick={() => setShowAuditModal(false)}>

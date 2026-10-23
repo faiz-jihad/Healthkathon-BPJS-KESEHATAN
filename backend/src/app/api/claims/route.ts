@@ -102,6 +102,9 @@ export async function GET(request: Request) {
   const riskFilter = searchParams.get("risk_level"); // HIGH | MEDIUM | LOW | UNASSESSED | ALL
   const scenarioFilter = searchParams.get("scenario"); // A | B | C | NORMAL | ALL
   const analysisFilter = searchParams.get("analysis_status"); // ANALYSIS_SUCCESS | NOT_ANALYZED | ANALYSIS_UNAVAILABLE | ALL
+  const gateFilter = searchParams.get("pre_payment_gate"); // REJECT_FOR_HUMAN_REVIEW | FLAGGED_WARNING | AUTO_APPROVE | PENDING_ASSESSMENT | ALL
+  const reviewStatusFilter = searchParams.get("review_status"); // PENDING_REVIEW | RELEASED | CLARIFICATION_REQUESTED | ESCALATED_AUDIT | ALL
+  const sortBy = searchParams.get("sort_by") || "fri_desc"; // fri_desc | fri_asc | tariff_desc | newest
   const search = (searchParams.get("search") || "").toLowerCase().trim();
   const limitParam = searchParams.get("limit");
   const limit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10)), 5000) : 300;
@@ -115,17 +118,20 @@ export async function GET(request: Request) {
     not_analyzed_count: 0,
     analysis_unavailable_count: 0,
     held_tariff_idr: 0,
+    avg_fri: 0,
   };
 
   try {
     // 1. Build database filter conditions for high-performance indexed queries
     const whereClause: any = {};
+    const riskAssessmentFilter: any = {};
+    let forceNullRiskAssessment = false;
 
     if (riskFilter && riskFilter !== "ALL") {
       if (riskFilter === "UNASSESSED") {
-        whereClause.riskAssessment = null;
+        forceNullRiskAssessment = true;
       } else {
-        whereClause.riskAssessment = { riskLevel: riskFilter };
+        riskAssessmentFilter.riskLevel = riskFilter;
       }
     }
 
@@ -139,10 +145,26 @@ export async function GET(request: Request) {
 
     if (analysisFilter && analysisFilter !== "ALL") {
       if (analysisFilter === "NOT_ANALYZED") {
-        whereClause.riskAssessment = null;
+        forceNullRiskAssessment = true;
       } else if (analysisFilter === "ANALYSIS_SUCCESS") {
-        whereClause.riskAssessment = { assessmentStatus: "COMPLETED" };
+        riskAssessmentFilter.assessmentStatus = "COMPLETED";
+      } else if (analysisFilter === "ANALYSIS_UNAVAILABLE") {
+        riskAssessmentFilter.assessmentStatus = { in: ["UNAVAILABLE", "FAILED"] };
       }
+    }
+
+    if (gateFilter && gateFilter !== "ALL") {
+      if (gateFilter === "PENDING_ASSESSMENT") {
+        forceNullRiskAssessment = true;
+      } else {
+        riskAssessmentFilter.prePaymentGate = gateFilter;
+      }
+    }
+
+    if (forceNullRiskAssessment) {
+      whereClause.riskAssessment = null;
+    } else if (Object.keys(riskAssessmentFilter).length > 0) {
+      whereClause.riskAssessment = riskAssessmentFilter;
     }
 
     if (search) {
@@ -155,6 +177,22 @@ export async function GET(request: Request) {
       ];
     }
 
+    // Build sort order (Task 3.2: Default ordered by highest FRI descending)
+    let orderByClause: any = [
+      { riskAssessment: { fraudRiskIndex: "desc" } },
+      { createdAt: "desc" },
+    ];
+    if (sortBy === "fri_asc") {
+      orderByClause = [
+        { riskAssessment: { fraudRiskIndex: "asc" } },
+        { createdAt: "desc" },
+      ];
+    } else if (sortBy === "tariff_desc") {
+      orderByClause = [{ inaCbgsTariff: "desc" }, { createdAt: "desc" }];
+    } else if (sortBy === "newest") {
+      orderByClause = { createdAt: "desc" };
+    }
+
     // 2. Execute parallel queries: Fast aggregate metrics across all DB records + paginated claims list
     const [
       totalClaimsCount,
@@ -163,6 +201,7 @@ export async function GET(request: Request) {
       lowRiskCount,
       totalAssessedCount,
       heldTariffAgg,
+      avgFriAgg,
       claimsResult,
     ] = await Promise.all([
       prisma.claim.count(),
@@ -174,9 +213,13 @@ export async function GET(request: Request) {
         _sum: { inaCbgsTariff: true },
         where: { riskAssessment: { prePaymentGate: "REJECT_FOR_HUMAN_REVIEW" } },
       }),
+      prisma.riskAssessment.aggregate({
+        _avg: { fraudRiskIndex: true },
+        where: { assessmentStatus: "COMPLETED" },
+      }),
       prisma.claim.findMany({
         where: whereClause,
-        take: limit,
+        take: reviewStatusFilter && reviewStatusFilter !== "ALL" ? Math.min(limit * 4, 5000) : limit,
         include: {
           patient: true,
           doctor: true,
@@ -186,9 +229,7 @@ export async function GET(request: Request) {
             orderBy: { reviewedAt: "desc" },
           },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: orderByClause,
       }),
     ]);
 
@@ -202,6 +243,9 @@ export async function GET(request: Request) {
       not_analyzed_count: Math.max(0, totalClaimsCount - totalAssessedCount),
       analysis_unavailable_count: 0,
       held_tariff_idr: heldTariffAgg._sum.inaCbgsTariff ?? 0,
+      avg_fri: avgFriAgg._avg?.fraudRiskIndex
+        ? Math.round(avgFriAgg._avg.fraudRiskIndex * 10) / 10
+        : 0,
     };
   } catch (dbError: any) {
     // ZERO MOCK POLICY: If database fails, return honest 503 without fake fallbacks
@@ -219,6 +263,7 @@ export async function GET(request: Request) {
           not_analyzed_count: 0,
           analysis_unavailable_count: 0,
           held_tariff_idr: 0,
+          avg_fri: 0,
         },
         claims: [],
       },
@@ -227,7 +272,7 @@ export async function GET(request: Request) {
   }
 
   // Map database entities to ClaimApiRecord
-  const claims: ClaimApiRecord[] = dbClaims.map((c) => {
+  const mappedClaims: ClaimApiRecord[] = dbClaims.map((c) => {
     const ra = c.riskAssessment;
     const latestReview = c.humanReviews[0];
 
@@ -356,6 +401,12 @@ export async function GET(request: Request) {
       })),
     };
   });
+
+  // Apply review_status filter if specified (Task 2.2)
+  const claims =
+    reviewStatusFilter && reviewStatusFilter !== "ALL"
+      ? mappedClaims.filter((c) => c.review_status === reviewStatusFilter).slice(0, limit)
+      : mappedClaims.slice(0, limit);
 
   return Response.json({
     status: "ANALYSIS_SUCCESS",
@@ -518,7 +569,7 @@ export async function POST(request: Request) {
 
   // --- 4. Atomic PostgreSQL Transaction ---
   try {
-    const result = await prisma.$transaction(async (tx : any) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Upsert parent entities if not present to prevent foreign key violations
       await tx.facility.upsert({
         where: { facilityId: body.facility_id.trim() },

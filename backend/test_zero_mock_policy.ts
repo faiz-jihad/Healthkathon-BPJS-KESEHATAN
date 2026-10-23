@@ -10,11 +10,13 @@
  * 6. Review validation & unauthorized role rejection -> 403 UNAUTHORIZED_ROLE
  * 7. Successful review persistence -> REVIEW_SAVED with atomic audit log
  * 8. Failed review persistence -> 500 REVIEW_SAVE_FAILED (No false success confirmation)
+ * 9. Controlled Feedback Export (/api/feedback-export) -> PostgreSQL live or 503 unavailable
  */
 
 import { GET as getClaims, POST as postClaim } from "./src/app/api/claims/route";
 import { GET as getClaimDetail } from "./src/app/api/claims/[claimId]/route";
 import { POST as postReview } from "./src/app/api/claims/[claimId]/review/route";
+import { GET as getFeedbackExport } from "./src/app/api/feedback-export/route";
 
 async function runTestSuite() {
   console.log("=================================================================");
@@ -134,7 +136,7 @@ async function runTestSuite() {
 
   // --- Test 5: Database Querying / Zero Mock Fallback Check ---
   console.log("\n[Test 5] Validating GET /api/claims honest status (PostgreSQL live or 503 unavailable)...");
-  const getReq = new Request("http://localhost:3001/api/claims");
+  const getReq = new Request("http://localhost:3001/api/claims?sort_by=fri_desc&review_status=ALL");
   const getRes = await getClaims(getReq);
   const getJson = await getRes.json();
 
@@ -176,6 +178,26 @@ async function runTestSuite() {
     );
   } else {
     assert(false, "Unexpected response status for unknown claim", `Status: ${detailRes.status}`);
+  }
+
+  // --- Test 7: Controlled Feedback Export (/api/feedback-export) ---
+  console.log("\n[Test 7] Validating GET /api/feedback-export honest status...");
+  const fbReq = new Request("http://localhost:3001/api/feedback-export");
+  const fbRes = await getFeedbackExport(fbReq);
+  const fbJson = await fbRes.json();
+
+  if (fbRes.status === 200) {
+    assert(
+      fbJson.storage_source === "postgresql" && Array.isArray(fbJson.records),
+      "GET /api/feedback-export reads retraining feedback labels from PostgreSQL"
+    );
+  } else if (fbRes.status === 503) {
+    assert(
+      fbJson.status === "DATA_SOURCE_UNAVAILABLE" && fbJson.records.length === 0,
+      "GET /api/feedback-export returns 503 DATA_SOURCE_UNAVAILABLE when PostgreSQL is offline"
+    );
+  } else {
+    assert(false, "Unexpected response status from GET /api/feedback-export", `Status: ${fbRes.status}`);
   }
 
   console.log("\n=================================================================");
