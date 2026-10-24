@@ -1,33 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { getAuthenticatedUser } from "@/lib/auth";
+import {
+  getAuthenticatedUser,
+  requirePermission,
+  PERMISSIONS,
+} from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/audit-logs - Query audit history (Auditor and Administrator only)
+ * GET /api/audit-logs - Query audit history (Administrator, Supervisor, Data Analyst)
  */
 export async function GET(request: Request) {
   const caller = getAuthenticatedUser(request);
-  if (!caller) {
-    return Response.json(
-      {
-        status: "UNAUTHENTICATED",
-        error: "Akses ditolak. Token otorisasi tidak ditemukan.",
-      },
-      { status: 401 }
-    );
-  }
-
-  // Only Administrator and Auditor can view complete operational audit logs
-  if (caller.role !== "ADMINISTRATOR" && caller.role !== "AUDITOR") {
-    return Response.json(
-      {
-        status: "UNAUTHORIZED_ROLE",
-        error: `Role '${caller.role}' tidak memiliki kewenangan mengakses log audit operasional. Akses terbatas untuk Auditor dan Administrator.`,
-      },
-      { status: 403 }
-    );
-  }
+  const authError = requirePermission(caller, PERMISSIONS.VIEW_AUDIT_LOGS);
+  if (authError) return authError;
 
   try {
     const url = new URL(request.url);
