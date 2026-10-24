@@ -64,7 +64,18 @@ if [ "$TOTAL_RAM_KB" -lt 3000000 ] && [ ! -f /swapfile ]; then
     echo "✅ Swap memory 2GB berhasil diaktifkan."
 fi
 
-# 7. Build & Start Docker Compose Services
+# 7. Periksa & Bebaskan Ruang Disk Sebelum Build
+DISK_AVAIL_MB=$(df -m / 2>/dev/null | awk 'NR==2 {print $4}' || echo "5000")
+echo "💾 Ruang disk tersedia pada partisi root: ${DISK_AVAIL_MB} MB"
+if [ "$DISK_AVAIL_MB" -lt 2500 ]; then
+    echo "⚠️ Ruang disk terbatas (<2.5 GB). Membersihkan cache Docker lama & berkas /tmp..."
+    $DOCKER_CMD builder prune -af 2>/dev/null || true
+    $DOCKER_CMD system prune -f 2>/dev/null || true
+    sudo rm -rf /tmp/* 2>/dev/null || true
+    sudo apt-get clean 2>/dev/null || true
+fi
+
+# 8. Build & Start Docker Compose Services
 echo ""
 echo "🔨 Membangun & menyalakan seluruh container microservices AURA-JKN..."
 $DOCKER_CMD down --remove-orphans 2>/dev/null || true
