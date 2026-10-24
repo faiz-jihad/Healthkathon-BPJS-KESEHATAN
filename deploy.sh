@@ -101,6 +101,13 @@ $DOCKER_CMD exec -T -u root backend apk add --no-cache openssl libc6-compat 2>/d
 echo "🗄️ Menyinkronkan skema tabel database (Prisma db push)..."
 $DOCKER_CMD exec -T backend npx prisma db push --accept-data-loss
 
+# Pastikan folder src & tsconfig.json ada di container backend untuk seed script
+if ! $DOCKER_CMD exec -T backend test -d /app/src; then
+    echo "📋 Menyalin modul src ke container backend..."
+    $DOCKER_CMD cp backend/src backend:/app/src 2>/dev/null || true
+    $DOCKER_CMD cp backend/tsconfig.json backend:/app/tsconfig.json 2>/dev/null || true
+fi
+
 echo "🌱 Menanam akun RBAC bawaan BPJS & skenario benchmark ke PostgreSQL..."
 $DOCKER_CMD exec -T backend node node_modules/tsx/dist/cli.mjs prisma/seed.ts || true
 
