@@ -28,7 +28,13 @@ else
     echo "✅ Docker telah terpasang."
 fi
 
-# 3. Deteksi izin Docker (gunakan sudo docker compose jika socket docker perlu root)
+# 3. Pastikan socket docker dapat diakses tanpa permission denied
+if [ -e /var/run/docker.sock ] && [ ! -w /var/run/docker.sock ]; then
+    echo "🔒 Mengatur hak akses docker socket..."
+    sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+fi
+
+# 4. Deteksi izin Docker (gunakan sudo docker compose jika socket docker perlu root)
 DOCKER_CMD="docker compose"
 if ! docker info &>/dev/null; then
     echo "ℹ️ Menggunakan sudo untuk perintah Docker Compose..."
