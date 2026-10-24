@@ -1,8 +1,6 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { BENCHMARK_CLAIMS_FIXTURES } from "../src/lib/benchmark-fixtures";
 import { hashPassword } from "../src/lib/auth";
-import { execSync } from "child_process";
-import path from "path";
 
 const prisma = new PrismaClient();
 
@@ -12,7 +10,7 @@ async function main() {
   console.log("=================================================================\n");
 
   // 1. Seed RBAC role accounts (5 roles aligned with PRD Section C + legacy aliases)
-  console.log("[Seed] 1/4 Mempersiapkan 5 akun RBAC resmi BPJS Kesehatan...");
+  console.log("[Seed] 1/5 Mempersiapkan 5 akun RBAC resmi BPJS Kesehatan...");
   const defaultUsers = [
     {
       username: "admin_aura",
@@ -74,7 +72,7 @@ async function main() {
   console.log("[Seed] -> 5 Akun RBAC resmi + 1 kompatibilitas aktif tersimpan di tabel 'users'.");
 
   // 2. Seed Reference Benchmark Evaluation Claims (Scenarios A, B, C, Normal)
-  console.log("\n[Seed] 2/3 Menyimpan klaim acuan benchmark evaluasi (Skenario A, B, C, Normal)...");
+  console.log("\n[Seed] 2/5 Menyimpan klaim acuan benchmark evaluasi (Skenario A, B, C, Normal)...");
   for (const item of BENCHMARK_CLAIMS_FIXTURES) {
     // 2a. Upsert Facility
     await prisma.facility.upsert({
@@ -155,17 +153,17 @@ async function main() {
   console.log(`[Seed] -> ${BENCHMARK_CLAIMS_FIXTURES.length} Klaim benchmark acuan tersimpan di PostgreSQL.`);
 
   // 3. Seed Benchmark Cases & State Machine Transitions (Phase 6)
-  console.log("\n[Seed] 3/4 Menyiapkan antrean kasus investigasi awal dari klaim berisiko...");
+  console.log("\n[Seed] 3/5 Menyiapkan antrean kasus investigasi awal dari klaim berisiko...");
   const benchmarkClaimsToCase = BENCHMARK_CLAIMS_FIXTURES.filter(
     (b) => b.risk_level === "HIGH" || b.risk_level === "MEDIUM"
   );
 
   const caseStatuses = [
-    { status: "FLAGGED_FOR_REVIEW", assignedTo: null, assignedRole: null },
-    { status: "UNDER_REVIEW", assignedTo: "investigator_aura", assignedRole: "INVESTIGATOR" },
-    { status: "AWAITING_EVIDENCE", assignedTo: "verifier_aura", assignedRole: "VERIFIKATOR" },
-    { status: "ESCALATED", assignedTo: "supervisor_aura", assignedRole: "SUPERVISOR" },
-    { status: "RESOLVED", assignedTo: "investigator_aura", assignedRole: "INVESTIGATOR" },
+    { status: "FLAGGED_FOR_REVIEW", assignedTo: null, assignedRole: null, outcome: null },
+    { status: "UNDER_REVIEW", assignedTo: "investigator_aura", assignedRole: "INVESTIGATOR", outcome: null },
+    { status: "AWAITING_EVIDENCE", assignedTo: "verifier_aura", assignedRole: "VERIFIKATOR", outcome: null },
+    { status: "ESCALATED", assignedTo: "supervisor_aura", assignedRole: "SUPERVISOR", outcome: null },
+    { status: "RESOLVED", assignedTo: "investigator_aura", assignedRole: "INVESTIGATOR", outcome: "REFERRED_FOR_ACTION" },
   ];
 
   for (let i = 0; i < benchmarkClaimsToCase.length; i++) {
@@ -184,6 +182,7 @@ async function main() {
         priorityScore,
         assignedTo: caseMeta.assignedTo,
         assignedRole: caseMeta.assignedRole,
+        outcome: caseMeta.outcome,
       },
       create: {
         claimId: claim.claim_id,
@@ -194,11 +193,11 @@ async function main() {
         assignedTo: caseMeta.assignedTo,
         assignedRole: caseMeta.assignedRole,
         assignedAt: caseMeta.assignedTo ? new Date() : null,
-        reviewStartedAt: caseMeta.status !== "FLAGGED_FOR_REVIEW" ? new Date(Date.now() - 3600000 * 2) : null,
+        reviewStartedAt: caseMeta.status !== "FLAGGED_FOR_REVIEW" ? new Date(Date.now() - 3600000 * 3) : null,
         resolvedAt: caseMeta.status === "RESOLVED" ? new Date() : null,
         slaDeadline: new Date(Date.now() + 86400000 * 2), // 48 jam ke depan
-        outcome: caseMeta.status === "RESOLVED" ? "REFERRED_FOR_ACTION" : null,
-        outcomeNotes: caseMeta.status === "RESOLVED" ? "Temuan anomali polifarmasi dikonfirmasi tim verifikasi." : null,
+        outcome: caseMeta.outcome,
+        outcomeNotes: caseMeta.status === "RESOLVED" ? "Temuan anomali spasiotemporal/volume dikonfirmasi tim verifikasi." : null,
         transitions: {
           create: [
             {
@@ -215,7 +214,7 @@ async function main() {
                     toStatus: caseMeta.status,
                     actorName: caseMeta.assignedTo || "petugas_bpjs",
                     actorRole: caseMeta.assignedRole || "VERIFIKATOR",
-                    notes: `Status transisi awal ke ${caseMeta.status} untuk demonstrasi operasional.`,
+                    notes: `Status transisi ke ${caseMeta.status} untuk pemeriksaan operasional.`,
                   },
                 ]
               : []),
@@ -226,8 +225,49 @@ async function main() {
   }
   console.log(`[Seed] -> ${benchmarkClaimsToCase.length} Kasus investigasi terhubung berhasil disiapkan.`);
 
-  // 4. Seed Initial Ingestion Batch (Phase 1)
-  console.log("\n[Seed] 4/4 Merekam catatan riwayat ingestion batch awal...");
+  // 4. Seed Initial Human Reviews & Audit Logs (Controlled Feedback Loop)
+  console.log("\n[Seed] 4/5 Menyiapkan sampel Human Review & Audit Trail awal...");
+  const existingReviewsCount = await prisma.humanReview.count();
+  if (existingReviewsCount === 0 && BENCHMARK_CLAIMS_FIXTURES.length > 0) {
+    for (const item of BENCHMARK_CLAIMS_FIXTURES.slice(0, 3)) {
+      const isHighRisk = item.risk_level === "HIGH";
+      const decision = isHighRisk ? "ESCALATE_AUDIT" : "RELEASE";
+      const feedbackLabel = isHighRisk ? 1 : 0;
+      const notes = isHighRisk
+        ? `Verifikasi pra-pembayaran menemukan indikasi kuat anomali (${item.xai_explanation.primary_fraud_trigger}). Dieskalasi untuk audit.`
+        : "Dokumen klaim dan CPPT sesuai prosedur standar INA-CBGs. Pembayaran dapat diteruskan.";
+
+      const rev = await prisma.humanReview.create({
+        data: {
+          claimId: item.claim_id,
+          reviewerName: "Verifikator Pra-Pembayaran Klaim BPJS",
+          reviewerRole: "VERIFIKATOR",
+          decision,
+          notes,
+          feedbackLabel,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          actorName: "Verifikator Pra-Pembayaran Klaim BPJS",
+          actorRole: "VERIFIKATOR",
+          action: `HUMAN_REVIEW_${decision}`,
+          targetId: item.claim_id,
+          metadata: {
+            decision,
+            feedbackLabel,
+            reviewId: rev.id,
+            seeded: true,
+          },
+        },
+      });
+    }
+  }
+  console.log("[Seed] -> Sampel Human Review (Controlled Feedback Loop) & Audit Log tercatat.");
+
+  // 5. Seed Initial Ingestion Batch (Phase 1)
+  console.log("\n[Seed] 5/5 Merekam catatan riwayat ingestion batch awal...");
   await prisma.ingestionBatch.upsert({
     where: { batchId: "BATCH-20261024-HEALTHKATHON-INIT" },
     update: {},
@@ -258,6 +298,8 @@ async function main() {
   const batchCount = await prisma.ingestionBatch.count();
   const claimCount = await prisma.claim.count();
   const raCount = await prisma.riskAssessment.count();
+  const revCount = await prisma.humanReview.count();
+  const auditCount = await prisma.auditLog.count();
   const patCount = await prisma.patient.count();
   const docCount = await prisma.doctor.count();
   const facCount = await prisma.facility.count();
@@ -269,6 +311,8 @@ async function main() {
   console.log(`   - Total Klaim di DB:           ${claimCount.toLocaleString()}`);
   console.log(`   - Total Asesmen Risiko di DB:  ${raCount.toLocaleString()}`);
   console.log(`   - Total Kasus Investigasi:     ${caseCount.toLocaleString()}`);
+  console.log(`   - Total Human Reviews (Loop):  ${revCount.toLocaleString()}`);
+  console.log(`   - Total Audit Logs:            ${auditCount.toLocaleString()}`);
   console.log(`   - Total Batch Ingestion:       ${batchCount.toLocaleString()}`);
   console.log(`   - Total Pasien di DB:          ${patCount.toLocaleString()}`);
   console.log(`   - Total Dokter di DB:          ${docCount.toLocaleString()}`);

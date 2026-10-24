@@ -126,7 +126,7 @@ const VALID_TRANSITIONS: Record<
 };
 
 // ============================================================
-// GET /api/cases — Investigation Queue
+// GET /api/cases — Investigation Queue & CSV Export
 // ============================================================
 
 export async function GET(request: Request) {
@@ -139,7 +139,8 @@ export async function GET(request: Request) {
   const priorityFilter = url.searchParams.get("priority"); // HIGH | MEDIUM | LOW
   const assignedTo = url.searchParams.get("assigned_to"); // username
   const search = (url.searchParams.get("search") || "").toLowerCase().trim();
-  const sortBy = url.searchParams.get("sort_by") || "priority_desc"; // priority_desc | created_asc | wait_time_desc
+  const sortBy = url.searchParams.get("sort_by") || "priority_desc"; // priority_desc | created_asc | created_desc | sla_asc
+  const format = (url.searchParams.get("format") || "json").toLowerCase();
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
   const limit = Math.min(
     100,
@@ -191,6 +192,8 @@ export async function GET(request: Request) {
       orderBy = { createdAt: "asc" };
     } else if (sortBy === "created_desc") {
       orderBy = { createdAt: "desc" };
+    } else if (sortBy === "sla_asc") {
+      orderBy = [{ slaDeadline: "asc" }, { priorityScore: "desc" }];
     }
 
     const [total, cases] = await Promise.all([
@@ -198,8 +201,8 @@ export async function GET(request: Request) {
       db.caseInvestigation.findMany({
         where,
         orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: format === "csv" ? 0 : (page - 1) * limit,
+        take: format === "csv" ? 500 : limit,
         include: {
           claim: {
             include: {
@@ -268,6 +271,7 @@ export async function GET(request: Request) {
         resolved_at: c.resolvedAt,
         closed_at: c.closedAt,
         outcome: c.outcome,
+        outcome_notes: c.outcomeNotes,
         created_at: c.createdAt,
         updated_at: c.updatedAt,
         // Claim summary
@@ -296,6 +300,58 @@ export async function GET(request: Request) {
         available_actions: getAvailableActions(c.status as CaseStatus, user!.role),
       };
     });
+
+    if (format === "csv") {
+      const headers = [
+        "case_number",
+        "claim_id",
+        "status",
+        "priority",
+        "priority_score",
+        "assigned_to",
+        "assigned_role",
+        "outcome",
+        "outcome_notes",
+        "fraud_risk_index",
+        "ina_cbgs_tariff",
+        "sla_deadline",
+        "created_at",
+        "resolved_at",
+      ];
+      const escapeCsv = (val: any) => {
+        if (val === null || val === undefined) return "";
+        const str = String(val).replace(/"/g, '""');
+        return /[,"\n]/.test(str) ? `"${str}"` : str;
+      };
+      const rows = mappedCases.map((mc: any) =>
+        [
+          mc.case_number,
+          mc.claim_id,
+          mc.status,
+          mc.priority,
+          mc.priority_score,
+          mc.assigned_to || "",
+          mc.assigned_role || "",
+          mc.outcome || "",
+          mc.outcome_notes || "",
+          mc.claim_summary?.fraud_risk_index ?? "",
+          mc.claim_summary?.ina_cbgs_tariff ?? "",
+          mc.sla_deadline ? new Date(mc.sla_deadline).toISOString() : "",
+          mc.created_at ? new Date(mc.created_at).toISOString() : "",
+          mc.resolved_at ? new Date(mc.resolved_at).toISOString() : "",
+        ]
+          .map(escapeCsv)
+          .join(",")
+      );
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      return new Response(csvContent, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="aura_jkn_cases_report.csv"',
+        },
+      });
+    }
 
     // Queue summary
     const [queueStats] = await Promise.all([

@@ -9,7 +9,7 @@ import {
   ChevronDown, CircleCheck, PlusCircle, BarChart3, TrendingUp,
   Inbox, ClipboardList, FolderOpen, GitBranch, Settings,
   AlertCircle, CheckSquare, Hourglass, ArrowRight, Zap,
-  BookOpen, Target, Award
+  BookOpen, Target, Award, Download
 } from "lucide-react";
 import { ClaimRecord, ClaimsListResponse } from "./types/aura";
 import { SubgraphViewer } from "./components/SubgraphViewer";
@@ -165,6 +165,8 @@ export function App() {
   const [caseDetailLoading, setCaseDetailLoading] = useState(false);
   const [caseStatusFilter, setCaseStatusFilter] = useState("ALL");
   const [casePriorityFilter, setCasePriorityFilter] = useState("ALL");
+  const [caseSearchQuery, setCaseSearchQuery] = useState("");
+  const [caseSortBy, setCaseSortBy] = useState("priority_desc");
   const [caseQueueSummary, setCaseQueueSummary] = useState<Record<string, number>>({});
   const [caseAction, setCaseAction] = useState("");
   const [caseOutcome, setCaseOutcome] = useState("REFERRED_FOR_ACTION");
@@ -185,6 +187,8 @@ export function App() {
   // Audit logs
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [auditSearchQuery, setAuditSearchQuery] = useState("");
+  const [auditActionFilter, setAuditActionFilter] = useState("ALL");
 
   // Users management
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
@@ -271,17 +275,19 @@ export function App() {
       const params = new URLSearchParams();
       if (caseStatusFilter !== "ALL") params.set("status", caseStatusFilter);
       if (casePriorityFilter !== "ALL") params.set("priority", casePriorityFilter);
+      if (caseSearchQuery.trim()) params.set("search", caseSearchQuery.trim());
+      if (caseSortBy) params.set("sort_by", caseSortBy);
       if (investigationView === "my_cases") {
         params.set("assigned_to", currentUser.username);
       }
-      const res = await fetch(`${BACKEND_URL}/api/cases?${params}&limit=30`, { headers: authHeaders() });
+      const res = await fetch(`${BACKEND_URL}/api/cases?${params}&limit=50`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         setCases(json.cases || []);
         setCaseQueueSummary(json.queue_summary || {});
       }
     } catch {} finally { setCasesLoading(false); }
-  }, [caseStatusFilter, casePriorityFilter, investigationView, currentUser.username, authHeaders]);
+  }, [caseStatusFilter, casePriorityFilter, caseSearchQuery, caseSortBy, investigationView, currentUser.username, authHeaders]);
 
   const fetchCaseDetail = async (caseId: string) => {
     setCaseDetailLoading(true);
@@ -307,10 +313,14 @@ export function App() {
     } catch {} finally { setIngestionLoading(false); }
   };
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     setAuditLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/audit-logs?limit=50`, { headers: authHeaders() });
+      const params = new URLSearchParams();
+      params.set("limit", "100");
+      if (auditActionFilter !== "ALL") params.set("action", auditActionFilter);
+      if (auditSearchQuery.trim()) params.set("search", auditSearchQuery.trim());
+      const res = await fetch(`${BACKEND_URL}/api/audit-logs?${params}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         setAuditLogs(
@@ -322,6 +332,45 @@ export function App() {
         );
       }
     } catch {} finally { setAuditLoading(false); }
+  }, [auditActionFilter, auditSearchQuery, authHeaders]);
+
+  const exportCasesCsv = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set("format", "csv");
+      if (caseStatusFilter !== "ALL") params.set("status", caseStatusFilter);
+      if (casePriorityFilter !== "ALL") params.set("priority", casePriorityFilter);
+      if (caseSearchQuery.trim()) params.set("search", caseSearchQuery.trim());
+      const res = await fetch(`${BACKEND_URL}/api/cases?${params}`, { headers: authHeaders() });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "aura_jkn_cases_report.csv";
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+    } catch {}
+  };
+
+  const exportAuditCsv = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set("format", "csv");
+      if (auditActionFilter !== "ALL") params.set("action", auditActionFilter);
+      if (auditSearchQuery.trim()) params.set("search", auditSearchQuery.trim());
+      const res = await fetch(`${BACKEND_URL}/api/audit-logs?${params}`, { headers: authHeaders() });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "aura_jkn_audit_trail_report.csv";
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+    } catch {}
   };
 
   const fetchUsers = async () => {
@@ -475,7 +524,7 @@ export function App() {
 
   useEffect(() => { switchRole("VERIFIKATOR"); }, []);
   useEffect(() => { fetchClaims(); }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, currentUser.token]);
-  useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, investigationView, caseStatusFilter, casePriorityFilter, currentUser.token]);
+  useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, investigationView, caseStatusFilter, casePriorityFilter, caseSortBy, currentUser.token]);
   useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); fetchCases(); } }, [activeSection, currentUser.token]);
   useEffect(() => {
     if (activeSection === "data_intelligence") {
@@ -488,8 +537,8 @@ export function App() {
       if (reportsView === "performance" || reportsView === "outcomes" || reportsView === "model") fetchPerformance();
       if (reportsView === "audit") fetchAuditLogs();
     }
-  }, [activeSection, reportsView, currentUser.token]);
-  useEffect(() => { if (activeSection === "administration") { if (adminView === "users") fetchUsers(); if (adminView === "audit_trail") fetchAuditLogs(); if (adminView === "health") fetchHealth(); } }, [activeSection, adminView, currentUser.token]);
+  }, [activeSection, reportsView, auditActionFilter, currentUser.token]);
+  useEffect(() => { if (activeSection === "administration") { if (adminView === "users") fetchUsers(); if (adminView === "audit_trail") fetchAuditLogs(); if (adminView === "health") fetchHealth(); } }, [activeSection, adminView, auditActionFilter, currentUser.token]);
   useEffect(() => { if (selectedCase && investigationView === "evidence_center") fetchCaseDetail(selectedCase.id); }, [selectedCase, investigationView]);
 
   // ============================================================
@@ -673,17 +722,31 @@ export function App() {
             : "Daftar kasus yang memerlukan pemeriksaan. Prioritas dihitung berdasarkan FRI, deteksi spasial, dan waktu tunggu."
         }
         action={
-          <div style={{ display: "flex", gap: "10px" }}>
-            <select value={caseStatusFilter} onChange={e => setCaseStatusFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ position: "relative" }}>
+              <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
+              <input value={caseSearchQuery} onChange={e => setCaseSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchCases()} placeholder="Cari nomor kasus, klaim, petugas…"
+                style={{ padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "210px" }}/>
+            </div>
+            <select value={caseStatusFilter} onChange={e => setCaseStatusFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
               <option value="ALL">Semua Status</option>
               {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
-            <select value={casePriorityFilter} onChange={e => setCasePriorityFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+            <select value={casePriorityFilter} onChange={e => setCasePriorityFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
               <option value="ALL">Semua Prioritas</option>
               <option value="HIGH">HIGH</option>
               <option value="MEDIUM">MEDIUM</option>
               <option value="LOW">LOW</option>
             </select>
+            <select value={caseSortBy} onChange={e => setCaseSortBy(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+              <option value="priority_desc">Prioritas Tertinggi</option>
+              <option value="sla_asc">SLA Terdekat</option>
+              <option value="created_desc">Terbaru</option>
+              <option value="created_asc">Terlama</option>
+            </select>
+            <button className="button button-secondary" onClick={exportCasesCsv} title="Unduh CSV Kasus">
+              <Download size={14}/> CSV
+            </button>
             <button className="button button-secondary" onClick={fetchCases} disabled={casesLoading}><RefreshCw size={14} className={casesLoading ? "animate-spin" : ""}/></button>
           </div>
         }
@@ -1430,7 +1493,15 @@ export function App() {
         {reportsView === "performance" && renderPerformanceDashboard()}
         {reportsView === "outcomes" && (
           <div>
-            <SectionHeader title="Investigation Outcomes" subtitle="Hasil pemeriksaan kasus dan distribusi keputusan petugas"/>
+            <SectionHeader
+              title="Investigation Outcomes"
+              subtitle="Hasil pemeriksaan kasus dan distribusi keputusan petugas"
+              action={
+                <button className="button button-secondary" onClick={exportCasesCsv}>
+                  <Download size={14}/> Unduh Rekap Kasus (CSV)
+                </button>
+              }
+            />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "20px" }}>
               <MetricCard title="KASUS SELESAI" value={perfData?.investigation?.resolved_cases} color="#059669" icon={<CheckCircle2 size={18}/>}/>
               <MetricCard title="KASUS DITUTUP" value={perfData?.investigation?.closed_cases} icon={<Lock size={18}/>}/>
@@ -1463,7 +1534,30 @@ export function App() {
         {reportsView === "audit" && (
           <div>
             <SectionHeader title="Audit Reports" subtitle="Log operasional tercatat — akses dibatasi berdasarkan role"
-              action={<button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
+              action={
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                  <div style={{ position: "relative" }}>
+                    <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
+                    <input value={auditSearchQuery} onChange={e => setAuditSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchAuditLogs()} placeholder="Cari aktor, aksi, target ID…"
+                      style={{ padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "190px" }}/>
+                  </div>
+                  <select value={auditActionFilter} onChange={e => setAuditActionFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+                    <option value="ALL">Semua Aksi</option>
+                    <option value="CLAIM_INGESTED">CLAIM_INGESTED</option>
+                    <option value="CASE_CREATED">CASE_CREATED</option>
+                    <option value="CASE_ASSIGNED">CASE_ASSIGNED</option>
+                    <option value="CASE_TRANSITIONED">CASE_TRANSITIONED</option>
+                    <option value="HUMAN_REVIEW_RELEASE">HUMAN_REVIEW_RELEASE</option>
+                    <option value="HUMAN_REVIEW_CLARIFY">HUMAN_REVIEW_CLARIFY</option>
+                    <option value="HUMAN_REVIEW_ESCALATE_AUDIT">HUMAN_REVIEW_ESCALATE_AUDIT</option>
+                    <option value="ADMIN_USER_CREATED">ADMIN_USER_CREATED</option>
+                  </select>
+                  <button className="button button-secondary" onClick={exportAuditCsv}>
+                    <Download size={14}/> Unduh CSV
+                  </button>
+                  <button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>
+                </div>
+              }/>
             {!hasPermission(currentUser.role, ["view_audit"]) ? (
               <div className="card" style={{ padding: "24px", textAlign: "center" }}>
                 <Lock size={32} style={{ color: "var(--muted)", marginBottom: "12px" }}/>
@@ -1605,7 +1699,31 @@ export function App() {
             )}
             {adminView === "audit_trail" && (
               <div>
-                <SectionHeader title="Audit Trail Lengkap" subtitle="Semua tindakan penting tercatat dengan aktor, role, dan timestamp" action={<button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
+                <SectionHeader title="Audit Trail Lengkap" subtitle="Semua tindakan penting tercatat dengan aktor, role, dan timestamp"
+                  action={
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                      <div style={{ position: "relative" }}>
+                        <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
+                        <input value={auditSearchQuery} onChange={e => setAuditSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchAuditLogs()} placeholder="Cari aktor, aksi, target ID…"
+                          style={{ padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "190px" }}/>
+                      </div>
+                      <select value={auditActionFilter} onChange={e => setAuditActionFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+                        <option value="ALL">Semua Aksi</option>
+                        <option value="CLAIM_INGESTED">CLAIM_INGESTED</option>
+                        <option value="CASE_CREATED">CASE_CREATED</option>
+                        <option value="CASE_ASSIGNED">CASE_ASSIGNED</option>
+                        <option value="CASE_TRANSITIONED">CASE_TRANSITIONED</option>
+                        <option value="HUMAN_REVIEW_RELEASE">HUMAN_REVIEW_RELEASE</option>
+                        <option value="HUMAN_REVIEW_CLARIFY">HUMAN_REVIEW_CLARIFY</option>
+                        <option value="HUMAN_REVIEW_ESCALATE_AUDIT">HUMAN_REVIEW_ESCALATE_AUDIT</option>
+                        <option value="ADMIN_USER_CREATED">ADMIN_USER_CREATED</option>
+                      </select>
+                      <button className="button button-secondary" onClick={exportAuditCsv}>
+                        <Download size={14}/> Unduh CSV
+                      </button>
+                      <button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>
+                    </div>
+                  }/>
                 {auditLoading ? <LoadingSpinner/> : (
                   <div className="card" style={{ padding: "0", overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
