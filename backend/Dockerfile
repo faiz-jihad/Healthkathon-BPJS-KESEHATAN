@@ -28,8 +28,12 @@ RUN apk add --no-cache openssl libc6-compat
 
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV DATABASE_URL="postgresql://aura_user:aura_password@postgres:5432/aura_jkn_db?schema=public"
+ENV AI_SERVICE_URL="http://ai-service:8000"
+ENV AUTH_SECRET="aura-jkn-secure-hmac-secret-healthkathon-2026-bpjs"
 
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/.env.example ./.env
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/prisma ./prisma
