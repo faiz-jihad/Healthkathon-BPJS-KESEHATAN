@@ -47,7 +47,9 @@ import { LiveClaimSimulatorModal } from "./components/LiveClaimSimulatorModal";
 import { ControlledFeedbackPanel } from "./components/ControlledFeedbackPanel";
 
 const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+  typeof import.meta.env.VITE_BACKEND_URL === "string" && import.meta.env.VITE_BACKEND_URL !== ""
+    ? import.meta.env.VITE_BACKEND_URL
+    : (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 type AppRole =
   | "CLAIM_VERIFIER"
@@ -229,7 +231,7 @@ export function App() {
     } catch (err: any) {
       console.error("Failed to fetch claims from Next.js backend:", err);
       setDataSourceError(
-        "Koneksi ke API Gateway Backend gagal. Pastikan Next.js backend dan PostgreSQL aktif di http://localhost:3001."
+        "Koneksi ke API Gateway Backend gagal. Pastikan layanan Pendukung aktif."
       );
       setData(null);
       setSelectedClaim(null);

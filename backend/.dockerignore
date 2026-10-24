@@ -1,0 +1,19 @@
+# Node dependencies & builds
+node_modules
+.next
+out
+build
+*.tsbuildinfo
+
+# Local Database
+.postgres-data
+**/.postgres-data
+
+# Environment files
+.env.local
+.env.*.local
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db

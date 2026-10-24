@@ -1,0 +1,14 @@
+# Node dependencies & builds
+node_modules
+dist
+build
+*.tsbuildinfo
+
+# Environment files
+.env.local
+.env.*.local
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db

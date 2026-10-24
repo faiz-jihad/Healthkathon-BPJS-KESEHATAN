@@ -13,10 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy model artifacts, dataset, and code
+# Copy model artifacts, dataset, importer, and code
 COPY app.py .
 COPY aura_jkn_hetero_graph.pt .
 COPY aura_jkn_rgcn_model.pt .
+COPY seed_parquet_to_db.py .
 COPY data/ ./data/
 
 EXPOSE 8000

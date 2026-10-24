@@ -17,7 +17,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Custom nginx configuration for SPA routing and API proxy
 RUN echo 'server { \
     listen 5173; \
+    listen 80; \
     server_name localhost; \
+    client_max_body_size 50M; \
     location / { \
         root /usr/share/nginx/html; \
         index index.html index.htm; \
@@ -29,10 +31,15 @@ RUN echo 'server { \
         proxy_set_header Upgrade $http_upgrade; \
         proxy_set_header Connection "upgrade"; \
         proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
         proxy_cache_bypass $http_upgrade; \
+        proxy_read_timeout 300s; \
+        proxy_connect_timeout 300s; \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
-EXPOSE 5173
+EXPOSE 5173 80
 
 CMD ["nginx", "-g", "daemon off;"]

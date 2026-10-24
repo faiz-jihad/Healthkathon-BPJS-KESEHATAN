@@ -32,6 +32,10 @@ services:
     environment:
       - PORT=8000
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://aura_user:aura_password@postgres:5432/aura_jkn_db
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # 3. Next.js 14 Backend API Service (Port 3001)
   backend:
@@ -50,8 +54,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    command: sh -c "npx prisma db push && npm start"
 
-  # 4. React 18 + Vite Frontend Dashboard (Port 5173)
+  # 4. React 18 + Vite Frontend Dashboard (Port 5173 & 80)
   frontend:
     build:
       context: ./frontend
@@ -60,8 +65,7 @@ services:
     restart: unless-stopped
     ports:
       - "5173:5173"
-    environment:
-      - VITE_BACKEND_URL=http://backend:3001
+      - "80:80"
     depends_on:
       - backend
 
