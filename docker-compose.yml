@@ -52,7 +52,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "npx prisma db push && npm start"
+    command: npm start
 
   # 4. React 18 + Vite Frontend Dashboard (Port 5173 & 80)
   frontend:
