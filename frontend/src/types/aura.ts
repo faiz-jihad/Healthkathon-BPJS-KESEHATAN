@@ -150,6 +150,16 @@ export interface FeedbackExportResponse {
     confirmed_fraud_label_1_count: number;
     legitimate_label_0_count: number;
     pending_clarification_count: number;
+    verified_metrics?: {
+      evaluated_reviews_count: number;
+      true_positives: number;
+      false_positives: number;
+      true_negatives: number;
+      false_negatives: number;
+      verified_precision_pct: number | null;
+      verified_recall_pct: number | null;
+      agreement_rate_pct: number | null;
+    };
   };
   records: FeedbackExportItem[];
 }

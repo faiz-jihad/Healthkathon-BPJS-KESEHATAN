@@ -61,6 +61,7 @@ export async function GET(
         priority: caseData.priority,
         priority_score: caseData.priorityScore,
         assigned_to: caseData.assignedTo,
+        assigned_role: caseData.assignedRole || null,
         assigned_at: caseData.assignedAt,
         sla_deadline: caseData.slaDeadline,
         sla_breached: caseData.slaDeadline
@@ -219,7 +220,7 @@ export async function GET(
 }
 
 // ============================================================
-// PATCH /api/cases/[caseId] — Transition case state
+// PATCH /api/cases/[caseId] — Transition case state or Assign Case
 // ============================================================
 
 export async function PATCH(
@@ -246,13 +247,112 @@ export async function PATCH(
     );
   }
 
-  const { action, notes, assigned_to, outcome } = body;
+  const { action, notes, assigned_to, assigned_role, outcome } = body;
 
   if (!action) {
     return Response.json(
       { status: "VALIDATION_ERROR", error: "Field 'action' wajib diisi." },
       { status: 400 }
     );
+  }
+
+  // Handle ASSIGN_CASE action for SUPERVISOR / ADMINISTRATOR
+  if (action === "ASSIGN_CASE") {
+    if (!hasPermission(user.role, PERMISSIONS.ASSIGN_CASE)) {
+      return Response.json(
+        {
+          status: "FORBIDDEN",
+          error: `Role '${user.role}' tidak memiliki izin 'ASSIGN_CASE'.`,
+        },
+        { status: 403 }
+      );
+    }
+
+    if (!assigned_to || !String(assigned_to).trim()) {
+      return Response.json(
+        {
+          status: "VALIDATION_ERROR",
+          error: "Field 'assigned_to' wajib diisi untuk penugasan kasus.",
+        },
+        { status: 400 }
+      );
+    }
+
+    try {
+      const caseData = await db.caseInvestigation.findFirst({
+        where: { OR: [{ id: caseId }, { caseNumber: caseId }] },
+      });
+
+      if (!caseData) {
+        return Response.json(
+          { status: "NOT_FOUND", error: `Kasus '${caseId}' tidak ditemukan.` },
+          { status: 404 }
+        );
+      }
+
+      const now = new Date();
+      const targetAssignee = String(assigned_to).trim();
+
+      const updated = await prisma.$transaction(async (tx: any) => {
+        const updatedCase = await tx.caseInvestigation.update({
+          where: { id: caseData.id },
+          data: {
+            assignedTo: targetAssignee,
+            assignedRole: assigned_role || "INVESTIGATOR",
+            assignedAt: now,
+            updatedAt: now,
+          },
+        });
+
+        await tx.caseTransition.create({
+          data: {
+            caseId: caseData.id,
+            fromStatus: caseData.status,
+            toStatus: caseData.status,
+            actorName: user.fullName,
+            actorRole: user.role,
+            notes: notes
+              ? `Penugasan ke ${targetAssignee}: ${notes}`
+              : `Kasus ditugaskan kepada ${targetAssignee}`,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actorName: user.fullName,
+            actorRole: user.role,
+            action: "CASE_ASSIGNED",
+            targetId: caseData.caseNumber,
+            metadata: {
+              case_id: caseData.id,
+              claim_id: caseData.claimId,
+              assigned_to: targetAssignee,
+              assigned_role: assigned_role || "INVESTIGATOR",
+              notes: notes || null,
+            },
+          },
+        });
+
+        return updatedCase;
+      });
+
+      return Response.json({
+        status: "ASSIGNMENT_COMPLETED",
+        case_number: caseData.caseNumber,
+        assigned_to: updated.assignedTo,
+        assigned_role: updated.assignedRole,
+        updated_at: updated.updatedAt,
+        actor: user.fullName,
+      });
+    } catch (dbErr: any) {
+      return Response.json(
+        {
+          status: "DATABASE_ERROR",
+          error: `Gagal menugaskan kasus: ${dbErr?.message || "Kesalahan database"}`,
+        },
+        { status: 500 }
+      );
+    }
   }
 
   // Parse target status from action string TRANSITION_TO_XXX
@@ -263,7 +363,7 @@ export async function PATCH(
     return Response.json(
       {
         status: "VALIDATION_ERROR",
-        error: `Action '${action}' tidak dikenali. Format: TRANSITION_TO_<STATUS>`,
+        error: `Action '${action}' tidak dikenali. Format: TRANSITION_TO_<STATUS> atau ASSIGN_CASE`,
       },
       { status: 400 }
     );

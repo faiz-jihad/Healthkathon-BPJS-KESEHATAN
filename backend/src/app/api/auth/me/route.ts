@@ -1,4 +1,4 @@
-import { getAuthenticatedUser, ROLE_PERMISSIONS } from "@/lib/auth";
+import { getAuthenticatedUser, ROLE_PERMISSIONS, normalizeRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +15,11 @@ export async function GET(request: Request) {
     );
   }
 
+  const normalizedRole = normalizeRole(user.role);
+
   return Response.json({
     status: "AUTHENTICATED",
     user,
-    permissions: ROLE_PERMISSIONS[user.role] || [],
+    permissions: ROLE_PERMISSIONS[normalizedRole] || [],
   });
 }

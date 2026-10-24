@@ -94,6 +94,13 @@ const PRIORITY_CONFIG: Record<string, { color: string; bg: string; dot: string }
   LOW:    { color: "#059669", bg: "#d1fae5", dot: "#059669" },
 };
 
+const OUTCOME_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+  REFERRED_FOR_ACTION:   { label: "Direkomendasikan Tindakan Lanjut", color: "#dc2626", bg: "#fee2e2" },
+  CLEARED:               { label: "Klaim Terverifikasi Sah (Cleared)", color: "#059669", bg: "#d1fae5" },
+  INSUFFICIENT_EVIDENCE: { label: "Bukti Belum Memadai", color: "#d97706", bg: "#fef3c7" },
+  CLOSED_ADMINISTRATIVE: { label: "Ditutup Administratif", color: "#64748b", bg: "#f1f5f9" },
+};
+
 function formatIDR(num: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
 }
@@ -138,10 +145,13 @@ export function App() {
   const [reportsView, setReportsView] = useState<ReportsView>("performance");
   const [adminView, setAdminView] = useState<AdminView>("users");
 
-  // Claims data
+  // Claims data & advanced filters
   const [data, setData] = useState<ClaimsListResponse | null>(null);
   const [selectedClaim, setSelectedClaim] = useState<ClaimRecord | null>(null);
   const [riskFilter, setRiskFilter] = useState<string>("ALL");
+  const [scenarioFilter, setScenarioFilter] = useState<string>("ALL");
+  const [reviewStatusFilter, setReviewStatusFilter] = useState<string>("ALL");
+  const [gateFilter, setGateFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("fri_desc");
   const [loading, setLoading] = useState<boolean>(true);
@@ -157,7 +167,10 @@ export function App() {
   const [casePriorityFilter, setCasePriorityFilter] = useState("ALL");
   const [caseQueueSummary, setCaseQueueSummary] = useState<Record<string, number>>({});
   const [caseAction, setCaseAction] = useState("");
+  const [caseOutcome, setCaseOutcome] = useState("REFERRED_FOR_ACTION");
   const [caseNotes, setCaseNotes] = useState("");
+  const [assignTargetUser, setAssignTargetUser] = useState("investigator_aura");
+  const [assignTargetRole, setAssignTargetRole] = useState("INVESTIGATOR");
   const [caseActionLoading, setCaseActionLoading] = useState(false);
   const [caseActionResult, setCaseActionResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -232,6 +245,9 @@ export function App() {
     try {
       const params = new URLSearchParams();
       if (riskFilter !== "ALL") params.set("risk_level", riskFilter);
+      if (scenarioFilter !== "ALL") params.set("scenario", scenarioFilter);
+      if (reviewStatusFilter !== "ALL") params.set("review_status", reviewStatusFilter);
+      if (gateFilter !== "ALL") params.set("pre_payment_gate", gateFilter);
       if (sortBy) params.set("sort_by", sortBy);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       params.set("limit", "200");
@@ -247,7 +263,7 @@ export function App() {
       setDataSourceError("Koneksi ke API Gateway Backend gagal. Pastikan layanan aktif.");
       setData(null);
     } finally { setLoading(false); }
-  }, [riskFilter, sortBy, searchQuery, authHeaders]);
+  }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, searchQuery, authHeaders]);
 
   const fetchCases = useCallback(async () => {
     setCasesLoading(true);
@@ -255,6 +271,9 @@ export function App() {
       const params = new URLSearchParams();
       if (caseStatusFilter !== "ALL") params.set("status", caseStatusFilter);
       if (casePriorityFilter !== "ALL") params.set("priority", casePriorityFilter);
+      if (investigationView === "my_cases") {
+        params.set("assigned_to", currentUser.username);
+      }
       const res = await fetch(`${BACKEND_URL}/api/cases?${params}&limit=30`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
@@ -262,7 +281,7 @@ export function App() {
         setCaseQueueSummary(json.queue_summary || {});
       }
     } catch {} finally { setCasesLoading(false); }
-  }, [caseStatusFilter, casePriorityFilter, authHeaders]);
+  }, [caseStatusFilter, casePriorityFilter, investigationView, currentUser.username, authHeaders]);
 
   const fetchCaseDetail = async (caseId: string) => {
     setCaseDetailLoading(true);
@@ -292,7 +311,16 @@ export function App() {
     setAuditLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/audit-logs?limit=50`, { headers: authHeaders() });
-      if (res.ok) { const json = await res.json(); setAuditLogs((json.logs || []).map((l: any) => ({ ...l, timestamp: l.recordedAt || l.timestamp }))); }
+      if (res.ok) {
+        const json = await res.json();
+        setAuditLogs(
+          (json.logs || []).map((l: any) => ({
+            ...l,
+            payload: l.metadata || l.payload || {},
+            timestamp: l.recordedAt || l.timestamp,
+          }))
+        );
+      }
     } catch {} finally { setAuditLoading(false); }
   };
 
@@ -319,10 +347,14 @@ export function App() {
     setCaseActionLoading(true);
     setCaseActionResult(null);
     try {
+      const payload: any = { action: caseAction, notes: caseNotes };
+      if (caseAction === "TRANSITION_TO_RESOLVED") {
+        payload.outcome = caseOutcome;
+      }
       const res = await fetch(`${BACKEND_URL}/api/cases/${selectedCase.id}`, {
         method: "PATCH",
         headers: authHeaders(),
-        body: JSON.stringify({ action: caseAction, notes: caseNotes }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (res.ok) {
@@ -336,6 +368,39 @@ export function App() {
     } catch (e: any) {
       setCaseActionResult({ success: false, message: `Koneksi gagal: ${e.message}` });
     } finally { setCaseActionLoading(false); }
+  };
+
+  const handleAssignCase = async () => {
+    if (!selectedCase || !assignTargetUser.trim()) return;
+    setCaseActionLoading(true);
+    setCaseActionResult(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/cases/${selectedCase.id}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          action: "ASSIGN_CASE",
+          assigned_to: assignTargetUser.trim(),
+          assigned_role: assignTargetRole,
+          notes: caseNotes.trim() || `Penugasan kasus oleh ${currentUser.fullName}`,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setCaseActionResult({
+          success: true,
+          message: `Kasus berhasil ditugaskan kepada ${json.assigned_to} (${json.assigned_role}).`,
+        });
+        await fetchCases();
+        await fetchCaseDetail(selectedCase.id);
+      } else {
+        setCaseActionResult({ success: false, message: json.error || "Gagal menugaskan kasus." });
+      }
+    } catch (e: any) {
+      setCaseActionResult({ success: false, message: `Koneksi gagal: ${e.message}` });
+    } finally {
+      setCaseActionLoading(false);
+    }
   };
 
   const createCaseFromClaim = async (claimId: string) => {
@@ -409,11 +474,21 @@ export function App() {
   // ============================================================
 
   useEffect(() => { switchRole("VERIFIKATOR"); }, []);
-  useEffect(() => { fetchClaims(); }, [riskFilter, sortBy, currentUser.token]);
-  useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, caseStatusFilter, casePriorityFilter, currentUser.token]);
-  useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); } }, [activeSection, currentUser.token]);
-  useEffect(() => { if (activeSection === "data_intelligence" && dataView === "ingestion") fetchIngestion(); }, [activeSection, dataView, currentUser.token]);
-  useEffect(() => { if (activeSection === "reports" && reportsView === "performance") fetchPerformance(); }, [activeSection, reportsView, currentUser.token]);
+  useEffect(() => { fetchClaims(); }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, currentUser.token]);
+  useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, investigationView, caseStatusFilter, casePriorityFilter, currentUser.token]);
+  useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); fetchCases(); } }, [activeSection, currentUser.token]);
+  useEffect(() => {
+    if (activeSection === "data_intelligence") {
+      if (dataView === "ingestion") fetchIngestion();
+      if (dataView === "quality" || dataView === "model_eval") fetchPerformance();
+    }
+  }, [activeSection, dataView, currentUser.token]);
+  useEffect(() => {
+    if (activeSection === "reports") {
+      if (reportsView === "performance" || reportsView === "outcomes" || reportsView === "model") fetchPerformance();
+      if (reportsView === "audit") fetchAuditLogs();
+    }
+  }, [activeSection, reportsView, currentUser.token]);
   useEffect(() => { if (activeSection === "administration") { if (adminView === "users") fetchUsers(); if (adminView === "audit_trail") fetchAuditLogs(); if (adminView === "health") fetchHealth(); } }, [activeSection, adminView, currentUser.token]);
   useEffect(() => { if (selectedCase && investigationView === "evidence_center") fetchCaseDetail(selectedCase.id); }, [selectedCase, investigationView]);
 
@@ -422,6 +497,13 @@ export function App() {
   // ============================================================
 
   const rCfg = ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.VERIFIKATOR;
+
+  const isDbConnected = Boolean(
+    healthStatus?.database?.connected === true || healthStatus?.database === "connected"
+  );
+  const isAiConnected = Boolean(
+    healthStatus?.ai_engine?.connected === true || healthStatus?.ai_service === "connected"
+  );
 
   const RoleBadge = ({ role }: { role: string }) => {
     const cfg = ROLE_CONFIG[role] || { label: role, color: "#64748b", bg: "#f1f5f9" };
@@ -454,7 +536,7 @@ export function App() {
   );
 
   const SectionHeader = ({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
       <div>
         <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h1>
         {subtitle && <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--muted)" }}>{subtitle}</p>}
@@ -496,11 +578,14 @@ export function App() {
         title={`Selamat datang, ${currentUser.fullName.split(" ")[0]}.`}
         subtitle="Ringkasan operasional AURA-JKN — Evidence-Linked Relational Claim Intelligence Platform"
         action={
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div className="card" style={{ padding: "6px 14px", borderRadius: "30px", display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: healthStatus?.status === "healthy" ? "var(--green)" : "#dc2626" }}/>
-              {healthStatus?.status === "healthy" ? "Semua Layanan Aktif" : "Periksa Status Layanan"}
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: isDbConnected ? "var(--green)" : "#dc2626" }}/>
+              {isDbConnected ? "PostgreSQL Terhubung" : "Periksa Status Layanan"}
             </div>
+            <button className="button button-secondary" onClick={() => setShowSimulatorModal(true)}>
+              <PlusCircle size={14}/> Simulasi Klaim Baru
+            </button>
             <button className="button button-primary" onClick={() => { setActiveSection("investigation"); setInvestigationView("queue"); }}>
               <Inbox size={14}/> Buka Antrean
             </button>
@@ -512,7 +597,7 @@ export function App() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <MetricCard title="TOTAL KLAIM DATABASE" value={data?.summary.total_claims?.toLocaleString("id-ID") || "—"} subtitle={`Rata-rata FRI: ${data?.summary.avg_fri ?? "—"} • PostgreSQL Live`} icon={<Database size={18}/>}/>
         <MetricCard title="RISIKO TINGGI (FRI ≥ 70)" value={data?.summary.high_risk_count?.toLocaleString("id-ID") || "—"} subtitle="Perlu telaah prioritas" color="#dc2626" icon={<ShieldAlert size={18}/>}/>
-        <MetricCard title="KASUS TERBUKA" value={perfData ? Object.values(perfData.investigation?.open_cases ?? {}).toString() : (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Antrean investigasi aktif" color="#d97706" icon={<ClipboardList size={18}/>}/>
+        <MetricCard title="KASUS TERBUKA" value={perfData?.investigation?.open_cases ?? (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Antrean investigasi aktif" color="#d97706" icon={<ClipboardList size={18}/>}/>
         <MetricCard title="SELESAI DIINVESTIGASI" value={perfData?.investigation?.throughput_all_time ?? "—"} subtitle="Total kasus resolved + closed" color="#059669" icon={<CheckCircle2 size={18}/>}/>
       </div>
 
@@ -555,13 +640,13 @@ export function App() {
           {healthStatus ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {[
-                { name: "PostgreSQL Database", status: healthStatus.database === "connected" ? "OK" : "ERROR", detail: healthStatus.database },
-                { name: "AI Service (R-GCN FastAPI)", status: healthStatus.ai_service === "connected" ? "OK" : "DEGRADED", detail: healthStatus.ai_service },
-                { name: "Backend API Gateway", status: "OK", detail: "Terhubung" },
+                { name: "PostgreSQL Database", status: isDbConnected ? "OK" : "ERROR" },
+                { name: "AI Service (R-GCN FastAPI)", status: isAiConnected ? "OK" : "STANDBY" },
+                { name: "Backend API Gateway", status: "OK" },
               ].map(svc => (
                 <div key={svc.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: "10px", background: "#f9fafb" }}>
                   <span style={{ fontSize: "12px" }}>{svc.name}</span>
-                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: svc.status === "OK" ? "#d1fae5" : svc.status === "DEGRADED" ? "#fef3c7" : "#fee2e2", color: svc.status === "OK" ? "#059669" : svc.status === "DEGRADED" ? "#d97706" : "#dc2626" }}>{svc.status}</span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: svc.status === "OK" ? "#d1fae5" : svc.status === "STANDBY" ? "#fef3c7" : "#fee2e2", color: svc.status === "OK" ? "#059669" : svc.status === "STANDBY" ? "#d97706" : "#dc2626" }}>{svc.status}</span>
                 </div>
               ))}
               <div style={{ marginTop: "8px", padding: "10px 12px", borderRadius: "10px", background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: "11px", color: "#166534" }}>
@@ -578,11 +663,15 @@ export function App() {
   // SECTION: INVESTIGATION
   // ============================================================
 
-  const renderInvestigationQueue = () => (
+  const renderInvestigationQueue = (onlyMine = false) => (
     <div>
       <SectionHeader
-        title="Antrean Investigasi"
-        subtitle="Daftar kasus yang memerlukan pemeriksaan. Prioritas dihitung berdasarkan FRI, deteksi spasial, dan waktu tunggu."
+        title={onlyMine ? `Kasus Saya (${currentUser.username})` : "Antrean Investigasi"}
+        subtitle={
+          onlyMine
+            ? "Daftar kasus investigasi yang ditugaskan langsung kepada akun Anda."
+            : "Daftar kasus yang memerlukan pemeriksaan. Prioritas dihitung berdasarkan FRI, deteksi spasial, dan waktu tunggu."
+        }
         action={
           <div style={{ display: "flex", gap: "10px" }}>
             <select value={caseStatusFilter} onChange={e => setCaseStatusFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
@@ -611,7 +700,11 @@ export function App() {
       </div>
 
       {casesLoading ? <LoadingSpinner/> : cases.length === 0 ? (
-        <EmptyState icon={<Inbox size={48}/>} message="Tidak ada kasus dalam antrean" sub="Kasus baru akan muncul setelah klaim di-flag oleh sistem"/>
+        <EmptyState
+          icon={<Inbox size={48}/>}
+          message={onlyMine ? "Belum ada kasus yang ditugaskan kepada Anda" : "Tidak ada kasus dalam antrean"}
+          sub={onlyMine ? "Supervisor dapat menugaskan kasus kepada Anda melalui Evidence Center" : "Kasus baru akan muncul setelah klaim di-flag oleh sistem"}
+        />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {cases.map(c => (
@@ -658,13 +751,13 @@ export function App() {
 
     return (
       <div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
           <button className="button button-secondary" style={{ fontSize: "11px", padding: "6px 12px", minHeight: 0 }} onClick={() => { setInvestigationView("queue"); setSelectedCase(null); setCaseDetail(null); }}>
             ← Kembali ke Antrean
           </button>
           <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>Evidence Center — {selectedCase.case_number}</h1>
-          <StatusBadge status={selectedCase.status}/>
-          <PriorityBadge priority={selectedCase.priority}/>
+          <StatusBadge status={ec?.case_summary?.status || selectedCase.status}/>
+          <PriorityBadge priority={ec?.case_summary?.priority || selectedCase.priority}/>
         </div>
 
         {caseDetailLoading ? <LoadingSpinner/> : ec ? (
@@ -679,10 +772,10 @@ export function App() {
                   ["Nomor Kasus", ec.case_summary?.case_number],
                   ["Klaim ID", ec.case_summary?.claim_id],
                   ["Status", <StatusBadge key="s" status={ec.case_summary?.status || ""}/>],
-                  ["Ditugaskan ke", ec.case_summary?.assigned_to || "Belum ditugaskan"],
+                  ["Ditugaskan ke", ec.case_summary?.assigned_to ? `${ec.case_summary.assigned_to} (${ec.case_summary.assigned_role || "PETUGAS"})` : "Belum ditugaskan"],
                   ["SLA Deadline", formatDate(ec.case_summary?.sla_deadline)],
                   ["Dibuat", formatDate(ec.case_summary?.created_at)],
-                  ["Outcome", ec.final_outcome?.outcome || "Belum ada hasil"],
+                  ["Outcome", ec.final_outcome?.outcome ? (OUTCOME_LABELS[ec.final_outcome.outcome]?.label || ec.final_outcome.outcome) : "Belum ada hasil"],
                 ].map(([k, v]) => (
                   <div key={k as string} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--line)" }}>
                     <span style={{ color: "var(--muted)" }}>{k}</span><span style={{ fontWeight: 600, textAlign: "right" }}>{v || "-"}</span>
@@ -732,6 +825,14 @@ export function App() {
                     Volume Harian Dokter: {ec.detected_patterns?.doctor_daily_volume ?? "—"}
                   </span>
                 </div>
+                {ec.detected_patterns?.subgraph_evidence?.nodes?.length > 0 && (
+                  <div style={{ marginTop: "10px" }}>
+                    <SubgraphViewer
+                      nodes={ec.detected_patterns.subgraph_evidence.nodes}
+                      edges={ec.detected_patterns.subgraph_evidence.edges}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -795,16 +896,54 @@ export function App() {
                 </div>
               )}
 
-              {selectedCase.available_actions.length === 0 ? (
+              {/* Supervisor / Admin Case Assignment Panel */}
+              {hasPermission(currentUser.role, ["assign"]) && (
+                <div style={{ marginBottom: "14px", padding: "12px", borderRadius: "12px", background: "#f9fafb", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "8px" }}>
+                    PENUGASAN KASUS (SUPERVISOR / ADMIN)
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                    <select
+                      value={assignTargetUser}
+                      onChange={e => setAssignTargetUser(e.target.value)}
+                      style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--line)", fontSize: "12px" }}
+                    >
+                      <option value="investigator_aura">investigator_aura (Investigator)</option>
+                      <option value="verifier_aura">verifier_aura (Verifikator)</option>
+                      <option value="supervisor_aura">supervisor_aura (Supervisor)</option>
+                    </select>
+                    <select
+                      value={assignTargetRole}
+                      onChange={e => setAssignTargetRole(e.target.value)}
+                      style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--line)", fontSize: "12px" }}
+                    >
+                      <option value="INVESTIGATOR">INVESTIGATOR</option>
+                      <option value="VERIFIKATOR">VERIFIKATOR</option>
+                      <option value="SUPERVISOR">SUPERVISOR</option>
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ width: "100%", minHeight: "32px", fontSize: "11.5px" }}
+                    disabled={caseActionLoading}
+                    onClick={handleAssignCase}
+                  >
+                    <UserCheck size={13} /> Tugaskan Kasus ke {assignTargetUser}
+                  </button>
+                </div>
+              )}
+
+              {(ec.available_actions || selectedCase.available_actions || []).length === 0 ? (
                 <div style={{ fontSize: "12px", color: "var(--muted)", padding: "12px", background: "#f9fafb", borderRadius: "10px" }}>
-                  Tidak ada tindakan tersedia untuk status ini atau role Anda ({currentUser.role}).
+                  Tidak ada transisi status tersedia untuk status ini atau role Anda ({currentUser.role}).
                 </div>
               ) : (
                 <>
                   <div style={{ marginBottom: "10px" }}>
-                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "6px" }}>Pilih Tindakan:</label>
+                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "6px" }}>Pilih Tindakan Status:</label>
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      {selectedCase.available_actions.map(a => (
+                      {(ec.available_actions || selectedCase.available_actions).map((a: any) => (
                         <button key={a.action} onClick={() => setCaseAction(a.action)}
                           style={{ textAlign: "left", padding: "8px 12px", borderRadius: "10px", border: `1px solid ${caseAction === a.action ? "var(--green)" : "var(--line)"}`, background: caseAction === a.action ? "#e5f4ec" : "#fff", fontSize: "12px", cursor: "pointer", fontWeight: caseAction === a.action ? 700 : 500 }}>
                           <ArrowRight size={12} style={{ display: "inline", marginRight: "6px" }}/>{a.description} → <strong>{a.to_status}</strong>
@@ -812,6 +951,23 @@ export function App() {
                       ))}
                     </div>
                   </div>
+
+                  {caseAction === "TRANSITION_TO_RESOLVED" && (
+                    <div style={{ marginBottom: "10px" }}>
+                      <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Hasil Akhir Investigasi (Outcome):</label>
+                      <select
+                        value={caseOutcome}
+                        onChange={e => setCaseOutcome(e.target.value)}
+                        style={{ width: "100%", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--line)", fontSize: "12px" }}
+                      >
+                        <option value="REFERRED_FOR_ACTION">REFERRED_FOR_ACTION — Direkomendasikan Tindakan Lanjut</option>
+                        <option value="CLEARED">CLEARED — Klaim Terverifikasi Sah</option>
+                        <option value="INSUFFICIENT_EVIDENCE">INSUFFICIENT_EVIDENCE — Bukti Belum Memadai</option>
+                        <option value="CLOSED_ADMINISTRATIVE">CLOSED_ADMINISTRATIVE — Ditutup Administratif</option>
+                      </select>
+                    </div>
+                  )}
+
                   <div style={{ marginBottom: "10px" }}>
                     <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Catatan (wajib untuk eskalasi/resolusi):</label>
                     <textarea value={caseNotes} onChange={e => setCaseNotes(e.target.value)} rows={3}
@@ -828,7 +984,7 @@ export function App() {
               {/* Also allow claim-level review */}
               {ec.observed_facts?.claim_id && (
                 <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--line)" }}>
-                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "8px", fontWeight: 700 }}>CATATAN REVIEW KLAIM (LEGACY):</div>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "8px", fontWeight: 700 }}>CATATAN REVIEW KLAIM (CONTROLLED FEEDBACK LOOP):</div>
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                     {(["RELEASE", "CLARIFY", "ESCALATE_AUDIT"] as const).map(d => (
                       <button key={d} onClick={() => handleReviewDecision(d)} disabled={submittingReview}
@@ -885,25 +1041,48 @@ export function App() {
     <div>
       <SectionHeader title="Antrean Klaim / Alert Explorer" subtitle={`${data?.claims.length ?? 0} dari ${data?.summary.total_claims?.toLocaleString("id-ID") ?? "—"} klaim — sumber: PostgreSQL Live`}
         action={
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ position: "relative" }}>
               <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
               <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchClaims()} placeholder="Cari claim ID, dokter, faskes…"
-                style={{ paddingLeft: "32px", padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "200px" }}/>
+                style={{ paddingLeft: "32px", padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "185px" }}/>
             </div>
-            <select value={riskFilter} onChange={e => setRiskFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+            <select value={riskFilter} onChange={e => setRiskFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "11.5px" }}>
               <option value="ALL">Semua Risiko</option>
               <option value="HIGH">HIGH</option>
               <option value="MEDIUM">MEDIUM</option>
               <option value="LOW">LOW</option>
               <option value="UNASSESSED">Belum Diases</option>
             </select>
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+            <select value={scenarioFilter} onChange={e => setScenarioFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "11.5px" }}>
+              <option value="ALL">Semua Skenario</option>
+              <option value="C">Skenario C (Phantom)</option>
+              <option value="B">Skenario B (Upcoding)</option>
+              <option value="A">Skenario A (Doctor Shopping)</option>
+              <option value="NORMAL">Klaim Normal</option>
+            </select>
+            <select value={reviewStatusFilter} onChange={e => setReviewStatusFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "11.5px" }}>
+              <option value="ALL">Semua Status Review</option>
+              <option value="PENDING_REVIEW">Belum Direview</option>
+              <option value="RELEASED">Released (Sah)</option>
+              <option value="CLARIFICATION_REQUESTED">Klarifikasi</option>
+              <option value="ESCALATED_AUDIT">Eskalasi Audit</option>
+            </select>
+            <select value={gateFilter} onChange={e => setGateFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "11.5px" }}>
+              <option value="ALL">Semua Gate</option>
+              <option value="REJECT_FOR_HUMAN_REVIEW">Tahan (Human Review)</option>
+              <option value="FLAGGED_WARNING">Flagged Warning</option>
+              <option value="AUTO_APPROVE">Auto Approve</option>
+            </select>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "11.5px" }}>
               <option value="fri_desc">FRI Tertinggi</option>
               <option value="fri_asc">FRI Terendah</option>
               <option value="tariff_desc">Tarif Terbesar</option>
               <option value="newest">Terbaru</option>
             </select>
+            <button className="button button-secondary" onClick={() => setShowSimulatorModal(true)} title="Simulasi Klaim Baru">
+              <PlusCircle size={14}/> Simulasi
+            </button>
             <button className="button button-secondary" onClick={fetchClaims} disabled={loading}><RefreshCw size={14} className={loading ? "animate-spin" : ""}/></button>
           </div>
         }
@@ -936,6 +1115,16 @@ export function App() {
                 <div style={{ fontSize: "11px", color: "var(--muted)" }}>
                   FRI: <strong>{c.fraud_risk_index ?? "—"}</strong> • {c.service_date} • {formatIDR(c.ina_cbgs_tariff)}
                 </div>
+                <div style={{ display: "flex", gap: "6px", marginTop: "4px", flexWrap: "wrap" }}>
+                  {c.fraud_scenario && (
+                    <span style={{ fontSize: "9.5px", fontWeight: 700, padding: "1px 6px", borderRadius: "6px", background: "#f3e8ff", color: "#7c3aed" }}>
+                      Skenario {c.fraud_scenario}
+                    </span>
+                  )}
+                  <span style={{ fontSize: "9.5px", fontWeight: 600, padding: "1px 6px", borderRadius: "6px", background: c.review_status === "PENDING_REVIEW" ? "#f1f5f9" : "#d1fae5", color: c.review_status === "PENDING_REVIEW" ? "#64748b" : "#059669" }}>
+                    {c.review_status}
+                  </span>
+                </div>
               </button>
             ))}
           </div>
@@ -950,6 +1139,7 @@ export function App() {
                     <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
                       <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: selectedClaim.risk_level === "HIGH" ? "#fee2e2" : "#fef3c7", color: selectedClaim.risk_level === "HIGH" ? "#dc2626" : "#d97706" }}>{selectedClaim.risk_level} RISK</span>
                       <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9" }}>FRI: {selectedClaim.fraud_risk_index ?? "—"}</span>
+                      <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#e0f2fe", color: "#0284c7", fontWeight: 700 }}>Gate: {selectedClaim.pre_payment_gate}</span>
                       {selectedClaim.is_synthetic && <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f0f9ff", color: "#0284c7" }}>DATA SINTETIS (Healthkathon)</span>}
                     </div>
                   </div>
@@ -1002,7 +1192,7 @@ export function App() {
                     {(["RELEASE", "CLARIFY", "ESCALATE_AUDIT"] as const).map(d => (
                       <button key={d} onClick={() => setSelectedDecision(d)}
                         style={{ flex: 1, padding: "8px", borderRadius: "10px", border: `1px solid ${selectedDecision === d ? (d === "RELEASE" ? "#059669" : d === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706") : "var(--line)"}`, background: selectedDecision === d ? (d === "RELEASE" ? "#d1fae5" : d === "ESCALATE_AUDIT" ? "#fee2e2" : "#fef3c7") : "#fff", color: d === "RELEASE" ? "#059669" : d === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706", fontWeight: selectedDecision === d ? 800 : 500, fontSize: "11px", cursor: "pointer" }}>
-                        {d === "RELEASE" ? "✓ Release" : d === "CLARIFY" ? "? Klarifikasi" : "↑ Eskalasi"}
+                        {d === "RELEASE" ? "✓ Release (Label 0)" : d === "CLARIFY" ? "? Klarifikasi" : "↑ Eskalasi (Label 1)"}
                       </button>
                     ))}
                   </div>
@@ -1029,10 +1219,11 @@ export function App() {
       <div style={{ width: "180px", flexShrink: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
           {([
-            ["queue", "Antrean Kasus", <ClipboardList size={16}/>, "all"],
-            ["evidence_center", "Evidence Center", <FolderOpen size={16}/>, "all"],
-            ["alert_explorer", "Alert Explorer", <AlertCircle size={16}/>, "all"],
-            ["graph", "Graph Explorer", <Network size={16}/>, "all"],
+            ["queue", "Antrean Kasus", <ClipboardList size={16}/>],
+            ["my_cases", "Kasus Saya", <UserCheck size={16}/>],
+            ["evidence_center", "Evidence Center", <FolderOpen size={16}/>],
+            ["alert_explorer", "Alert Explorer", <AlertCircle size={16}/>],
+            ["graph", "Graph Explorer", <Network size={16}/>],
           ] as const).map(([view, label, icon]) => (
             <button key={view} onClick={() => setInvestigationView(view as InvestigationView)}
               style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: investigationView === view ? "#e5f4ec" : "transparent", color: investigationView === view ? "var(--dark-green)" : "#374151", fontWeight: investigationView === view ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
@@ -1042,7 +1233,8 @@ export function App() {
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        {investigationView === "queue" && renderInvestigationQueue()}
+        {investigationView === "queue" && renderInvestigationQueue(false)}
+        {investigationView === "my_cases" && renderInvestigationQueue(true)}
         {investigationView === "evidence_center" && renderEvidenceCenter()}
         {investigationView === "alert_explorer" && renderAlertExplorer()}
         {investigationView === "graph" && (
@@ -1122,26 +1314,13 @@ export function App() {
 
   const renderModelEval = () => (
     <div>
-      <SectionHeader title="Evaluasi Model AI" subtitle="Status model R-GCN PyTorch Geometric — metrik evaluasi memerlukan ground truth yang divalidasi"/>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+      <SectionHeader title="Evaluasi Model AI & Controlled Feedback Loop" subtitle="Status model R-GCN PyTorch Geometric & ekspor dataset ground-truth dari hasil telaah verifikator"/>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
         <MetricCard title="VERSI MODEL AKTIF" value={perfData?.model?.current_version || "1.0.0"} subtitle={`Terakhir inferensi: ${formatDate(perfData?.model?.last_inference)}`} icon={<Zap size={18}/>}/>
         <MetricCard title="COVERAGE ASESMEN" value={perfData?.data_quality?.assessment_coverage_pct !== undefined ? `${perfData.data_quality.assessment_coverage_pct}%` : null} subtitle="Klaim yang telah diases oleh model" color="#0284c7" icon={<Target size={18}/>}/>
       </div>
-      <div className="card" style={{ padding: "18px" }}>
-        <strong>Metrik Evaluasi Model</strong>
-        <div style={{ marginTop: "12px", padding: "16px", borderRadius: "12px", background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", fontSize: "12px" }}>
-          <AlertTriangle size={14} style={{ display: "inline", marginRight: "6px" }}/>
-          <strong>Precision, Recall, PR-AUC belum tersedia.</strong> Metrik evaluasi memerlukan dataset ground truth yang telah divalidasi secara independen. Gunakan endpoint <code>/api/feedback-export</code> untuk mengumpulkan feedback label yang tervalidasi, lalu jalankan evaluasi terpisah.
-        </div>
-        <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-          {[["Precision", null], ["Recall", null], ["PR-AUC", null], ["Precision@K", null]].map(([k, v]) => (
-            <div key={k as string} style={{ padding: "12px 16px", borderRadius: "10px", background: "#f9fafb", textAlign: "center" }}>
-              <div style={{ fontSize: "11px", color: "var(--muted)" }}>{k}</div>
-              <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--muted)", fontStyle: "italic" }}>N/A</div>
-              <div style={{ fontSize: "10px", color: "var(--muted)" }}>Memerlukan ground truth</div>
-            </div>
-          ))}
-        </div>
+      <div className="card" style={{ padding: "18px", marginBottom: "20px" }}>
+        <ControlledFeedbackPanel backendUrl={BACKEND_URL} authToken={currentUser.token} />
       </div>
     </div>
   );
@@ -1251,11 +1430,32 @@ export function App() {
         {reportsView === "performance" && renderPerformanceDashboard()}
         {reportsView === "outcomes" && (
           <div>
-            <SectionHeader title="Investigation Outcomes" subtitle="Hasil pemeriksaan berdasarkan keputusan petugas"/>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+            <SectionHeader title="Investigation Outcomes" subtitle="Hasil pemeriksaan kasus dan distribusi keputusan petugas"/>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "20px" }}>
               <MetricCard title="KASUS SELESAI" value={perfData?.investigation?.resolved_cases} color="#059669" icon={<CheckCircle2 size={18}/>}/>
               <MetricCard title="KASUS DITUTUP" value={perfData?.investigation?.closed_cases} icon={<Lock size={18}/>}/>
               <MetricCard title="KASUS DIESKALASI" value={perfData?.investigation?.escalated_cases} color="#dc2626" icon={<ArrowUpRight size={18}/>}/>
+            </div>
+            {perfData?.investigation?.outcomes_distribution && (
+              <div className="card" style={{ padding: "18px", marginBottom: "20px" }}>
+                <strong>Distribusi Hasil Resolusi Kasus (Outcomes)</strong>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginTop: "12px" }}>
+                  {Object.entries(OUTCOME_LABELS).map(([key, cfg]) => (
+                    <div key={key} style={{ padding: "12px 16px", borderRadius: "12px", background: cfg.bg, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: cfg.color }}>{cfg.label}</div>
+                        <div style={{ fontSize: "10px", fontFamily: "monospace", color: "var(--muted)" }}>{key}</div>
+                      </div>
+                      <strong style={{ fontSize: "22px", color: cfg.color }}>
+                        {perfData.investigation.outcomes_distribution[key] ?? 0}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="card" style={{ padding: "18px" }}>
+              <ControlledFeedbackPanel backendUrl={BACKEND_URL} authToken={currentUser.token} />
             </div>
           </div>
         )}
@@ -1287,7 +1487,7 @@ export function App() {
                         <td style={{ padding: "8px 14px" }}><RoleBadge role={l.actorRole}/></td>
                         <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px" }}>{l.action}</td>
                         <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px", maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis" }}>{l.targetId}</td>
-                        <td style={{ padding: "8px 14px", fontSize: "10px", color: "var(--muted)", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>{JSON.stringify(l.payload || {})}</td>
+                        <td style={{ padding: "8px 14px", fontSize: "10px", color: "var(--muted)", maxWidth: "240px", overflow: "hidden", textOverflow: "ellipsis" }}>{JSON.stringify(l.payload || {})}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1334,7 +1534,7 @@ export function App() {
                 <form onSubmit={handleCreateUser} className="card" style={{ padding: "18px", marginBottom: "16px" }}>
                   <strong style={{ display: "block", marginBottom: "12px" }}>Daftarkan Akun Baru</strong>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                    {[["Username", newUsername, setNewUsername, "contoh: verifikator_jateng", "text"], ["Nama Lengkap", newFullName, setNewFullName, "contoh: Dr. Rina S.", "text"], ["Kata Sandi", newPassword, setNewPassword, "Min 6 karakter", "password"]].map(([label, val, setter, ph, type]) => (
+                    {[["Username", newUsername, setNewUsername, "contoh: verifikator_jateng", "text"], ["Nama Lengkap", newFullName, setNewFullName, "contoh: Dr. Rina S.", "text"], ["Kata Sandi", newPassword, setNewPassword, "Min 8 karakter", "password"]].map(([label, val, setter, ph, type]) => (
                       <div key={label as string}>
                         <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>{label as string}:</label>
                         <input type={type as string} required value={val as string} onChange={e => (setter as any)(e.target.value)} placeholder={ph as string}
@@ -1384,15 +1584,15 @@ export function App() {
                 {healthStatus ? (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                     {[
-                      { name: "PostgreSQL Database", status: healthStatus.database, key: "database" },
-                      { name: "AI Service FastAPI (R-GCN)", status: healthStatus.ai_service, key: "ai_service" },
+                      { name: "PostgreSQL Database", connected: isDbConnected, detail: healthStatus.database },
+                      { name: "AI Service FastAPI (R-GCN)", connected: isAiConnected, detail: healthStatus.ai_engine || healthStatus.ai_service },
                     ].map(svc => (
-                      <div key={svc.key} className="card" style={{ padding: "18px" }}>
+                      <div key={svc.name} className="card" style={{ padding: "18px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <strong>{svc.name}</strong>
-                          <span style={{ fontSize: "11px", fontWeight: 700, padding: "4px 12px", borderRadius: "20px", background: svc.status === "connected" ? "#d1fae5" : "#fee2e2", color: svc.status === "connected" ? "#059669" : "#dc2626" }}>{svc.status === "connected" ? "● AKTIF" : "● TIDAK TERHUBUNG"}</span>
+                          <span style={{ fontSize: "11px", fontWeight: 700, padding: "4px 12px", borderRadius: "20px", background: svc.connected ? "#d1fae5" : "#fee2e2", color: svc.connected ? "#059669" : "#dc2626" }}>{svc.connected ? "● AKTIF" : "● TIDAK TERHUBUNG"}</span>
                         </div>
-                        <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "8px" }}>{JSON.stringify(healthStatus[svc.key])}</div>
+                        <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "8px", fontFamily: "monospace", wordBreak: "break-all" }}>{JSON.stringify(svc.detail)}</div>
                       </div>
                     ))}
                     <div className="card" style={{ padding: "18px", gridColumn: "1 / -1" }}>
@@ -1410,10 +1610,10 @@ export function App() {
                   <div className="card" style={{ padding: "0", overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                       <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
-                        {["Waktu", "Aktor", "Role", "Aksi", "Target ID"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
+                        {["Waktu", "Aktor", "Role", "Aksi", "Target ID", "Metadata"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
                       </tr></thead>
                       <tbody>
-                        {auditLogs.length === 0 ? <tr><td colSpan={5} style={{ textAlign: "center", padding: "32px", color: "var(--muted)" }}>Belum ada log tersimpan</td></tr>
+                        {auditLogs.length === 0 ? <tr><td colSpan={6} style={{ textAlign: "center", padding: "32px", color: "var(--muted)" }}>Belum ada log tersimpan</td></tr>
                         : auditLogs.map(l => (
                           <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
                             <td style={{ padding: "8px 14px", whiteSpace: "nowrap" }}>{formatDate(l.timestamp)}</td>
@@ -1421,6 +1621,7 @@ export function App() {
                             <td style={{ padding: "8px 14px" }}><RoleBadge role={l.actorRole}/></td>
                             <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px" }}>{l.action}</td>
                             <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>{l.targetId}</td>
+                            <td style={{ padding: "8px 14px", fontSize: "10px", color: "var(--muted)", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis" }}>{JSON.stringify(l.payload || {})}</td>
                           </tr>
                         ))}
                       </tbody>

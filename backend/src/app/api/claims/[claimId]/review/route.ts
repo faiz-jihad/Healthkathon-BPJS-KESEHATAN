@@ -1,17 +1,17 @@
 import { prisma } from "../../../../../lib/prisma";
 import { getAuthenticatedUser } from "../../../../../lib/auth";
 
-// Allowed roles for recording claim verification review decisions
+// Allowed roles for recording claim verification review decisions (Separation of Duties: Verifikator only)
 const ALLOWED_REVIEWER_ROLES = [
   "VERIFIKATOR",
   "CLAIM_VERIFIER",
-  "INVESTIGATOR",
-  "FRAUD_ANALYST",
   "VERIFIKATOR_BPJS",
   "DOKTER_PENASIHAT",
 ];
 const FORBIDDEN_ROLES_WITH_REASONS: Record<string, string> = {
-  ADMINISTRATOR: "Administrator sistem tidak memiliki wewenang klinis/operasional untuk mengambil keputusan telaah verifikasi klaim. Kewenangan khusus Verifikator dan Investigator.",
+  ADMINISTRATOR: "Administrator sistem tidak memiliki wewenang klinis/operasional untuk mengambil keputusan telaah verifikasi klaim. Kewenangan khusus Verifikator Klaim.",
+  INVESTIGATOR: "Investigator bertugas menelusuri kasus di Evidence Center, bukan mengambil keputusan verifikasi pra-pembayaran klaim.",
+  FRAUD_ANALYST: "Fraud Analyst bertugas menelusuri pola anomali pada kasus, bukan mengambil keputusan verifikasi pra-pembayaran klaim.",
   SUPERVISOR: "Supervisor bertugas mengawasi antrean dan menyetujui eskalasi pada level manajemen kasus, bukan verifikasi operasional langsung.",
   DATA_ANALYST: "Data/AI Analyst memiliki hak akses analitik dan evaluasi model, dilarang mengubah keputusan verifikasi klaim.",
   AUDITOR: "Auditor memiliki hak akses baca-saja (read-only) untuk menjamin independensi audit, dan dilarang mengubah keputusan telaah klaim.",
@@ -83,7 +83,7 @@ export async function POST(
     reviewerRole = caller.role;
     reviewerName = caller.fullName;
   } else {
-    // If no Bearer token, check client headers for role
+    // If no valid Bearer token, check client headers for role
     const headerRole = request.headers.get("x-reviewer-role");
     const headerName = request.headers.get("x-reviewer-name");
     reviewerRole = headerRole || body.reviewer_role;
@@ -151,7 +151,7 @@ export async function POST(
 
   // 5. Execute Atomic Database Transaction (HumanReview + AuditLog)
   try {
-    const result = await prisma.$transaction(async (tx : any) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       const review = await tx.humanReview.create({
         data: {
           claimId: claimId.trim(),

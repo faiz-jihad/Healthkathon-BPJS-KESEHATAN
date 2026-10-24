@@ -1,4 +1,4 @@
-import { signAuthToken, VALID_ROLES, UserRole, normalizeRole, DEMO_USERS } from "@/lib/auth";
+import { signAuthToken, VALID_ROLES, UserRole, normalizeRole, isKnownRole, DEMO_USERS } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const rawRole = (body.role || "").toUpperCase();
 
-    // Normalize legacy roles (FRAUD_ANALYST → INVESTIGATOR, etc.)
-    const requestedRole = normalizeRole(rawRole) as UserRole;
-
-    if (!VALID_ROLES.includes(requestedRole)) {
+    if (!rawRole || !isKnownRole(rawRole)) {
       return Response.json(
         {
           status: "VALIDATION_ERROR",
@@ -32,6 +29,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Normalize legacy roles (FRAUD_ANALYST → INVESTIGATOR, etc.)
+    const requestedRole = normalizeRole(rawRole) as UserRole;
 
     const profile = DEMO_USERS[requestedRole];
 

@@ -105,6 +105,38 @@ export async function GET(request: Request) {
     const clarificationCount = records.filter((rec) => rec.feedback_label === null).length;
     const labeledCount = confirmedFraudCount + legitimateCount;
 
+    // Calculate verified ground-truth metrics on labeled human reviews (Zero Mock Policy: honest calculation)
+    const labeledAssessedRecords = records.filter(
+      (rec) =>
+        (rec.feedback_label === 0 || rec.feedback_label === 1) &&
+        rec.ai_risk_level !== "UNASSESSED"
+    );
+
+    let tp = 0;
+    let fp = 0;
+    let tn = 0;
+    let fn = 0;
+    for (const rec of labeledAssessedRecords) {
+      const aiFlaggedPositive =
+        rec.ai_risk_level === "HIGH" ||
+        rec.ai_pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW" ||
+        (rec.ai_fraud_risk_index !== null && rec.ai_fraud_risk_index >= 70);
+      if (aiFlaggedPositive && rec.feedback_label === 1) tp++;
+      else if (aiFlaggedPositive && rec.feedback_label === 0) fp++;
+      else if (!aiFlaggedPositive && rec.feedback_label === 0) tn++;
+      else if (!aiFlaggedPositive && rec.feedback_label === 1) fn++;
+    }
+
+    const totalLabeledAssessed = tp + fp + tn + fn;
+    const verifiedPrecisionPct =
+      tp + fp > 0 ? Math.round((tp / (tp + fp)) * 1000) / 10 : null;
+    const verifiedRecallPct =
+      tp + fn > 0 ? Math.round((tp / (tp + fn)) * 1000) / 10 : null;
+    const agreementRatePct =
+      totalLabeledAssessed > 0
+        ? Math.round(((tp + tn) / totalLabeledAssessed) * 1000) / 10
+        : null;
+
     if (format === "csv") {
       const headers = [
         "review_id",
@@ -179,6 +211,16 @@ export async function GET(request: Request) {
         confirmed_fraud_label_1_count: confirmedFraudCount,
         legitimate_label_0_count: legitimateCount,
         pending_clarification_count: clarificationCount,
+        verified_metrics: {
+          evaluated_reviews_count: totalLabeledAssessed,
+          true_positives: tp,
+          false_positives: fp,
+          true_negatives: tn,
+          false_negatives: fn,
+          verified_precision_pct: verifiedPrecisionPct,
+          verified_recall_pct: verifiedRecallPct,
+          agreement_rate_pct: agreementRatePct,
+        },
       },
       records,
     });
@@ -194,6 +236,16 @@ export async function GET(request: Request) {
           confirmed_fraud_label_1_count: 0,
           legitimate_label_0_count: 0,
           pending_clarification_count: 0,
+          verified_metrics: {
+            evaluated_reviews_count: 0,
+            true_positives: 0,
+            false_positives: 0,
+            true_negatives: 0,
+            false_negatives: 0,
+            verified_precision_pct: null,
+            verified_recall_pct: null,
+            agreement_rate_pct: null,
+          },
         },
         records: [],
       },

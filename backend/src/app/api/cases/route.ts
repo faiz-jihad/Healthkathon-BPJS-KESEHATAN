@@ -147,38 +147,41 @@ export async function GET(request: Request) {
   );
 
   try {
-    const where: any = {};
+    const andConditions: any[] = [];
 
     // Supervisor and Admin see all cases; others see only assigned to them (or unassigned in their queue)
     const canViewAll = hasPermission(user!.role, PERMISSIONS.VIEW_ALL_CASES);
-    if (!canViewAll && user) {
+    if (!canViewAll && user && (!assignedTo || assignedTo === "ALL")) {
       // Verifikator/Investigator see: unassigned OR assigned to them
-      where.OR = [
-        { assignedTo: null },
-        { assignedTo: user.username },
-      ];
+      andConditions.push({
+        OR: [{ assignedTo: null }, { assignedTo: user.username }],
+      });
     }
 
     if (statusFilter && statusFilter !== "ALL") {
-      where.status = statusFilter;
+      andConditions.push({ status: statusFilter });
     }
     if (priorityFilter && priorityFilter !== "ALL") {
-      where.priority = priorityFilter;
+      andConditions.push({ priority: priorityFilter });
     }
     if (assignedTo && assignedTo !== "ALL") {
       if (assignedTo === "UNASSIGNED") {
-        where.assignedTo = null;
+        andConditions.push({ assignedTo: null });
       } else {
-        where.assignedTo = assignedTo;
+        andConditions.push({ assignedTo });
       }
     }
     if (search) {
-      where.OR = [
-        { caseNumber: { contains: search, mode: "insensitive" } },
-        { claimId: { contains: search, mode: "insensitive" } },
-        { assignedTo: { contains: search, mode: "insensitive" } },
-      ];
+      andConditions.push({
+        OR: [
+          { caseNumber: { contains: search, mode: "insensitive" } },
+          { claimId: { contains: search, mode: "insensitive" } },
+          { assignedTo: { contains: search, mode: "insensitive" } },
+        ],
+      });
     }
+
+    const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
     let orderBy: any = [
       { priorityScore: "desc" },

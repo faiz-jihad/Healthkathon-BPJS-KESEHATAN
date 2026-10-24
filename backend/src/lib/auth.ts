@@ -24,14 +24,25 @@ export const VALID_ROLES: UserRole[] = [
   "DATA_ANALYST",
 ];
 
+export const LEGACY_ROLE_MAP: Record<string, UserRole> = {
+  FRAUD_ANALYST: "INVESTIGATOR",
+  CLAIM_VERIFIER: "VERIFIKATOR",
+  AUDITOR: "DATA_ANALYST",
+  VERIFIKATOR_BPJS: "VERIFIKATOR",
+  DOKTER_PENASIHAT: "VERIFIKATOR",
+};
+
+export function isKnownRole(role: string): boolean {
+  if (!role) return false;
+  return (
+    VALID_ROLES.includes(role as UserRole) ||
+    Object.prototype.hasOwnProperty.call(LEGACY_ROLE_MAP, role)
+  );
+}
+
 // Normalize legacy roles from old tokens to new roles
 export function normalizeRole(role: string): UserRole {
-  const map: Record<string, UserRole> = {
-    FRAUD_ANALYST: "INVESTIGATOR",
-    CLAIM_VERIFIER: "VERIFIKATOR",
-    AUDITOR: "DATA_ANALYST",
-  };
-  const normalized = map[role] || role;
+  const normalized = LEGACY_ROLE_MAP[role] || role;
   return VALID_ROLES.includes(normalized as UserRole)
     ? (normalized as UserRole)
     : "VERIFIKATOR";
@@ -148,6 +159,10 @@ export function verifyAuthToken(token: string): TokenPayload | null {
     );
     const rawPayload: any = JSON.parse(payloadText);
 
+    if (!isKnownRole(rawPayload.role)) {
+      return null;
+    }
+
     // Normalize legacy roles transparently
     rawPayload.role = normalizeRole(rawPayload.role);
 
@@ -188,9 +203,9 @@ export function getAuthenticatedUser(
     }
   }
 
-  // Graceful fallback to client session headers (for initial client hydration and demo mode)
+  // Graceful fallback to client session headers ONLY if the role is a known valid role
   const headerRole = request.headers.get("x-reviewer-role") || request.headers.get("x-demo-role");
-  if (headerRole) {
+  if (headerRole && isKnownRole(headerRole)) {
     const normalized = normalizeRole(headerRole);
     const headerName = request.headers.get("x-reviewer-name") || "Petugas BPJS Kesehatan";
     return {
@@ -278,6 +293,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     PERMISSIONS.EXPORT_REPORTS,
     PERMISSIONS.CONFIGURE_SYSTEM,
     PERMISSIONS.TRIGGER_INGESTION,
+    PERMISSIONS.ASSIGN_CASE,
+    PERMISSIONS.VIEW_ALL_CASES,
   ],
 
   VERIFIKATOR: [
@@ -346,10 +363,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 };
 
 /**
- * Check if a role has a specific permission
+ * Check if a role has a specific permission (supports both UserRole and LegacyRole)
  */
-export function hasPermission(role: UserRole, permission: Permission): boolean {
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+export function hasPermission(role: AnyRole | string, permission: Permission | string): boolean {
+  if (!isKnownRole(role)) return false;
+  const normalized = normalizeRole(role);
+  return (ROLE_PERMISSIONS[normalized] as string[])?.includes(permission) ?? false;
 }
 
 /**

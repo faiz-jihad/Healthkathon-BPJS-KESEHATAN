@@ -42,6 +42,7 @@ export async function GET(request: Request) {
       reviewedAlerts,
       allResolvedCasesWithTime,
       casesByPriority,
+      casesByOutcome,
       recentAuditCount,
       totalClaimsCount,
       assessedClaimsCount,
@@ -85,6 +86,13 @@ export async function GET(request: Request) {
       // Priority distribution
       db.caseInvestigation.groupBy({
         by: ["priority"],
+        _count: { id: true },
+      }),
+
+      // Outcome distribution
+      db.caseInvestigation.groupBy({
+        by: ["outcome"],
+        where: { outcome: { not: null } },
         _count: { id: true },
       }),
 
@@ -174,6 +182,19 @@ export async function GET(request: Request) {
       priorityMap[row.priority] = row._count.id;
     }
 
+    // Outcome distribution map
+    const outcomeMap: Record<string, number> = {
+      REFERRED_FOR_ACTION: 0,
+      CLEARED: 0,
+      INSUFFICIENT_EVIDENCE: 0,
+      CLOSED_ADMINISTRATIVE: 0,
+    };
+    for (const row of casesByOutcome as any[]) {
+      if (row.outcome) {
+        outcomeMap[row.outcome] = row._count.id;
+      }
+    }
+
     // Ingestion history summary
     let ingestionSummary = null;
     try {
@@ -227,6 +248,7 @@ export async function GET(request: Request) {
         backlog: openCases,
         median_investigation_hours: medianInvestigationHours,
         priority_distribution: priorityMap,
+        outcomes_distribution: outcomeMap,
       },
       alert_quality: {
         total_alerts: totalAlerts,
