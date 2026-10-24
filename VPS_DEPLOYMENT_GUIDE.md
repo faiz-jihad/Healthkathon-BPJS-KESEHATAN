@@ -1,4 +1,5 @@
 # 🚀 Panduan Lengkap Upload & Deployment AURA-JKN ke VPS
+
 **BPJS Kesehatan Healthkathon 2026 — Track Anti-Fraud Autonomous Relational Architecture**
 
 Panduan ini berisi langkah-langkah komprehensif untuk mengunggah dan menjalankan seluruh ekosistem **AURA-JKN** di VPS (Virtual Private Server) berbasis Linux (Ubuntu 22.04 / 24.04 LTS atau Debian 12).
@@ -9,12 +10,12 @@ Panduan ini berisi langkah-langkah komprehensif untuk mengunggah dan menjalankan
 
 Seluruh arsitektur AURA-JKN telah diorkestrasi menggunakan Docker Compose:
 
-| Layanan | Teknologi | Port Container | Port Publik VPS | Fungsi Utama |
-| :--- | :--- | :--- | :--- | :--- |
-| **Frontend** | React 18 + Vite + Tailwind + Nginx | 80, 5173 | **80**, **5173** | Dashboard Investigasi Anti-Fraud & Subgraph Visualizer |
-| **Backend** | Next.js 14 API Gateway + Prisma | 3001 | **3001** | Otentikasi RBAC, Manajemen Klaim, Audit Logging |
-| **AI Service** | FastAPI + PyG + PyTorch R-GCN | 8000 | **8000** | Inferensi R-GCN Heterogen & Deteksi Spatiotemporal |
-| **PostgreSQL** | PostgreSQL 16 Alpine | 5432 | **5432** | Database Otoritatif Riwayat Klaim & Faskes/Dokter |
+| Layanan              | Teknologi                          | Port Container | Port Publik VPS              | Fungsi Utama                                           |
+| :------------------- | :--------------------------------- | :------------- | :--------------------------- | :----------------------------------------------------- |
+| **Frontend**   | React 18 + Vite + Tailwind + Nginx | 80, 5173       | **80**, **5173** | Dashboard Investigasi Anti-Fraud & Subgraph Visualizer |
+| **Backend**    | Next.js 14 API Gateway + Prisma    | 3001           | **3001**               | Otentikasi RBAC, Manajemen Klaim, Audit Logging        |
+| **AI Service** | FastAPI + PyG + PyTorch R-GCN      | 8000           | **8000**               | Inferensi R-GCN Heterogen & Deteksi Spatiotemporal     |
+| **PostgreSQL** | PostgreSQL 16 Alpine               | 5432           | **5432**               | Database Otoritatif Riwayat Klaim & Faskes/Dokter      |
 
 > [!NOTE]
 > Frontend Nginx sudah dikonfigurasi sebagai **Reverse Proxy** untuk `/api/`. Sehingga pengguna dapat langsung membuka `http://<IP-VPS>` atau `http://<IP-VPS>:5173` tanpa kendala CORS atau port terpisah.
@@ -25,8 +26,9 @@ Seluruh arsitektur AURA-JKN telah diorkestrasi menggunakan Docker Compose:
 
 - **Sistem Operasi**: Ubuntu 22.04 LTS / 24.04 LTS atau Debian 12
 - **CPU**: Minimal 2 vCPU (Disarankan 4 vCPU untuk kompilasi PyTorch Geometric cepat)
-- **RAM**: Minimal 2 GB (Disarankan 4 GB). 
+- **RAM**: Minimal 2 GB (Disarankan 4 GB).
   > *Skrip `deploy.sh` otomatis membuat **2GB Swap Memory** jika RAM terdeteksi ≤ 2GB agar proses build tidak terhenti karena OOM (Out-of-Memory).*
+  >
 - **Disk Storage**: Minimal 25 GB SSD / NVMe
 
 ---
@@ -56,17 +58,18 @@ Pilih salah satu dari 2 metode upload berikut:
 Jika VPS Anda terhubung ke internet, gunakan Git untuk meng-clone repositori secara langsung:
 
 1. **Login ke VPS melalui SSH**:
+
    ```bash
    ssh root@<IP_VPS_ANDA>
    ```
-
 2. **Clone repositori proyek**:
+
    ```bash
    git clone https://github.com/faiz-jihad/Healthkathon-BPJS-KESEHATAN.git
    cd Healthkathon-BPJS-KESEHATAN
    ```
-
 3. **Beri izin eksekusi skrip deployment**:
+
    ```bash
    chmod +x deploy.sh init-db.sh
    ```
@@ -78,18 +81,20 @@ Jika VPS Anda terhubung ke internet, gunakan Git untuk meng-clone repositori sec
 Jika Anda ingin mengunggah file langsung dari komputer lokal Anda:
 
 1. **Buat Arsip Bersih di Windows**:
+
    - Double click file `package-for-upload.bat` di folder proyek lokal Anda (atau jalankan `powershell -ExecutionPolicy Bypass -File package-for-upload.ps1`).
    - Skrip ini akan membuat berkas **`aura-jkn-deploy.zip`** (ringkas, hanya ~10 MB karena secara otomatis mengabaikan `node_modules`, file cache, dan arsip mentah).
-
 2. **Upload ke VPS menggunakan SCP**:
    Buka terminal di komputer Anda dan jalankan:
+
    ```bash
    scp aura-jkn-deploy.zip root@<IP_VPS_ANDA>:/root/
    ```
-   *(Atau gunakan aplikasi **FileZilla** / **WinSCP** untuk drag-and-drop file `aura-jkn-deploy.zip` ke folder home VPS).*
 
+   *(Atau gunakan aplikasi **FileZilla** / **WinSCP** untuk drag-and-drop file `aura-jkn-deploy.zip` ke folder home VPS).*
 3. **Ekstrak di VPS**:
    Login ke VPS melalui SSH:
+
    ```bash
    ssh root@<IP_VPS_ANDA>
    sudo apt-get update && sudo apt-get install -y unzip
@@ -109,6 +114,7 @@ Setelah berada di dalam direktori proyek di VPS, jalankan skrip deployment:
 ```
 
 ### Apa yang dilakukan oleh `./deploy.sh` secara otomatis?
+
 1. Memeriksa dan menginstal **Docker Engine & Docker Compose** jika belum terpasang.
 2. Memeriksa kapasitas RAM dan mengaktifkan **2GB Swap Memory** jika RAM VPS terbatas.
 3. Menyiapkan konfigurasi file `.env`.
@@ -132,12 +138,12 @@ Setelah deployment selesai, buka browser di komputer Anda dan akses:
 
 ### 🔑 4 Akun Demo RBAC Default BPJS Kesehatan
 
-| Peran (Role) | Username | Password | Otoritas & Akses |
-| :--- | :--- | :--- | :--- |
-| **Administrator** | `admin_aura` | `admin_password_2026` | Akses penuh, audit log, manajemen user |
-| **Fraud Analyst** | `analyst_aura` | `analyst_password_2026` | Investigasi grafik R-GCN, eksplanasi XAI, eskalasi audit |
-| **Claim Verifier** | `verifier_aura` | `verifier_password_2026` | Verifikasi pra-bayar, filter klaim, live simulator |
-| **Auditor** | `auditor_aura` | `auditor_password_2026` | Monitoring tata kelola, transparansi audit trail, evaluasi |
+| Peran (Role)             | Username          | Password                   | Otoritas & Akses                                           |
+| :----------------------- | :---------------- | :------------------------- | :--------------------------------------------------------- |
+| **Administrator**  | `admin_aura`    | `admin_password_2026`    | Akses penuh, audit log, manajemen user                     |
+| **Fraud Analyst**  | `analyst_aura`  | `analyst_password_2026`  | Investigasi grafik R-GCN, eksplanasi XAI, eskalasi audit   |
+| **Claim Verifier** | `verifier_aura` | `verifier_password_2026` | Verifikasi pra-bayar, filter klaim, live simulator         |
+| **Auditor**        | `auditor_aura`  | `auditor_password_2026`  | Monitoring tata kelola, transparansi audit trail, evaluasi |
 
 ---
 
@@ -146,6 +152,7 @@ Setelah deployment selesai, buka browser di komputer Anda dan akses:
 Berikut perintah umum yang dapat Anda gunakan di VPS:
 
 ### 1. Memeriksa Log Realtime Container
+
 ```bash
 # Semua layanan
 docker compose logs -f
@@ -158,22 +165,27 @@ docker compose logs -f ai-service
 ```
 
 ### 2. Mengisi Ulang Database (Re-Seed Data)
+
 Jika ingin mereset atau mengisi ulang dataset kompetisi ke database:
+
 ```bash
 ./init-db.sh
 ```
 
 ### 3. Merestart Layanan
+
 ```bash
 docker compose restart
 ```
 
 ### 4. Menghentikan Layanan
+
 ```bash
 docker compose down
 ```
 
 ### 5. Memperbarui Kode Terbaru (Jika Menggunakan Git)
+
 ```bash
 git pull origin main
 docker compose up -d --build
