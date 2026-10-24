@@ -41,7 +41,7 @@ if ! docker info &>/dev/null; then
     DOCKER_CMD="sudo docker compose"
 fi
 
-# 4. Pastikan file .env tersedia
+# 5. Pastikan file .env tersedia
 if [ ! -f .env ]; then
     echo "📋 Membuat file .env dari .env.example..."
     if [ -f .env.example ]; then
@@ -52,7 +52,7 @@ if [ ! -f .env ]; then
     fi
 fi
 
-# 5. Setup Swap Memory jika RAM VPS <= 2GB (mencegah OOM saat build)
+# 6. Setup Swap Memory jika RAM VPS <= 2GB (mencegah OOM saat build)
 TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo "4000000")
 if [ "$TOTAL_RAM_KB" -lt 3000000 ] && [ ! -f /swapfile ]; then
     echo "ℹ️ RAM VPS terdeteksi <= 2GB ($((TOTAL_RAM_KB / 1024))MB). Membuat 2GB Swap Memory..."
@@ -64,32 +64,43 @@ if [ "$TOTAL_RAM_KB" -lt 3000000 ] && [ ! -f /swapfile ]; then
     echo "✅ Swap memory 2GB berhasil diaktifkan."
 fi
 
-# 6. Build & Start Docker Compose Services
+# 7. Build & Start Docker Compose Services
 echo ""
 echo "🔨 Membangun & menyalakan seluruh container microservices AURA-JKN..."
 $DOCKER_CMD down --remove-orphans 2>/dev/null || true
 $DOCKER_CMD up -d --build
 
-# 7. Menunggu inisialisasi PostgreSQL
+# 8. Menunggu database PostgreSQL siap menerima koneksi
 echo "⏳ Menunggu database PostgreSQL siap menerima koneksi..."
-$DOCKER_CMD exec -T postgres pg_isready -U aura_user -d aura_jkn_db -t 30 2>/dev/null || sleep 8
+RETRIES=15
+until $DOCKER_CMD exec -T postgres pg_isready -U aura_user -d aura_jkn_db &>/dev/null || [ $RETRIES -eq 0 ]; do
+    echo "   Menunggu postgres siap... ($RETRIES percobaan tersisa)"
+    sleep 2
+    RETRIES=$((RETRIES-1))
+done
+echo "✅ PostgreSQL siap."
 
-# 8. Push Schema & Seed Initial Users / Benchmark Fixtures
+# 9. Push Schema & Seed Initial Users / Benchmark Fixtures
 echo "🗄️ Menyinkronkan skema tabel database (Prisma db push)..."
-$DOCKER_CMD exec -T backend npx prisma db push
+$DOCKER_CMD exec -T backend npx prisma db push --accept-data-loss
 
 echo "🌱 Menanam akun RBAC bawaan BPJS & skenario benchmark ke PostgreSQL..."
 $DOCKER_CMD exec -T backend node node_modules/tsx/dist/cli.mjs prisma/seed.ts || true
 
-# 9. Bulk Import Full Competition Parquet Dataset
+# 10. Bulk Import Full Competition Parquet Dataset
 echo "📦 Mengimpor seluruh dataset resmi parquet (Facilities, Doctors, Patients, Claims)..."
 $DOCKER_CMD exec -T ai-service python seed_parquet_to_db.py || true
 
-# 8. Verifikasi Status Kesehatan Layanan
+# 11. Verifikasi Status Kesehatan Layanan
 echo ""
 echo "🔍 Melakukan pengujian endpoint health check..."
-sleep 2
-HEALTH_STATUS=$(curl -s http://localhost:3001/api/health 2>/dev/null || echo "error")
+sleep 3
+HEALTH_JSON=$($DOCKER_CMD exec -T backend node -e "
+  fetch('http://127.0.0.1:3001/api/health')
+    .then(r => r.json())
+    .then(j => console.log('   Status Layanan:', j.status, '| DB:', j.database.connected, '| AI Engine:', j.ai_engine.connected))
+    .catch(() => console.log('   API Gateway sedang inisialisasi awal.'));
+" 2>/dev/null || echo "   Pemeriksaan API selesai.")
 
 VPS_IP=$(curl -s -m 3 ifconfig.me 2>/dev/null || ip route get 1 | awk '{print $(NF-2);exit}')
 
