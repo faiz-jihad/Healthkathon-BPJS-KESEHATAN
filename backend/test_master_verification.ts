@@ -100,7 +100,7 @@ async function runMasterVerification() {
   const verifiedPayload = verifyAuthToken(verifierToken);
   assert(
     verifiedPayload?.username === "verifier_test" &&
-      verifiedPayload?.role === "CLAIM_VERIFIER",
+      (verifiedPayload?.role === "VERIFIKATOR" || (verifiedPayload?.role as string) === "CLAIM_VERIFIER"),
     "HMAC-SHA256 Token successfully signs and verifies valid payload"
   );
 

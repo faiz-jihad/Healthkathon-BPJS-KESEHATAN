@@ -17,3 +17,8 @@ build
 *.log
 .DS_Store
 Thumbs.db
+
+# Test & dev scripts
+test_*.ts
+*.test.ts
+start_postgres.ts

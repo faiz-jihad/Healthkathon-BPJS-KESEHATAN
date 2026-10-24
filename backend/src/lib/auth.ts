@@ -41,7 +41,7 @@ export interface AuthUserPrincipal {
   id: string;
   username: string;
   fullName: string;
-  role: UserRole;
+  role: AnyRole;
 }
 
 export interface TokenPayload extends AuthUserPrincipal {
