@@ -2,10 +2,18 @@ import { prisma } from "../../../../../lib/prisma";
 import { getAuthenticatedUser } from "../../../../../lib/auth";
 
 // Allowed roles for recording claim verification review decisions
-const ALLOWED_REVIEWER_ROLES = ["CLAIM_VERIFIER", "VERIFIKATOR_BPJS", "DOKTER_PENASIHAT"];
+const ALLOWED_REVIEWER_ROLES = [
+  "VERIFIKATOR",
+  "CLAIM_VERIFIER",
+  "INVESTIGATOR",
+  "FRAUD_ANALYST",
+  "VERIFIKATOR_BPJS",
+  "DOKTER_PENASIHAT",
+];
 const FORBIDDEN_ROLES_WITH_REASONS: Record<string, string> = {
-  ADMINISTRATOR: "Administrator sistem tidak memiliki wewenang klinis/operasional untuk mengambil keputusan telaah verifikasi klaim. Kewenangan khusus Verifikator Klaim.",
-  FRAUD_ANALYST: "Analis Investigasi Fraud bertugas melakukan analisis mendalam dan rekomendasi, bukan mengambil keputusan verifikasi langsung.",
+  ADMINISTRATOR: "Administrator sistem tidak memiliki wewenang klinis/operasional untuk mengambil keputusan telaah verifikasi klaim. Kewenangan khusus Verifikator dan Investigator.",
+  SUPERVISOR: "Supervisor bertugas mengawasi antrean dan menyetujui eskalasi pada level manajemen kasus, bukan verifikasi operasional langsung.",
+  DATA_ANALYST: "Data/AI Analyst memiliki hak akses analitik dan evaluasi model, dilarang mengubah keputusan verifikasi klaim.",
   AUDITOR: "Auditor memiliki hak akses baca-saja (read-only) untuk menjamin independensi audit, dan dilarang mengubah keputusan telaah klaim.",
 };
 

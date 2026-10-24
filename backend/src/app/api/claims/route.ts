@@ -658,6 +658,42 @@ export async function POST(request: Request) {
         },
       });
 
+      // If flagged for human review or high/medium risk, auto-generate CaseInvestigation (Phase 6)
+      if (prePaymentGate === "REJECT_FOR_HUMAN_REVIEW" || riskLevel === "HIGH" || riskLevel === "MEDIUM") {
+        try {
+          const date = new Date();
+          const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+          const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+          const caseNumber = `CASE-${dateStr}-${rand}`;
+          const priorityScore = Math.max(30, fraudRiskIndex ?? 50);
+          const priority = priorityScore >= 70 ? "HIGH" : "MEDIUM";
+
+          await (tx as any).caseInvestigation.create({
+            data: {
+              claimId,
+              caseNumber,
+              status: "FLAGGED_FOR_REVIEW",
+              priority,
+              priorityScore,
+              slaDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7-day default SLA
+              transitions: {
+                create: [
+                  {
+                    fromStatus: "NEW",
+                    toStatus: "FLAGGED_FOR_REVIEW",
+                    actorName: "SYSTEM_PRE_PAYMENT_GATE",
+                    actorRole: "SYSTEM",
+                    notes: `Auto-flagged ke antrean investigasi berdasarkan evaluasi AI (FRI: ${priorityScore}, Gate: ${prePaymentGate})`,
+                  },
+                ],
+              },
+            },
+          });
+        } catch {
+          // Ignore if case table not yet created before migration
+        }
+      }
+
       return createdClaim;
     });
 

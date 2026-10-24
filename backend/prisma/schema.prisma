@@ -1,5 +1,6 @@
 // AURA-JKN PostgreSQL Database Schema (Prisma ORM)
-// Aligned with Proposal AURA-JKN & Phase 2-3 FastAPI Service (app.py)
+// Evidence-Linked Relational Claim Intelligence Platform
+// Healthkathon BPJS Kesehatan 2026
 
 generator client {
   provider      = "prisma-client-js"
@@ -10,6 +11,10 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ============================================================
+// CORE ENTITY MODELS
+// ============================================================
 
 model Facility {
   facilityId    String   @id @map("facility_id")
@@ -63,16 +68,21 @@ model Claim {
   isSynthetic   Boolean  @default(true) @map("is_synthetic") // Explicit synthetic demo indicator (Healthkathon 2026)
   createdAt     DateTime @default(now()) @map("created_at")
 
-  patient        Patient         @relation(fields: [patientId], references: [patientId])
-  doctor         Doctor          @relation(fields: [doctorId], references: [doctorId])
-  facility       Facility        @relation(fields: [facilityId], references: [facilityId])
-  riskAssessment RiskAssessment?
-  humanReviews   HumanReview[]
+  patient           Patient           @relation(fields: [patientId], references: [patientId])
+  doctor            Doctor            @relation(fields: [doctorId], references: [doctorId])
+  facility          Facility          @relation(fields: [facilityId], references: [facilityId])
+  riskAssessment    RiskAssessment?
+  humanReviews      HumanReview[]
+  caseInvestigation CaseInvestigation?
 
   @@index([doctorId, serviceDate])
   @@index([facilityId])
   @@map("claims")
 }
+
+// ============================================================
+// AI RISK ASSESSMENT
+// ============================================================
 
 model RiskAssessment {
   id                      String   @id @default(cuid())
@@ -97,14 +107,73 @@ model RiskAssessment {
   @@map("risk_assessments")
 }
 
+// ============================================================
+// INVESTIGATION CASE STATE MACHINE
+// Phase 6: New → Flagged for Review → Under Review → 
+//           Awaiting Evidence | Escalated → Resolved → Closed
+// ============================================================
+
+model CaseInvestigation {
+  id              String   @id @default(cuid())
+  claimId         String   @unique @map("claim_id")
+  caseNumber      String   @unique @map("case_number") // CASE-YYYYMMDD-XXXX
+  status          String   @default("FLAGGED_FOR_REVIEW") @map("status")
+  // NEW | FLAGGED_FOR_REVIEW | UNDER_REVIEW | AWAITING_EVIDENCE | ESCALATED | RESOLVED | CLOSED
+  priority        String   @default("MEDIUM") @map("priority") // HIGH | MEDIUM | LOW
+  priorityScore   Int      @default(50) @map("priority_score") // 0-100 composite
+  assignedTo      String?  @map("assigned_to") // username
+  assignedRole    String?  @map("assigned_role")
+  assignedAt      DateTime? @map("assigned_at")
+  escalatedTo     String?  @map("escalated_to") // username of supervisor
+  escalatedAt     DateTime? @map("escalated_at")
+  escalationReason String? @map("escalation_reason")
+  reviewStartedAt DateTime? @map("review_started_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  closedAt        DateTime? @map("closed_at")
+  outcome         String?  // INSUFFICIENT_EVIDENCE | REFERRED_FOR_ACTION | CLEARED | CLOSED_ADMINISTRATIVE
+  outcomeNotes    String?  @map("outcome_notes")
+  slaDeadline     DateTime? @map("sla_deadline") // configurable SLA
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  claim       Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
+  transitions CaseTransition[]
+
+  @@index([status, priority])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@map("case_investigations")
+}
+
+// Records every state transition with who did it and why
+model CaseTransition {
+  id              String   @id @default(cuid())
+  caseId          String   @map("case_id")
+  fromStatus      String   @map("from_status")
+  toStatus        String   @map("to_status")
+  actorName       String   @map("actor_name")
+  actorRole       String   @map("actor_role")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  case CaseInvestigation @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@map("case_transitions")
+}
+
+// ============================================================
+// HUMAN REVIEW
+// ============================================================
+
 model HumanReview {
   id            String   @id @default(cuid())
   claimId       String   @map("claim_id")
   reviewerName  String   @map("reviewer_name")
-  reviewerRole  String   @map("reviewer_role") // VERIFIKATOR_BPJS | DOKTER_PENASIHAT | AUDITOR
-  decision      String // RELEASE | CLARIFY | ESCALATE_AUDIT
+  reviewerRole  String   @map("reviewer_role")
+  decision      String // RELEASE | CLARIFY | ESCALATE_AUDIT | START_REVIEW | REQUEST_EVIDENCE | RESOLVE | CLOSE
   notes         String
-  feedbackLabel Int?     @map("feedback_label") // 0 = Legitimate, 1 = Confirmed Fraud (Controlled Feedback Loop)
+  feedbackLabel Int?     @map("feedback_label") // 0 = Legitimate, 1 = Needs Investigation (Controlled Feedback Loop)
   reviewedAt    DateTime @default(now()) @map("reviewed_at")
 
   claim Claim @relation(fields: [claimId], references: [claimId], onDelete: Cascade)
@@ -113,17 +182,57 @@ model HumanReview {
   @@map("human_reviews")
 }
 
+// ============================================================
+// DATA INGESTION HISTORY (Phase 1)
+// ============================================================
+
+model IngestionBatch {
+  id              String   @id @default(cuid())
+  batchId         String   @unique @map("batch_id") // BATCH-YYYYMMDD-HHmmss
+  sourceDataset   String   @map("source_dataset") // e.g. "claims.parquet", "bulk_import"
+  datasetType     String   @map("dataset_type") // CLAIMS | PATIENTS | DOCTORS | FACILITIES | MIXED
+  totalRead       Int      @default(0) @map("total_read")
+  totalValid      Int      @default(0) @map("total_valid")
+  totalRejected   Int      @default(0) @map("total_rejected")
+  totalDuplicates Int      @default(0) @map("total_duplicates")
+  rejectionReasons Json?   @map("rejection_reasons") // { reason: count }[]
+  status          String   @default("COMPLETED") @map("status") // IN_PROGRESS | COMPLETED | FAILED | PARTIAL
+  startedAt       DateTime @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  durationMs      Int?     @map("duration_ms")
+  initiatedBy     String   @map("initiated_by") // username or "SYSTEM"
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([status])
+  @@map("ingestion_batches")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
 model AuditLog {
   id         String   @id @default(cuid())
   actorName  String   @map("actor_name")
   actorRole  String   @map("actor_role")
   action     String
+  // CLAIM_INGESTED | CASE_CREATED | CASE_ASSIGNED | CASE_TRANSITIONED | REVIEW_RECORDED
+  // USER_CREATED | USER_DEACTIVATED | BULK_IMPORT_STARTED | BULK_IMPORT_COMPLETED
   targetId   String   @map("target_id")
   metadata   Json?
   recordedAt DateTime @default(now()) @map("recorded_at")
 
+  @@index([action])
+  @@index([targetId])
+  @@index([recordedAt])
   @@map("audit_logs")
 }
+
+// ============================================================
+// USER & RBAC
+// ============================================================
 
 model User {
   id           String   @id @default(cuid())
@@ -131,11 +240,11 @@ model User {
   passwordHash String   @map("password_hash")
   salt         String
   fullName     String   @map("full_name")
-  role         String   @map("role") // ADMINISTRATOR | FRAUD_ANALYST | CLAIM_VERIFIER | AUDITOR
+  role         String   @map("role")
+  // ADMINISTRATOR | VERIFIKATOR | INVESTIGATOR | SUPERVISOR | DATA_ANALYST
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("users")
 }
-

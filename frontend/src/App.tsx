@@ -1,45 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  ShieldAlert,
-  ShieldCheck,
-  Activity,
-  FileText,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Search,
-  Filter,
-  RefreshCw,
-  UserCog,
-  Eye,
-  Clock,
-  Building2,
-  User,
-  Stethoscope,
-  MapPin,
-  Calendar,
-  Layers,
-  Network,
-  Database,
-  Lock,
-  ChevronRight,
-  Info,
-  SlidersHorizontal,
-  ArrowUpRight,
-  Send,
-  HelpCircle,
-  Hash,
-  Scale,
-  History,
-  UserCheck,
-  X,
-  LayoutGrid,
-  Bell,
-  Users,
-  ChevronDown,
-  ArrowDownLeft,
-  CircleCheck,
-  PlusCircle,
+  ShieldAlert, ShieldCheck, Activity, FileText, CheckCircle2,
+  AlertTriangle, XCircle, Search, Filter, RefreshCw, UserCog,
+  Eye, Clock, Building2, User, Stethoscope, MapPin, Calendar,
+  Layers, Network, Database, Lock, ChevronRight, Info,
+  SlidersHorizontal, ArrowUpRight, Send, HelpCircle, Hash,
+  Scale, History, UserCheck, X, LayoutGrid, Bell, Users,
+  ChevronDown, CircleCheck, PlusCircle, BarChart3, TrendingUp,
+  Inbox, ClipboardList, FolderOpen, GitBranch, Settings,
+  AlertCircle, CheckSquare, Hourglass, ArrowRight, Zap,
+  BookOpen, Target, Award
 } from "lucide-react";
 import { ClaimRecord, ClaimsListResponse } from "./types/aura";
 import { SubgraphViewer } from "./components/SubgraphViewer";
@@ -49,96 +19,195 @@ import { ControlledFeedbackPanel } from "./components/ControlledFeedbackPanel";
 const BACKEND_URL =
   typeof import.meta.env.VITE_BACKEND_URL === "string" && import.meta.env.VITE_BACKEND_URL !== ""
     ? import.meta.env.VITE_BACKEND_URL
-    : (import.meta.env.DEV ? "http://localhost:3001" : "");
+    : import.meta.env.DEV ? "http://localhost:3001" : "";
 
-type AppRole =
-  | "CLAIM_VERIFIER"
-  | "FRAUD_ANALYST"
-  | "AUDITOR"
-  | "ADMINISTRATOR";
+// ============================================================
+// TYPES
+// ============================================================
+
+type AppRole = "ADMINISTRATOR" | "VERIFIKATOR" | "INVESTIGATOR" | "SUPERVISOR" | "DATA_ANALYST";
+// Legacy aliases still supported via backend normalization
+type LegacyRole = "FRAUD_ANALYST" | "CLAIM_VERIFIER" | "AUDITOR";
+
+type NavSection = "overview" | "investigation" | "data_intelligence" | "reports" | "administration";
+type InvestigationView = "queue" | "my_cases" | "case_detail" | "evidence_center" | "alert_explorer" | "graph";
+type DataView = "ingestion" | "quality" | "alert_explorer" | "model_eval";
+type ReportsView = "outcomes" | "performance" | "model" | "audit";
+type AdminView = "users" | "health" | "audit_trail";
 
 interface CurrentUser {
-  id: string;
-  username: string;
-  fullName: string;
-  role: AppRole;
-  token: string;
+  id: string; username: string; fullName: string; role: AppRole; token: string;
 }
 
 interface AuditLogItem {
-  id: string;
-  actorName: string;
-  actorRole: string;
-  action: string;
-  targetId: string;
-  payload: any;
-  timestamp: string;
+  id: string; actorName: string; actorRole: string; action: string;
+  targetId: string; payload: any; timestamp: string;
 }
 
 interface ManagedUser {
-  id: string;
-  username: string;
-  fullName: string;
-  role: AppRole;
-  isActive: boolean;
-  createdAt: string;
+  id: string; username: string; fullName: string; role: AppRole;
+  isActive: boolean; createdAt: string;
 }
 
+interface CaseItem {
+  id: string; case_number: string; claim_id: string; status: string;
+  priority: string; priority_score: number; priority_reasons: string[];
+  assigned_to: string | null; wait_hours: number | null; sla_breached: boolean | null;
+  created_at: string; claim_summary: any; recent_transitions: any[];
+  available_actions: Array<{ action: string; to_status: string; description: string }>;
+}
+
+interface PerformanceData {
+  investigation: any; alert_quality: any; evidence: any;
+  data_quality: any; model: any; audit_trail: any; ingestion: any;
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; description: string }> = {
+  ADMINISTRATOR: { label: "Administrator Sistem", color: "#7c3aed", bg: "#f3e8ff", description: "Kelola akun & sistem" },
+  VERIFIKATOR:   { label: "Verifikator",          color: "#0284c7", bg: "#e0f2fe", description: "Tinjau & catat pemeriksaan" },
+  INVESTIGATOR:  { label: "Investigator",          color: "#d97706", bg: "#fef3c7", description: "Investigasi & susun temuan" },
+  SUPERVISOR:    { label: "Supervisor",            color: "#059669", bg: "#d1fae5", description: "Pantau antrean & eskalasi" },
+  DATA_ANALYST:  { label: "Data/AI Analyst",       color: "#db2777", bg: "#fce7f3", description: "Kualitas data & model AI" },
+  // Legacy
+  FRAUD_ANALYST: { label: "Investigator",          color: "#d97706", bg: "#fef3c7", description: "Investigasi" },
+  CLAIM_VERIFIER:{ label: "Verifikator",           color: "#0284c7", bg: "#e0f2fe", description: "Verifikasi" },
+  AUDITOR:       { label: "Data/AI Analyst",       color: "#db2777", bg: "#fce7f3", description: "Analitik" },
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  NEW:               { label: "Baru", color: "#64748b", bg: "#f1f5f9", icon: <Inbox size={12}/> },
+  FLAGGED_FOR_REVIEW:{ label: "Menunggu Review", color: "#d97706", bg: "#fef3c7", icon: <AlertTriangle size={12}/> },
+  UNDER_REVIEW:      { label: "Sedang Ditinjau", color: "#0284c7", bg: "#e0f2fe", icon: <Eye size={12}/> },
+  AWAITING_EVIDENCE: { label: "Menunggu Bukti", color: "#7c3aed", bg: "#f3e8ff", icon: <HelpCircle size={12}/> },
+  ESCALATED:         { label: "Dieskalasi", color: "#dc2626", bg: "#fee2e2", icon: <ArrowUpRight size={12}/> },
+  RESOLVED:          { label: "Selesai", color: "#059669", bg: "#d1fae5", icon: <CheckCircle2 size={12}/> },
+  CLOSED:            { label: "Ditutup", color: "#6b7280", bg: "#f3f4f6", icon: <Lock size={12}/> },
+};
+
+const PRIORITY_CONFIG: Record<string, { color: string; bg: string; dot: string }> = {
+  HIGH:   { color: "#dc2626", bg: "#fee2e2", dot: "#dc2626" },
+  MEDIUM: { color: "#d97706", bg: "#fef3c7", dot: "#d97706" },
+  LOW:    { color: "#059669", bg: "#d1fae5", dot: "#059669" },
+};
+
+function formatIDR(num: number) {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
+}
+
+function formatDate(d: string | null | undefined) {
+  if (!d) return "-";
+  return new Date(d).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" });
+}
+
+function hasPermission(role: string, perms: string[]): boolean {
+  const map: Record<string, string[]> = {
+    ADMINISTRATOR: ["all"],
+    SUPERVISOR:    ["view_all_cases", "view_performance", "assign", "close", "approve_escalation", "view_audit"],
+    INVESTIGATOR:  ["investigate", "start_review", "escalate", "resolve", "record_finding"],
+    VERIFIKATOR:   ["start_review", "record_decision", "request_evidence", "escalate"],
+    DATA_ANALYST:  ["view_data", "view_model", "view_performance", "export", "view_audit"],
+    // legacy
+    FRAUD_ANALYST: ["investigate", "start_review", "escalate", "resolve", "record_finding"],
+    CLAIM_VERIFIER:["start_review", "record_decision", "request_evidence", "escalate"],
+    AUDITOR:       ["view_data", "view_model", "view_performance", "export", "view_audit"],
+  };
+  const rolePerms = map[role] || [];
+  if (rolePerms.includes("all")) return true;
+  return perms.some(p => rolePerms.includes(p));
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+
 export function App() {
-  // Authentication & Active Role State
+  // Auth state
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
-    id: "usr_verifier_001",
-    username: "verifier_aura",
-    fullName: "Verifikator Pra-Pembayaran BPJS",
-    role: "CLAIM_VERIFIER",
-    token: "",
+    id: "usr_verifier_001", username: "verifier_aura",
+    fullName: "Verifikator Pra-Pembayaran BPJS", role: "VERIFIKATOR", token: "",
   });
 
+  // Navigation state
+  const [activeSection, setActiveSection] = useState<NavSection>("overview");
+  const [investigationView, setInvestigationView] = useState<InvestigationView>("queue");
+  const [dataView, setDataView] = useState<DataView>("ingestion");
+  const [reportsView, setReportsView] = useState<ReportsView>("performance");
+  const [adminView, setAdminView] = useState<AdminView>("users");
+
+  // Claims data
   const [data, setData] = useState<ClaimsListResponse | null>(null);
   const [selectedClaim, setSelectedClaim] = useState<ClaimRecord | null>(null);
   const [riskFilter, setRiskFilter] = useState<string>("ALL");
-  const [scenarioFilter, setScenarioFilter] = useState<string>("ALL");
-  const [analysisFilter, setAnalysisFilter] = useState<string>("ALL");
-  const [reviewStatusFilter, setReviewStatusFilter] = useState<string>("ALL");
-  const [sortBy, setSortBy] = useState<string>("fri_desc");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("fri_desc");
   const [loading, setLoading] = useState<boolean>(true);
   const [dataSourceError, setDataSourceError] = useState<string | null>(null);
 
-  // Active navigation & dossier tab
-  const [activeNav, setActiveNav] = useState<"dashboard" | "xai" | "audit" | "users">("dashboard");
-  const [activeTab, setActiveTab] = useState<"xai" | "graph" | "review" | "history">("xai");
+  // Cases/Investigation queue
+  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [casesLoading, setCasesLoading] = useState(false);
+  const [selectedCase, setSelectedCase] = useState<CaseItem | null>(null);
+  const [caseDetail, setCaseDetail] = useState<any>(null);
+  const [caseDetailLoading, setCaseDetailLoading] = useState(false);
+  const [caseStatusFilter, setCaseStatusFilter] = useState("ALL");
+  const [casePriorityFilter, setCasePriorityFilter] = useState("ALL");
+  const [caseQueueSummary, setCaseQueueSummary] = useState<Record<string, number>>({});
+  const [caseAction, setCaseAction] = useState("");
+  const [caseNotes, setCaseNotes] = useState("");
+  const [caseActionLoading, setCaseActionLoading] = useState(false);
+  const [caseActionResult, setCaseActionResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Review decision states
-  const [selectedDecision, setSelectedDecision] = useState<"RELEASE" | "CLARIFY" | "ESCALATE_AUDIT">("RELEASE");
-  const [reviewNotes, setReviewNotes] = useState<string>("");
-  const [submittingReview, setSubmittingReview] = useState<boolean>(false);
-  const [reviewBanner, setReviewBanner] = useState<{
-    status: "REVIEW_SAVED" | "REVIEW_SAVE_FAILED";
-    message: string;
-  } | null>(null);
+  // Performance dashboard
+  const [perfData, setPerfData] = useState<PerformanceData | null>(null);
+  const [perfLoading, setPerfLoading] = useState(false);
 
-  // Modals
-  const [showSimulatorModal, setShowSimulatorModal] = useState<boolean>(false);
-  const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
-  const [auditModalTab, setAuditModalTab] = useState<"audit_logs" | "feedback_export">("audit_logs");
+  // Ingestion history
+  const [ingestionData, setIngestionData] = useState<any>(null);
+  const [ingestionLoading, setIngestionLoading] = useState(false);
+
+  // Audit logs
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
-  const [loadingAuditLogs, setLoadingAuditLogs] = useState<boolean>(false);
+  const [auditLoading, setAuditLoading] = useState(false);
 
-  const [showUserMgmtModal, setShowUserMgmtModal] = useState<boolean>(false);
+  // Users management
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newFullName, setNewFullName] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<AppRole>("CLAIM_VERIFIER");
+  const [newRole, setNewRole] = useState<AppRole>("VERIFIKATOR");
   const [userMgmtError, setUserMgmtError] = useState<string | null>(null);
   const [userMgmtSuccess, setUserMgmtSuccess] = useState<string | null>(null);
 
-  // Role selector dropdown in topbar
+  // Review state
+  const [selectedDecision, setSelectedDecision] = useState<"RELEASE" | "CLARIFY" | "ESCALATE_AUDIT">("RELEASE");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewBanner, setReviewBanner] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Modals
+  const [showSimulatorModal, setShowSimulatorModal] = useState(false);
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
 
-  // Switch Role
+  // Health status
+  const [healthStatus, setHealthStatus] = useState<any>(null);
+
+  const authHeaders = useCallback(() => ({
+    "Content-Type": "application/json",
+    ...(currentUser.token ? { Authorization: `Bearer ${currentUser.token}` } : {}),
+    "x-reviewer-role": currentUser.role,
+    "x-reviewer-name": currentUser.fullName,
+    "x-demo-role": currentUser.role,
+  }), [currentUser.token, currentUser.role, currentUser.fullName]);
+
+  // ============================================================
+  // API FUNCTIONS
+  // ============================================================
+
   const switchRole = async (targetRole: AppRole) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/demo-token`, {
@@ -148,1936 +217,1343 @@ export function App() {
       });
       if (res.ok) {
         const json = await res.json();
-        setCurrentUser({
-          id: json.user.id,
-          username: json.user.username,
-          fullName: json.user.fullName,
-          role: targetRole,
-          token: json.token,
-        });
+        setCurrentUser({ id: json.user.id, username: json.user.username, fullName: json.user.fullName, role: json.user.role, token: json.token });
       }
     } catch {
-      setCurrentUser((prev) => ({
-        ...prev,
-        role: targetRole,
-        fullName:
-          targetRole === "CLAIM_VERIFIER"
-            ? "Verifikator Pra-Pembayaran BPJS"
-            : targetRole === "FRAUD_ANALYST"
-            ? "Analis Investigasi Fraud BPJS"
-            : targetRole === "AUDITOR"
-            ? "Auditor Kepatuhan & Tata Kelola BPJS"
-            : "Administrator Keamanan Sistem BPJS",
-      }));
+      const cfg = ROLE_CONFIG[targetRole];
+      setCurrentUser(prev => ({ ...prev, role: targetRole, fullName: cfg?.label || targetRole }));
     }
     setRoleMenuOpen(false);
   };
 
-  useEffect(() => {
-    switchRole("CLAIM_VERIFIER");
-  }, []);
-
-  const fetchClaims = async (preferClaimId?: string) => {
+  const fetchClaims = useCallback(async () => {
     setLoading(true);
     setDataSourceError(null);
     try {
       const params = new URLSearchParams();
       if (riskFilter !== "ALL") params.set("risk_level", riskFilter);
-      if (scenarioFilter !== "ALL") params.set("scenario", scenarioFilter);
-      if (analysisFilter !== "ALL") params.set("analysis_status", analysisFilter);
-      if (reviewStatusFilter !== "ALL") params.set("review_status", reviewStatusFilter);
       if (sortBy) params.set("sort_by", sortBy);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      params.set("limit", "250");
-
-      const res = await fetch(`${BACKEND_URL}/api/claims?${params.toString()}`, {
-        headers: currentUser.token
-          ? { Authorization: `Bearer ${currentUser.token}` }
-          : {},
-      });
+      params.set("limit", "200");
+      const res = await fetch(`${BACKEND_URL}/api/claims?${params}`, { headers: authHeaders() });
       const json = await res.json();
-
       if (!res.ok || json.status === "DATA_SOURCE_UNAVAILABLE") {
-        setDataSourceError(
-          json.error ||
-            "Gagal menghubungi database PostgreSQL. Sesuai Zero Mock Data Policy, data tiruan tidak ditampilkan."
-        );
-        setData(null);
-        setSelectedClaim(null);
-        return;
+        setDataSourceError(json.error || "Database tidak dapat dihubungi. Sesuai Zero Mock Policy, data tiruan tidak ditampilkan.");
+        setData(null); return;
       }
-
       setData(json);
-
-      if (json.claims && json.claims.length > 0) {
-        if (preferClaimId) {
-          const found = json.claims.find((c: ClaimRecord) => c.claim_id === preferClaimId);
-          if (found) {
-            setSelectedClaim(found);
-            return;
-          }
-        }
-        if (!selectedClaim) {
-          setSelectedClaim(json.claims[0]);
-        } else {
-          const updated = json.claims.find(
-            (c: ClaimRecord) => c.claim_id === selectedClaim.claim_id
-          );
-          setSelectedClaim(updated || json.claims[0]);
-        }
-      } else {
-        setSelectedClaim(null);
-      }
+      if (json.claims?.length > 0 && !selectedClaim) setSelectedClaim(json.claims[0]);
     } catch (err: any) {
-      console.error("Failed to fetch claims from Next.js backend:", err);
-      setDataSourceError(
-        "Koneksi ke API Gateway Backend gagal. Pastikan layanan Pendukung aktif."
-      );
+      setDataSourceError("Koneksi ke API Gateway Backend gagal. Pastikan layanan aktif.");
       setData(null);
-      setSelectedClaim(null);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
+  }, [riskFilter, sortBy, searchQuery, authHeaders]);
+
+  const fetchCases = useCallback(async () => {
+    setCasesLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (caseStatusFilter !== "ALL") params.set("status", caseStatusFilter);
+      if (casePriorityFilter !== "ALL") params.set("priority", casePriorityFilter);
+      const res = await fetch(`${BACKEND_URL}/api/cases?${params}&limit=30`, { headers: authHeaders() });
+      if (res.ok) {
+        const json = await res.json();
+        setCases(json.cases || []);
+        setCaseQueueSummary(json.queue_summary || {});
+      }
+    } catch {} finally { setCasesLoading(false); }
+  }, [caseStatusFilter, casePriorityFilter, authHeaders]);
+
+  const fetchCaseDetail = async (caseId: string) => {
+    setCaseDetailLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/cases/${caseId}`, { headers: authHeaders() });
+      if (res.ok) { const json = await res.json(); setCaseDetail(json.evidence_center); }
+    } catch {} finally { setCaseDetailLoading(false); }
   };
 
-  useEffect(() => {
-    fetchClaims();
-  }, [riskFilter, scenarioFilter, analysisFilter, reviewStatusFilter, sortBy, currentUser.role]);
-
-  const handleReviewDecision = async (
-    decision: "RELEASE" | "CLARIFY" | "ESCALATE_AUDIT"
-  ) => {
-    if (!selectedClaim) return;
-    setSubmittingReview(true);
-    setReviewBanner(null);
-
-    const notes =
-      reviewNotes.trim() ||
-      `Keputusan ${decision} dievaluasi melalui Dashboard Investigatif AURA-JKN oleh ${currentUser.fullName}.`;
-
+  const fetchPerformance = async () => {
+    setPerfLoading(true);
     try {
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (currentUser.token) {
-        headers["Authorization"] = `Bearer ${currentUser.token}`;
-      } else {
-        headers["x-reviewer-name"] = currentUser.fullName;
-        headers["x-reviewer-role"] = currentUser.role;
-      }
+      const res = await fetch(`${BACKEND_URL}/api/dashboard/performance?period_days=30`, { headers: authHeaders() });
+      if (res.ok) { const json = await res.json(); setPerfData(json); }
+    } catch {} finally { setPerfLoading(false); }
+  };
 
-      const res = await fetch(
-        `${BACKEND_URL}/api/claims/${selectedClaim.claim_id}/review`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            decision,
-            notes,
-          }),
-        }
-      );
-
-      const json = await res.json();
-
-      if (res.ok && json.status === "REVIEW_SAVED") {
-        setReviewNotes("");
-        setReviewBanner({
-          status: "REVIEW_SAVED",
-          message: `Keputusan [${decision}] untuk klaim ${selectedClaim.claim_id} BERHASIL DISIMPAN permanen ke PostgreSQL & Audit Log.`,
-        });
-
-        try {
-          const detailRes = await fetch(
-            `${BACKEND_URL}/api/claims/${selectedClaim.claim_id}`,
-            {
-              headers: currentUser.token
-                ? { Authorization: `Bearer ${currentUser.token}` }
-                : {},
-            }
-          );
-          if (detailRes.ok) {
-            const updatedClaim = await detailRes.json();
-            setSelectedClaim(updatedClaim);
-          }
-        } catch {}
-
-        await fetchClaims();
-      } else {
-        setReviewBanner({
-          status: "REVIEW_SAVE_FAILED",
-          message: `PENYIMPANAN GAGAL: ${
-            json.error || "Transaksi database dibatalkan. Keputusan review TIDAK tersimpan."
-          }`,
-        });
-      }
-    } catch (err: any) {
-      setReviewBanner({
-        status: "REVIEW_SAVE_FAILED",
-        message: `PENYIMPANAN GAGAL: Terjadi kegagalan jaringan saat menyimpan (${err?.message || "Koneksi terputus"}).`,
-      });
-    } finally {
-      setSubmittingReview(false);
-    }
+  const fetchIngestion = async () => {
+    setIngestionLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ingestion/history`, { headers: authHeaders() });
+      if (res.ok) { const json = await res.json(); setIngestionData(json); }
+    } catch {} finally { setIngestionLoading(false); }
   };
 
   const fetchAuditLogs = async () => {
-    setLoadingAuditLogs(true);
+    setAuditLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/audit-logs?limit=50`, {
-        headers: currentUser.token
-          ? { Authorization: `Bearer ${currentUser.token}` }
-          : {},
-      });
-      const json = await res.json();
-      if (res.ok && json.logs) {
-        setAuditLogs(
-          json.logs.map((l: any) => ({
-            ...l,
-            timestamp: l.timestamp || l.recordedAt,
-          }))
-        );
-      }
-    } catch (err) {
-      console.error("Gagal memuat log audit:", err);
-    } finally {
-      setLoadingAuditLogs(false);
-    }
+      const res = await fetch(`${BACKEND_URL}/api/audit-logs?limit=50`, { headers: authHeaders() });
+      if (res.ok) { const json = await res.json(); setAuditLogs((json.logs || []).map((l: any) => ({ ...l, timestamp: l.recordedAt || l.timestamp }))); }
+    } catch {} finally { setAuditLoading(false); }
   };
 
   const fetchUsers = async () => {
-    setLoadingUsers(true);
+    setUsersLoading(true);
     setUserMgmtError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/users`, {
-        headers: currentUser.token
-          ? { Authorization: `Bearer ${currentUser.token}` }
-          : {},
+      const res = await fetch(`${BACKEND_URL}/api/admin/users`, { headers: authHeaders() });
+      const json = await res.json();
+      if (res.ok && json.users) setManagedUsers(json.users);
+      else setUserMgmtError(json.error || "Gagal memuat pengguna.");
+    } catch { setUserMgmtError("Koneksi gagal."); } finally { setUsersLoading(false); }
+  };
+
+  const fetchHealth = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/health`);
+      if (res.ok) { const json = await res.json(); setHealthStatus(json); }
+    } catch {}
+  };
+
+  const performCaseAction = async () => {
+    if (!selectedCase || !caseAction) return;
+    setCaseActionLoading(true);
+    setCaseActionResult(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/cases/${selectedCase.id}`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ action: caseAction, notes: caseNotes }),
       });
       const json = await res.json();
-      if (res.ok && json.users) {
-        setManagedUsers(json.users);
+      if (res.ok) {
+        setCaseActionResult({ success: true, message: `Berhasil: ${json.from_status} → ${json.to_status}` });
+        setCaseNotes(""); setCaseAction("");
+        await fetchCases();
+        await fetchCaseDetail(selectedCase.id);
       } else {
-        setUserMgmtError(json.error || "Gagal memuat daftar pengguna.");
+        setCaseActionResult({ success: false, message: json.error || "Aksi gagal dijalankan." });
       }
-    } catch (err: any) {
-      setUserMgmtError("Koneksi gagal saat memuat data pengguna.");
-    } finally {
-      setLoadingUsers(false);
+    } catch (e: any) {
+      setCaseActionResult({ success: false, message: `Koneksi gagal: ${e.message}` });
+    } finally { setCaseActionLoading(false); }
+  };
+
+  const createCaseFromClaim = async (claimId: string) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/cases`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ claim_id: claimId }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setReviewBanner({ success: true, message: `Kasus ${json.case_number} berhasil dibuat dari klaim ${claimId}` });
+        setTimeout(() => setActiveSection("investigation"), 1500);
+      } else {
+        setReviewBanner({ success: false, message: json.error || "Gagal membuat kasus." });
+      }
+    } catch (e: any) {
+      setReviewBanner({ success: false, message: `Koneksi gagal: ${e.message}` });
     }
+  };
+
+  const handleReviewDecision = async (decision: "RELEASE" | "CLARIFY" | "ESCALATE_AUDIT") => {
+    if (!selectedClaim) return;
+    setSubmittingReview(true);
+    setReviewBanner(null);
+    const notes = reviewNotes.trim() || `Keputusan ${decision} oleh ${currentUser.fullName} melalui AURA-JKN.`;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/claims/${selectedClaim.claim_id}/review`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ decision, notes }),
+      });
+      const json = await res.json();
+      if (res.ok && json.status === "REVIEW_SAVED") {
+        setReviewNotes("");
+        setReviewBanner({ success: true, message: `Keputusan [${decision}] untuk klaim ${selectedClaim.claim_id} tersimpan ke PostgreSQL & Audit Log.` });
+        await fetchClaims();
+      } else {
+        setReviewBanner({ success: false, message: `Gagal: ${json.error || "Transaksi dibatalkan."}` });
+      }
+    } catch (e: any) {
+      setReviewBanner({ success: false, message: `Kegagalan jaringan: ${e?.message}` });
+    } finally { setSubmittingReview(false); }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setUserMgmtError(null);
-    setUserMgmtSuccess(null);
-
+    setUserMgmtError(null); setUserMgmtSuccess(null);
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/users`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${currentUser.token}`,
-        },
-        body: JSON.stringify({
-          username: newUsername,
-          fullName: newFullName,
-          password: newPassword,
-          role: newRole,
-        }),
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ username: newUsername, fullName: newFullName, password: newPassword, role: newRole }),
       });
       const json = await res.json();
-      if (res.ok) {
-        setUserMgmtSuccess(`Pengguna '${newUsername}' berhasil didaftarkan!`);
-        setNewUsername("");
-        setNewFullName("");
-        setNewPassword("");
-        fetchUsers();
-      } else {
-        setUserMgmtError(json.error || "Gagal mendaftarkan pengguna.");
-      }
-    } catch (err: any) {
-      setUserMgmtError("Terjadi galat jaringan saat menyimpan pengguna.");
-    }
+      if (res.ok) { setUserMgmtSuccess(`Pengguna '${newUsername}' berhasil didaftarkan!`); setNewUsername(""); setNewFullName(""); setNewPassword(""); fetchUsers(); }
+      else setUserMgmtError(json.error || "Gagal mendaftarkan pengguna.");
+    } catch { setUserMgmtError("Galat jaringan."); }
   };
 
-  const toggleUserActive = async (userId: string, currentActive: boolean) => {
+  const toggleUserActive = async (userId: string, cur: boolean) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/users/${userId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${currentUser.token}`,
-        },
-        body: JSON.stringify({ isActive: !currentActive }),
+      await fetch(`${BACKEND_URL}/api/admin/users/${userId}`, {
+        method: "PATCH", headers: authHeaders(), body: JSON.stringify({ isActive: !cur }),
       });
-      if (res.ok) {
-        fetchUsers();
-      }
-    } catch (err) {
-      console.error("Gagal mengubah status pengguna:", err);
-    }
+      fetchUsers();
+    } catch {}
   };
 
-  const formatIDR = (num: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(num);
+  // ============================================================
+  // EFFECTS
+  // ============================================================
 
-  const getRoleBadge = (role: AppRole) => {
-    switch (role) {
-      case "CLAIM_VERIFIER":
-        return "Verifikator Pra-Bayar";
-      case "FRAUD_ANALYST":
-        return "Analis Investigasi";
-      case "AUDITOR":
-        return "Auditor Tata Kelola";
-      case "ADMINISTRATOR":
-        return "Admin Keamanan";
-      default:
-        return role;
-    }
+  useEffect(() => { switchRole("VERIFIKATOR"); }, []);
+  useEffect(() => { fetchClaims(); }, [riskFilter, sortBy, currentUser.token]);
+  useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, caseStatusFilter, casePriorityFilter, currentUser.token]);
+  useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); } }, [activeSection, currentUser.token]);
+  useEffect(() => { if (activeSection === "data_intelligence" && dataView === "ingestion") fetchIngestion(); }, [activeSection, dataView, currentUser.token]);
+  useEffect(() => { if (activeSection === "reports" && reportsView === "performance") fetchPerformance(); }, [activeSection, reportsView, currentUser.token]);
+  useEffect(() => { if (activeSection === "administration") { if (adminView === "users") fetchUsers(); if (adminView === "audit_trail") fetchAuditLogs(); if (adminView === "health") fetchHealth(); } }, [activeSection, adminView, currentUser.token]);
+  useEffect(() => { if (selectedCase && investigationView === "evidence_center") fetchCaseDetail(selectedCase.id); }, [selectedCase, investigationView]);
+
+  // ============================================================
+  // RENDER HELPERS
+  // ============================================================
+
+  const rCfg = ROLE_CONFIG[currentUser.role] || ROLE_CONFIG.VERIFIKATOR;
+
+  const RoleBadge = ({ role }: { role: string }) => {
+    const cfg = ROLE_CONFIG[role] || { label: role, color: "#64748b", bg: "#f1f5f9" };
+    return <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: cfg.bg, color: cfg.color }}>{cfg.label}</span>;
   };
 
-  return (
-    <>
-      {/* 1. TOPBAR (Template Native Styling) */}
-      <header className="topbar">
-        <div className="topbar-brand">
-          <div className="brand" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <img
-              src="/aura-jkn-logo.png"
-              alt="AURA JKN Logo"
-              style={{
-                height: "44px",
-                width: "auto",
-                objectFit: "contain",
-                borderRadius: "8px",
-                background: "#ffffff",
-                padding: "2px",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-              }}
-            />
-            <div>
-              <div style={{ fontSize: "19px", fontWeight: "800", letterSpacing: "-0.5px", lineHeight: "1.1", color: "#0F2942" }}>
-                AURA <span style={{ color: "#0284C7" }}>JKN</span>
-              </div>
-              <div style={{ fontSize: "8.5px", fontWeight: "700", letterSpacing: "1.6px", color: "#0284C7", textTransform: "uppercase", marginTop: "2px" }}>
-                PREDICT • PREVENT • PROTECT
-              </div>
+  const StatusBadge = ({ status }: { status: string }) => {
+    const cfg = STATUS_CONFIG[status] || { label: status, color: "#64748b", bg: "#f1f5f9", icon: null };
+    return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600, padding: "3px 10px", borderRadius: "20px", background: cfg.bg, color: cfg.color }}>{cfg.icon}{cfg.label}</span>;
+  };
+
+  const PriorityBadge = ({ priority }: { priority: string }) => {
+    const cfg = PRIORITY_CONFIG[priority] || PRIORITY_CONFIG.LOW;
+    return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "12px", background: cfg.bg, color: cfg.color }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }}/>{priority}
+    </span>;
+  };
+
+  const MetricCard = ({ title, value, subtitle, color, icon }: { title: string; value: string | number | null; subtitle?: string; color?: string; icon: React.ReactNode }) => (
+    <div className="card" style={{ padding: "18px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+        <span className="eyebrow" style={{ color: color || undefined }}>{title}</span>
+        <span style={{ color: color || "var(--green)", opacity: 0.8 }}>{icon}</span>
+      </div>
+      <div style={{ fontSize: "26px", fontWeight: 800, letterSpacing: "-1px", color: color || "inherit" }}>
+        {value !== null && value !== undefined ? value : <span style={{ fontSize: "14px", color: "var(--muted)", fontWeight: 500 }}>Belum Tersedia</span>}
+      </div>
+      {subtitle && <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "6px" }}>{subtitle}</div>}
+    </div>
+  );
+
+  const SectionHeader = ({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px" }}>
+      <div>
+        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h1>
+        {subtitle && <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--muted)" }}>{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  );
+
+  const EmptyState = ({ icon, message, sub }: { icon: React.ReactNode; message: string; sub?: string }) => (
+    <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
+      <div style={{ marginBottom: "12px", opacity: 0.4 }}>{icon}</div>
+      <div style={{ fontWeight: 600, marginBottom: "6px" }}>{message}</div>
+      {sub && <div style={{ fontSize: "12px" }}>{sub}</div>}
+    </div>
+  );
+
+  const LoadingSpinner = () => (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px" }}>
+      <RefreshCw size={24} className="animate-spin" style={{ color: "var(--green)" }} />
+    </div>
+  );
+
+  const DataSourceBanner = ({ error }: { error: string }) => (
+    <div className="card" style={{ background: "#faecec", borderColor: "#eec5c5", color: "#a53e3e", marginBottom: "16px", padding: "14px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: 700, fontSize: "13px" }}>
+        <AlertTriangle size={16}/> Sumber Data Tidak Tersedia (Zero Mock Policy)
+      </div>
+      <p style={{ marginTop: "6px", fontSize: "12px", marginBottom: 0 }}>{error}</p>
+    </div>
+  );
+
+  // ============================================================
+  // SECTION: OVERVIEW
+  // ============================================================
+
+  const renderOverview = () => (
+    <div>
+      <SectionHeader
+        title={`Selamat datang, ${currentUser.fullName.split(" ")[0]}.`}
+        subtitle="Ringkasan operasional AURA-JKN — Evidence-Linked Relational Claim Intelligence Platform"
+        action={
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div className="card" style={{ padding: "6px 14px", borderRadius: "30px", display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: healthStatus?.status === "healthy" ? "var(--green)" : "#dc2626" }}/>
+              {healthStatus?.status === "healthy" ? "Semua Layanan Aktif" : "Periksa Status Layanan"}
             </div>
-          </div>
-        </div>
-
-        {/* Top Navigation Pills */}
-        <nav className="top-navigation" aria-label="Navigasi Utama">
-          <button
-            onClick={() => {
-              setActiveNav("dashboard");
-              setActiveTab("xai");
-            }}
-            className={activeNav === "dashboard" ? "active" : ""}
-          >
-            Antrean Klaim
-          </button>
-          <button
-            onClick={() => {
-              setActiveNav("xai");
-              setActiveTab("graph");
-            }}
-            className={activeNav === "xai" ? "active" : ""}
-          >
-            Peta Graf R-GCN
-          </button>
-          <button
-            onClick={() => setShowSimulatorModal(true)}
-          >
-            Simulasi Klaim Baru
-          </button>
-          <button
-            onClick={() => {
-              setShowAuditModal(true);
-              fetchAuditLogs();
-            }}
-            className={activeNav === "audit" ? "active" : ""}
-          >
-            Jejak Audit &amp; Feedback AI
-          </button>
-          {currentUser.role === "ADMINISTRATOR" && (
-            <button
-              onClick={() => {
-                setShowUserMgmtModal(true);
-                fetchUsers();
-              }}
-              className={activeNav === "users" ? "active" : ""}
-            >
-              Kelola Pengguna
-            </button>
-          )}
-        </nav>
-
-        {/* Topbar Actions */}
-        <div className="topbar-actions">
-          {/* Refresh Action */}
-          <button
-            className="icon-button"
-            title="Segarkan data dari PostgreSQL"
-            onClick={() => fetchClaims()}
-            disabled={loading}
-          >
-            <RefreshCw size={19} className={loading ? "animate-spin text-green" : ""} />
-          </button>
-
-          {/* Role Selector Trigger */}
-          <div className="relative">
-            <button
-              className="button button-secondary"
-              style={{ minHeight: "38px", padding: "6px 14px", fontSize: "12px", borderRadius: "20px" }}
-              onClick={() => setRoleMenuOpen((v) => !v)}
-            >
-              <UserCheck size={15} className="text-green" />
-              <span>{getRoleBadge(currentUser.role)}</span>
-              <ChevronDown size={14} />
-            </button>
-
-            {roleMenuOpen && (
-              <div
-                className="card"
-                style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "46px",
-                  zIndex: 50,
-                  padding: "8px",
-                  borderRadius: "18px",
-                  width: "230px",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-                }}
-              >
-                <div style={{ padding: "8px 10px", fontSize: "11px", color: "var(--muted)", fontWeight: 700 }}>
-                  GANTI PERAN RBAC:
-                </div>
-                {(
-                  [
-                    ["CLAIM_VERIFIER", "Verifikator Pra-Bayar"],
-                    ["FRAUD_ANALYST", "Analis Investigasi"],
-                    ["AUDITOR", "Auditor Kepatuhan"],
-                    ["ADMINISTRATOR", "Administrator"],
-                  ] as const
-                ).map(([rKey, rLabel]) => (
-                  <button
-                    key={rKey}
-                    onClick={() => switchRole(rKey)}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "8px 12px",
-                      borderRadius: "10px",
-                      fontSize: "12px",
-                      fontWeight: currentUser.role === rKey ? 700 : 500,
-                      color: currentUser.role === rKey ? "var(--green)" : "#3e463b",
-                      background: currentUser.role === rKey ? "#edf6f0" : "transparent",
-                    }}
-                  >
-                    {rLabel}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="topbar-divider" />
-
-          {/* Profile Badge */}
-          <button
-            className="profile-button"
-            title={currentUser.fullName}
-            onClick={() => switchRole(currentUser.role === "CLAIM_VERIFIER" ? "ADMINISTRATOR" : "CLAIM_VERIFIER")}
-          >
-            <span className="avatar avatar-profile">
-              {currentUser.role.substring(0, 2)}
-            </span>
-          </button>
-        </div>
-      </header>
-
-      {/* 2. FLOATING SIDEBAR (Template Native Styling) */}
-      <aside className="sidebar" aria-label="Navigasi cepat">
-        <nav className="sidebar-group">
-          <button
-            title="Antrean Klaim"
-            aria-label="Antrean Klaim"
-            onClick={() => {
-              setActiveNav("dashboard");
-              setActiveTab("xai");
-            }}
-            className={activeNav === "dashboard" ? "active" : ""}
-          >
-            <LayoutGrid size={21} strokeWidth={1.6} />
-            <span className="sidebar-tooltip">Antrean Klaim</span>
-          </button>
-          <button
-            title="Analisis Graf R-GCN"
-            aria-label="Analisis Graf R-GCN"
-            onClick={() => {
-              setActiveNav("xai");
-              setActiveTab("graph");
-            }}
-            className={activeNav === "xai" ? "active" : ""}
-          >
-            <Network size={21} strokeWidth={1.6} />
-            <span className="sidebar-tooltip">Peta Graf R-GCN</span>
-          </button>
-          <button
-            title="Simulasi Klaim Baru"
-            aria-label="Simulasi Klaim Baru"
-            onClick={() => setShowSimulatorModal(true)}
-          >
-            <PlusCircle size={21} strokeWidth={1.6} />
-            <span className="sidebar-tooltip">Simulasi Klaim Baru</span>
-          </button>
-          <button
-            title="Jejak Audit & Feedback AI"
-            aria-label="Jejak Audit & Feedback AI"
-            onClick={() => {
-              setShowAuditModal(true);
-              fetchAuditLogs();
-            }}
-          >
-            <FileText size={21} strokeWidth={1.6} />
-            <span className="sidebar-tooltip">Jejak Audit &amp; Feedback AI</span>
-          </button>
-        </nav>
-
-        <nav className="sidebar-group">
-          {currentUser.role === "ADMINISTRATOR" && (
-            <button
-              title="Kelola Pengguna RBAC"
-              aria-label="Kelola Pengguna RBAC"
-              onClick={() => {
-                setShowUserMgmtModal(true);
-                fetchUsers();
-              }}
-            >
-              <Users size={21} strokeWidth={1.6} />
-              <span className="sidebar-tooltip">Manajemen Pengguna</span>
-            </button>
-          )}
-          <button
-            title="Zero Mock Data Policy"
-            aria-label="Zero Mock Policy"
-            onClick={() =>
-              alert(
-                "AURA-JKN Zero Mock Policy: Seluruh klaim berasal dari PostgreSQL port 5432. Tidak ada skor atau grafik palsu yang direkayasa."
-              )
-            }
-          >
-            <ShieldCheck size={21} strokeWidth={1.6} className="text-green" />
-            <span className="sidebar-tooltip">Zero Mock Data</span>
-          </button>
-        </nav>
-
-        <nav className="sidebar-group sidebar-bottom">
-          <button
-            title="Basis Data PostgreSQL"
-            aria-label="Basis Data PostgreSQL"
-            onClick={() => fetchClaims()}
-          >
-            <Database size={21} strokeWidth={1.6} />
-            <span className="sidebar-tooltip">19.999 Klaim di PostgreSQL</span>
-          </button>
-        </nav>
-      </aside>
-
-      {/* 3. MAIN CONTENT (Template Native Styling with margin-left: 94px) */}
-      <main id="main-content" className="main-content">
-        {/* Page Header */}
-        <div className="page-header">
-          <div>
-            <h1>
-              Pusat Investigasi Anti-Fraud, <span>{getRoleBadge(currentUser.role)}</span>
-              <span className="greeting-dot">.</span>
-            </h1>
-            <p>
-              Sistem pendukung keputusan deteksi risiko klaim fiktif berbasis graf heterogen &amp; R-GCN &bull; BPJS Kesehatan Healthkathon 2026
-            </p>
-          </div>
-
-          <div className="page-actions">
-            {/* Live DB Badge */}
-            <div
-              className="card"
-              style={{
-                padding: "8px 16px",
-                borderRadius: "30px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                fontSize: "12px",
-                fontWeight: 600,
-              }}
-            >
-              <span
-                style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  backgroundColor: data?.storage_source === "postgresql" ? "var(--green)" : "#c95353",
-                }}
-              />
-              <span>
-                {data?.storage_source === "postgresql"
-                  ? "PostgreSQL Live (19.999 Klaim)"
-                  : "Database Terputus"}
-              </span>
-            </div>
-
-            <button
-              className="button button-primary"
-              onClick={() => setShowSimulatorModal(true)}
-            >
-              <PlusCircle size={15} />
-              Uji Klaim Baru
-            </button>
-
-            <button className="button button-secondary" onClick={() => fetchClaims()} disabled={loading}>
-              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-              Segarkan Antrean
+            <button className="button button-primary" onClick={() => { setActiveSection("investigation"); setInvestigationView("queue"); }}>
+              <Inbox size={14}/> Buka Antrean
             </button>
           </div>
-        </div>
-
-        {/* Database Offline Error Banner */}
-        {dataSourceError && (
-          <div
-            className="card"
-            style={{
-              background: "#faecec",
-              borderColor: "#eec5c5",
-              color: "#a53e3e",
-              marginBottom: "20px",
-              padding: "16px 20px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: 700 }}>
-              <AlertTriangle size={18} />
-              Sumber Data Otoritatif Tidak Tersedia (Zero Mock Policy)
-            </div>
-            <p style={{ marginTop: "6px", fontSize: "12px" }}>{dataSourceError}</p>
-          </div>
-        )}
-
-        {/* Review Action Banner */}
-        {reviewBanner && (
-          <div
-            className="card"
-            style={{
-              background: reviewBanner.status === "REVIEW_SAVED" ? "#edf6f0" : "#faecec",
-              borderColor: reviewBanner.status === "REVIEW_SAVED" ? "#cbe3d7" : "#eec5c5",
-              color: reviewBanner.status === "REVIEW_SAVED" ? "var(--dark-green)" : "#a53e3e",
-              marginBottom: "20px",
-              padding: "16px 20px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: 600 }}>
-              {reviewBanner.status === "REVIEW_SAVED" ? (
-                <CheckCircle2 size={18} className="text-green" />
-              ) : (
-                <XCircle size={18} />
-              )}
-              {reviewBanner.message}
-            </div>
-            <button className="icon-button" onClick={() => setReviewBanner(null)}>
-              <X size={16} />
-            </button>
-          </div>
-        )}
-
-        {/* 4. KPI METRICS CARDS (Template Native Styling including Bank Card in #098352) */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: "20px",
-            marginBottom: "24px",
-          }}
-        >
-          {/* Card 1: Total Claims in DB */}
-          <div className="card" style={{ padding: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <span className="eyebrow">TOTAL KLAIM DI DATABASE</span>
-              <span className="avatar avatar-blue avatar-small">
-                <Database size={16} />
-              </span>
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-1px" }}>
-              {data?.summary.total_claims ? data.summary.total_claims.toLocaleString("id-ID") : "19.999"}
-            </div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>
-              Rata-rata FRI: <strong>{data?.summary.avg_fri ?? "-"}</strong> &bull; PostgreSQL Live
-            </div>
-          </div>
-
-          {/* Card 2: High Risk Claims */}
-          <div className="card" style={{ padding: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <span className="eyebrow" style={{ color: "#c95353" }}>
-                KLAIM RISIKO TINGGI (FRI &ge; 70)
-              </span>
-              <span className="avatar avatar-pink avatar-small">
-                <ShieldAlert size={16} />
-              </span>
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-1px", color: "#c95353" }}>
-              {data?.summary.high_risk_count ? data.summary.high_risk_count.toLocaleString("id-ID") : "3.998"}
-            </div>
-            <div style={{ fontSize: "12px", color: "#a53e3e", marginTop: "6px" }}>
-              Rekomendasi skrining: Ditahan untuk telaah
-            </div>
-          </div>
-
-          {/* Card 3: Flagged Warning Claims */}
-          <div className="card" style={{ padding: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-              <span className="eyebrow" style={{ color: "#b38432" }}>
-                PERINGATAN / WASPADA (FRI 40–69)
-              </span>
-              <span className="avatar avatar-peach avatar-small">
-                <AlertTriangle size={16} />
-              </span>
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-1px", color: "#b38432" }}>
-              {data?.summary.medium_risk_count ? data.summary.medium_risk_count.toLocaleString("id-ID") : "1"}
-            </div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>
-              Deviasi fitur graf sedang (Sampling verifikasi)
-            </div>
-          </div>
-
-          {/* Card 4: Held Tariffs (Template's Gorgeous Bank Card Style in #098352) */}
-          <div className="bank-card" style={{ minHeight: "135px", height: "auto" }}>
-            <div className="bank-card-top">
-              <span className="bank-brand">
-                BPJS<span>INA-CBGS</span>
-              </span>
-              <ShieldCheck size={24} />
-            </div>
-            <div className="bank-card-value">
-              <span>Tarif Klaim Ditahan Sementara:</span>
-              <strong>{formatIDR(data?.summary.held_tariff_idr ?? 3152568742)}</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* 5. WORKSPACE: 2-COLUMN CLAIMS QUEUE & INVESTIGATION DOSSIER */}
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(330px, 1.15fr) minmax(460px, 1.85fr)", gap: "20px", alignItems: "start" }}>
-          {/* LEFT COLUMN: ANTREAN KLAIM */}
-          <div className="card" style={{ padding: "18px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <div>
-                <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>Antrean Verifikasi Klaim</h2>
-                <small className="muted">
-                  {data?.claims.length ?? 0} ditampilkan dari{" "}
-                  {data?.summary.total_claims ? data.summary.total_claims.toLocaleString("id-ID") : "19.999"} klaim
-                </small>
-              </div>
-              <span
-                style={{
-                  background: "#e5f4ec",
-                  color: "var(--dark-green)",
-                  padding: "4px 10px",
-                  borderRadius: "20px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                }}
-              >
-                POSTGRESQL
-              </span>
-            </div>
-
-            {/* Search Box */}
-            <div style={{ position: "relative", marginBottom: "12px" }}>
-              <Search size={16} style={{ position: "absolute", left: "14px", top: "12px", color: "var(--muted)" }} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && fetchClaims()}
-                placeholder="Cari Klaim, Dokter, Faskes, ICD-10..."
-                style={{
-                  width: "100%",
-                  padding: "10px 14px 10px 38px",
-                  borderRadius: "24px",
-                  border: "1px solid var(--line)",
-                  background: "var(--surface)",
-                  fontSize: "12px",
-                }}
-              />
-            </div>
-
-            {/* Filter Dropdowns (Task 2.2 & Task 3.2: Risk, Scenario, Review Status, Sort FRI) */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
-              <select
-                value={riskFilter}
-                onChange={(e) => setRiskFilter(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--line)",
-                  background: "var(--surface)",
-                  fontSize: "11.5px",
-                }}
-              >
-                <option value="ALL">Semua Risiko</option>
-                <option value="HIGH">Risiko Tinggi (&ge; 70)</option>
-                <option value="MEDIUM">Sedang (40–69)</option>
-                <option value="LOW">Rendah (&lt; 40)</option>
-                <option value="UNASSESSED">Belum Diasesmen</option>
-              </select>
-
-              <select
-                value={scenarioFilter}
-                onChange={(e) => setScenarioFilter(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--line)",
-                  background: "var(--surface)",
-                  fontSize: "11.5px",
-                }}
-              >
-                <option value="ALL">Semua Skenario</option>
-                <option value="C">Skenario C (Konflik Jam)</option>
-                <option value="B">Skenario B (Dokter Ekstrem)</option>
-                <option value="A">Skenario A (Phantom Rujukan)</option>
-                <option value="NORMAL">Klaim Wajar (Normal)</option>
-              </select>
-
-              <select
-                value={reviewStatusFilter}
-                onChange={(e) => setReviewStatusFilter(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--line)",
-                  background: "var(--surface)",
-                  fontSize: "11.5px",
-                }}
-              >
-                <option value="ALL">Semua Status Review</option>
-                <option value="PENDING_REVIEW">Menunggu Telaah</option>
-                <option value="RELEASED">Disetujui (RELEASED)</option>
-                <option value="CLARIFICATION_REQUESTED">Minta Klarifikasi</option>
-                <option value="ESCALATED_AUDIT">Eskalasi Audit</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--line)",
-                  background: "var(--surface)",
-                  fontSize: "11.5px",
-                }}
-              >
-                <option value="fri_desc">Urut: Skor FRI Tertinggi</option>
-                <option value="tariff_desc">Urut: Tarif Tertinggi</option>
-                <option value="newest">Urut: Terbaru Masuk</option>
-                <option value="fri_asc">Urut: Skor FRI Terendah</option>
-              </select>
-            </div>
-
-            {/* Scrollable Claims List */}
-            <div style={{ maxHeight: "640px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }}>
-              {loading ? (
-                <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
-                  <RefreshCw size={24} className="animate-spin text-green" style={{ margin: "0 auto 10px" }} />
-                  Memuat data klaim dari PostgreSQL...
-                </div>
-              ) : !data || data.claims.length === 0 ? (
-                <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
-                  Tidak ada klaim yang cocok dengan kriteria pencarian.
-                </div>
-              ) : (
-                data.claims.map((claim) => {
-                  const isSelected = selectedClaim?.claim_id === claim.claim_id;
-                  const isHigh = claim.risk_level === "HIGH";
-                  const isMed = claim.risk_level === "MEDIUM";
-
-                  return (
-                    <div
-                      key={claim.claim_id}
-                      onClick={() => setSelectedClaim(claim)}
-                      style={{
-                        padding: "14px",
-                        borderRadius: "18px",
-                        border: `1.5px solid ${isSelected ? "var(--green)" : "var(--line)"}`,
-                        background: isSelected ? "#f1f8f4" : "#ffffff",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontFamily: "monospace", fontWeight: 800, fontSize: "13px" }}>
-                            {claim.claim_id}
-                          </span>
-                          {claim.fraud_scenario && (
-                            <span
-                              style={{
-                                fontSize: "10px",
-                                fontWeight: 700,
-                                padding: "2px 6px",
-                                borderRadius: "8px",
-                                background: "#f8ecd4",
-                                color: "#9c6b1a",
-                              }}
-                            >
-                              SKENARIO {claim.fraud_scenario}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* FRI Badge */}
-                        {claim.fraud_risk_index !== null ? (
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: "14px",
-                              background: isHigh ? "#faecec" : isMed ? "#f8ecd4" : "#e5f4ec",
-                              color: isHigh ? "#c95353" : isMed ? "#b38432" : "var(--dark-green)",
-                            }}
-                          >
-                            FRI {claim.fraud_risk_index}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: "10px", color: "var(--muted)" }}>Belum Diasesmen</span>
-                        )}
-                      </div>
-
-                      <div style={{ fontSize: "12px", color: "#3e463b", marginBottom: "6px" }}>
-                        <strong>{claim.doctor_id}</strong> &bull; {claim.specialty}
-                        <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>
-                          {claim.facility_id} ({claim.facility_class}) &bull; ICD-10: <strong>{claim.icd10_code}</strong>
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "var(--muted)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span>{claim.service_date}</span>
-                          <span
-                            style={{
-                              fontSize: "9.5px",
-                              fontWeight: 700,
-                              padding: "1px 6px",
-                              borderRadius: "8px",
-                              background:
-                                claim.review_status === "ESCALATED_AUDIT"
-                                  ? "#faecec"
-                                  : claim.review_status === "CLARIFICATION_REQUESTED"
-                                  ? "#f8ecd4"
-                                  : claim.review_status === "RELEASED"
-                                  ? "#e5f4ec"
-                                  : "#f0f4f1",
-                              color:
-                                claim.review_status === "ESCALATED_AUDIT"
-                                  ? "#c95353"
-                                  : claim.review_status === "CLARIFICATION_REQUESTED"
-                                  ? "#b38432"
-                                  : claim.review_status === "RELEASED"
-                                  ? "var(--dark-green)"
-                                  : "#4b5563",
-                            }}
-                          >
-                            {claim.review_status}
-                          </span>
-                        </div>
-                        <strong style={{ color: "var(--dark-green)", fontSize: "12px" }}>
-                          {formatIDR(claim.ina_cbgs_tariff)}
-                        </strong>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN: DETAILED INVESTIGATION DOSSIER */}
-          <div className="card" style={{ padding: "22px" }}>
-            {!selectedClaim ? (
-              <div style={{ padding: "60px", textAlign: "center", color: "var(--muted)" }}>
-                <FileText size={40} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
-                <h3>Pilih Klaim untuk Ditelaah</h3>
-                <p style={{ fontSize: "12px", marginTop: "6px" }}>
-                  Klik salah satu klaim pada daftar antrean sebelah kiri untuk melihat detail bukti XAI dan graf relasional.
-                </p>
-              </div>
-            ) : (
-              <div>
-                {/* Dossier Header */}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    borderBottom: "1px solid var(--line)",
-                    paddingBottom: "16px",
-                    marginBottom: "18px",
-                    flexWrap: "wrap",
-                    gap: "12px",
-                  }}
-                >
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <h2 style={{ fontSize: "20px", fontWeight: 800, margin: 0, fontFamily: "monospace" }}>
-                        {selectedClaim.claim_id}
-                      </h2>
-                      {selectedClaim.fraud_scenario && (
-                        <span
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            padding: "3px 8px",
-                            borderRadius: "10px",
-                            background: "#f8ecd4",
-                            color: "#9c6b1a",
-                          }}
-                        >
-                          SKENARIO {selectedClaim.fraud_scenario}
-                        </span>
-                      )}
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          padding: "3px 10px",
-                          borderRadius: "14px",
-                          background: "#e5f4ec",
-                          color: "var(--dark-green)",
-                        }}
-                      >
-                        {formatIDR(selectedClaim.ina_cbgs_tariff)}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
-                      Faskes: <strong>{selectedClaim.facility_id}</strong> ({selectedClaim.facility_class}) &bull; Dokter: <strong>{selectedClaim.doctor_id}</strong> ({selectedClaim.specialty})
-                    </p>
-                  </div>
-
-                  {/* Clean Tab Pills */}
-                  <div className="top-navigation" style={{ padding: "4px", borderRadius: "24px" }}>
-                    <button
-                      onClick={() => setActiveTab("xai")}
-                      className={activeTab === "xai" ? "active" : ""}
-                      style={{ padding: "8px 14px", fontSize: "12px" }}
-                    >
-                      Asesmen &amp; XAI
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("graph")}
-                      className={activeTab === "graph" ? "active" : ""}
-                      style={{ padding: "8px 14px", fontSize: "12px" }}
-                    >
-                      Peta Graf R-GCN
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("review")}
-                      className={activeTab === "review" ? "active" : ""}
-                      style={{ padding: "8px 14px", fontSize: "12px" }}
-                    >
-                      Telaah Verifikator
-                    </button>
-                    <button
-                      onClick={() => setActiveTab("history")}
-                      className={activeTab === "history" ? "active" : ""}
-                      style={{ padding: "8px 14px", fontSize: "12px" }}
-                    >
-                      Jejak ({selectedClaim.human_reviews.length})
-                    </button>
-                  </div>
-                </div>
-
-                {/* TAB 1: ASESMEN & XAI */}
-                {activeTab === "xai" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-                    {/* Score Bar & Gate Recommendation */}
-                    <div
-                      style={{
-                        padding: "16px 20px",
-                        borderRadius: "18px",
-                        background: "var(--surface)",
-                        border: "1px solid var(--line)",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: "14px",
-                      }}
-                    >
-                      <div>
-                        <span className="eyebrow">FRAUD RISK INDEX (FRI)</span>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "2px" }}>
-                          <span
-                            style={{
-                              fontSize: "32px",
-                              fontWeight: 800,
-                              color:
-                                (selectedClaim.fraud_risk_index ?? 0) >= 70
-                                  ? "#c95353"
-                                  : (selectedClaim.fraud_risk_index ?? 0) >= 40
-                                  ? "#b38432"
-                                  : "var(--green)",
-                            }}
-                          >
-                            {selectedClaim.fraud_risk_index ?? "-"}
-                          </span>
-                          <span style={{ fontSize: "14px", color: "var(--muted)", fontWeight: 700 }}>/ 100</span>
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              padding: "3px 8px",
-                              borderRadius: "12px",
-                              background:
-                                selectedClaim.risk_level === "HIGH"
-                                  ? "#faecec"
-                                  : selectedClaim.risk_level === "MEDIUM"
-                                  ? "#f8ecd4"
-                                  : "#e5f4ec",
-                              color:
-                                selectedClaim.risk_level === "HIGH"
-                                  ? "#c95353"
-                                  : selectedClaim.risk_level === "MEDIUM"
-                                  ? "#b38432"
-                                  : "var(--dark-green)",
-                            }}
-                          >
-                            TINGKAT {selectedClaim.risk_level}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ textAlign: "right" }}>
-                        <span className="eyebrow">REKOMENDASI PRA-PEMBAYARAN:</span>
-                        <div
-                          style={{
-                            marginTop: "4px",
-                            padding: "6px 14px",
-                            borderRadius: "16px",
-                            fontWeight: 700,
-                            fontSize: "12px",
-                            background:
-                              selectedClaim.pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW"
-                                ? "#faecec"
-                                : selectedClaim.pre_payment_gate === "FLAGGED_WARNING"
-                                ? "#f8ecd4"
-                                : "#e5f4ec",
-                            color:
-                              selectedClaim.pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW"
-                                ? "#c95353"
-                                : selectedClaim.pre_payment_gate === "FLAGGED_WARNING"
-                                ? "#b38432"
-                                : "var(--dark-green)",
-                            border: "1px solid currentColor",
-                          }}
-                        >
-                          {selectedClaim.pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW"
-                            ? "TOLAK BAYAR UNTUK TELAAH VERIFIKATOR"
-                            : selectedClaim.pre_payment_gate === "FLAGGED_WARNING"
-                            ? "PERINGATAN AWAL (SAMPLING)"
-                            : "SETUJUI OTOMATIS (AUTO-APPROVE)"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 3 Metric Tiles */}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-                      <div className="card" style={{ padding: "14px", borderRadius: "16px" }}>
-                        <span className="eyebrow" style={{ fontSize: "10px" }}>KONFLIK TRAJEKTORI</span>
-                        <div
-                          style={{
-                            marginTop: "6px",
-                            fontWeight: 700,
-                            fontSize: "13px",
-                            color: selectedClaim.spatiotemporal_metrics?.spatial_conflict_detected
-                              ? "#c95353"
-                              : "var(--green)",
-                          }}
-                        >
-                          {selectedClaim.spatiotemporal_metrics?.spatial_conflict_detected
-                            ? "Terdeteksi (Anomali)"
-                            : "Aman (Wajar)"}
-                        </div>
-                      </div>
-
-                      <div className="card" style={{ padding: "14px", borderRadius: "16px" }}>
-                        <span className="eyebrow" style={{ fontSize: "10px" }}>BEBAN HARIAN DOKTER</span>
-                        <div style={{ marginTop: "6px", fontWeight: 700, fontSize: "13px" }}>
-                          {selectedClaim.spatiotemporal_metrics?.doctor_daily_volume ?? 0} klaim / hari
-                          <small style={{ color: "var(--muted)", fontWeight: 400, marginLeft: "4px" }}>
-                            (Maks: 45)
-                          </small>
-                        </div>
-                      </div>
-
-                      <div className="card" style={{ padding: "14px", borderRadius: "16px" }}>
-                        <span className="eyebrow" style={{ fontSize: "10px" }}>PROBABILITAS R-GCN</span>
-                        <div style={{ marginTop: "6px", fontWeight: 700, fontSize: "13px", color: "var(--dark-green)" }}>
-                          {selectedClaim.fraud_probability !== null
-                            ? `${(selectedClaim.fraud_probability * 100).toFixed(1)}%`
-                            : "Belum Dihitung"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 5-Tier Evidence Engine Architecture */}
-                    <div
-                      className="card"
-                      style={{ padding: "18px", borderRadius: "18px", background: "var(--surface)" }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderBottom: "1px solid var(--line)", paddingBottom: "10px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <Layers size={18} className="text-green" />
-                          <span className="eyebrow" style={{ color: "#1e241f", fontSize: "12px" }}>
-                            ARSITEKTUR BUKTI 5 TINGKAT (EVIDENCE ENGINE):
-                          </span>
-                        </div>
-                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: "#e5f4ec", color: "var(--dark-green)" }}>
-                          CASE-{selectedClaim.claim_id}
-                        </span>
-                      </div>
-
-                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {/* Tier 1: Observed Facts */}
-                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: "#f0f4f1", color: "#3e463b" }}>
-                              TINGKAT 1: FAKTA DATA SUMBER (OBSERVED FACTS)
-                            </span>
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#4b5563", lineHeight: 1.5 }}>
-                            Klaim terdaftar pada <strong>{selectedClaim.service_date}</strong> jam <strong>{selectedClaim.service_time}</strong> di Faskes <strong>{selectedClaim.facility_id}</strong> ({selectedClaim.facility_class}) oleh Dokter <strong>{selectedClaim.doctor_id}</strong> (SIP: {selectedClaim.sip_number}) untuk Pasien <strong>{selectedClaim.patient_id.substring(0, 16)}...</strong> dengan diagnosis <strong>{selectedClaim.icd10_code}</strong> senilai <strong>{formatIDR(selectedClaim.ina_cbgs_tariff)}</strong>.
-                          </div>
-                        </div>
-
-                        {/* Tier 2: Detected Patterns */}
-                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: selectedClaim.spatiotemporal_metrics?.spatial_conflict_detected ? "#faecec" : "#f0f4f1", color: selectedClaim.spatiotemporal_metrics?.spatial_conflict_detected ? "#c95353" : "#3e463b" }}>
-                              TINGKAT 2: POLA TERDETEKSI (DETECTED PATTERNS)
-                            </span>
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#4b5563" }}>
-                            <div style={{ fontWeight: 700, color: "#1e241f", marginBottom: "4px" }}>
-                              Pemicu Anomali: {selectedClaim.xai_explanation?.primary_fraud_trigger || "Klaim Wajar Tanpa Pemicu Fraud"}
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
-                              {selectedClaim.xai_explanation?.evidence_reasons?.map((r, i) => (
-                                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "11.5px" }}>
-                                  <span style={{ color: "#098a58", fontWeight: 800 }}>&bull;</span>
-                                  <span>{r}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Tier 3: Model Outputs */}
-                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: "#f0f4f1", color: "#3e463b" }}>
-                              TINGKAT 3: PREDIKSI MODEL (MODEL OUTPUTS)
-                            </span>
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#4b5563", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-                            <span>Model: <strong>PyG Hetero R-GCN v1.0</strong></span>
-                            <span>Skor Anomali: <strong>{selectedClaim.fraud_probability !== null ? `${(selectedClaim.fraud_probability * 100).toFixed(1)}%` : "Belum dihitung"}</strong></span>
-                            <span>Rekomendasi Gate: <strong>{selectedClaim.pre_payment_gate}</strong></span>
-                          </div>
-                        </div>
-
-                        {/* Tier 4 & 5: Investigator Findings & Outcomes */}
-                        <div style={{ background: "#ffffff", padding: "12px 14px", borderRadius: "14px", border: "1px solid var(--line)" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 800, padding: "2px 6px", borderRadius: "6px", background: "#f0f4f1", color: "#3e463b" }}>
-                              TINGKAT 4 &amp; 5: HASIL TELAAH &amp; OUTCOME (VERIFIER FINDINGS &amp; OUTCOMES)
-                            </span>
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#4b5563" }}>
-                            <span>Status Telaah Saat Ini: <strong>{selectedClaim.review_status}</strong> ({selectedClaim.human_reviews.length} catatan telaah tersimpan di audit log).</span>
-                            <div style={{ marginTop: "6px", padding: "8px 10px", borderRadius: "8px", background: "#f9fafb", border: "1px dashed #d1d5db", fontSize: "10.5px", color: "#6b7280" }}>
-                              ⚖️ <strong>Integritas Yuridis:</strong> Relasi graf dan skor anomali adalah instrumen pendukung keputusan verifikasi pra-pembayaran (Decision-Support), bukan pembuktian mutlak vonis kecurangan (fraud) yuridis.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Administrative Parameters Grid */}
-                    <div className="card" style={{ padding: "16px", borderRadius: "18px" }}>
-                      <span className="eyebrow" style={{ marginBottom: "12px", display: "block" }}>
-                        PARAMETER ADMINISTRATIF &amp; KLINIS
-                      </span>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px", fontSize: "12px" }}>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>ID Pasien (Salted Hash)</small>
-                          <strong style={{ fontFamily: "monospace" }}>{selectedClaim.patient_id.substring(0, 16)}...</strong>
-                        </div>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>Wilayah Pasien</small>
-                          <strong>{selectedClaim.home_region}</strong>
-                        </div>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>Diagnosis ICD-10</small>
-                          <strong style={{ fontFamily: "monospace" }}>{selectedClaim.icd10_code}</strong>
-                        </div>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>Prosedur ICD-9</small>
-                          <strong style={{ fontFamily: "monospace" }}>{selectedClaim.icd9_code || "-"}</strong>
-                        </div>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>Tanggal Pelayanan</small>
-                          <strong>{selectedClaim.service_date}</strong>
-                        </div>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>Jam Layanan</small>
-                          <strong>{selectedClaim.service_time}</strong>
-                        </div>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>Lama Rawat (LOS)</small>
-                          <strong>{selectedClaim.length_of_stay} hari</strong>
-                        </div>
-                        <div>
-                          <small className="muted" style={{ display: "block", marginBottom: "2px" }}>Tarif INA-CBGS</small>
-                          <strong style={{ color: "var(--dark-green)" }}>{formatIDR(selectedClaim.ina_cbgs_tariff)}</strong>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 2: PETA GRAF R-GCN */}
-                {activeTab === "graph" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
-                      <span>
-                        Topologi relasi simpul heterogen PyTorch Geometric untuk klaim <strong>{selectedClaim.claim_id}</strong>.
-                      </span>
-                      <span
-                        style={{
-                          background: "#e5f4ec",
-                          color: "var(--dark-green)",
-                          padding: "3px 10px",
-                          borderRadius: "12px",
-                          fontWeight: 700,
-                          fontSize: "11px",
-                        }}
-                      >
-                        {selectedClaim.xai_explanation?.subgraph_evidence?.nodes?.length ?? 0} Simpul &bull;{" "}
-                        {selectedClaim.xai_explanation?.subgraph_evidence?.edges?.length ?? 0} Relasi
-                      </span>
-                    </div>
-
-                    <SubgraphViewer
-                      nodes={selectedClaim.xai_explanation?.subgraph_evidence?.nodes || []}
-                      edges={selectedClaim.xai_explanation?.subgraph_evidence?.edges || []}
-                    />
-
-                    <div
-                      className="card"
-                      style={{ padding: "14px", background: "var(--surface)", fontSize: "12px", borderRadius: "16px" }}
-                    >
-                      <strong style={{ display: "block", marginBottom: "4px" }}>Catatan Analisis Graf R-GCN:</strong>
-                      <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.5, fontSize: "11px" }}>
-                        Model Relational Graph Convolutional Network (R-GCN) mempelajari embedding simpul Dokter, Pasien, Faskes, dan Klaim. Garis merah putus-putus mengindikasikan anomali struktural atau konflik spasio-temporal lintas fasilitas kesehatan.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 3: TELAAH VERIFIKATOR (HUMAN-IN-THE-LOOP) */}
-                {activeTab === "review" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-                    <div
-                      className="card"
-                      style={{
-                        padding: "14px 18px",
-                        background: "#edf6f0",
-                        borderColor: "#cbe3d7",
-                        color: "var(--dark-green)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        fontSize: "12px",
-                        borderRadius: "16px",
-                      }}
-                    >
-                      <UserCheck size={18} />
-                      <div>
-                        <strong>Wewenang Eksklusif: Verifikator Pra-Pembayaran Klaim BPJS</strong>
-                        <div style={{ fontSize: "11px", marginTop: "2px" }}>
-                          Keputusan telaah akan dicatat secara atomik ke tabel <code>human_reviews</code> dan <code>audit_logs</code> di PostgreSQL.
-                        </div>
-                      </div>
-                    </div>
-
-                    {currentUser.role !== "CLAIM_VERIFIER" ? (
-                      <div
-                        className="card"
-                        style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}
-                      >
-                        <Lock size={30} style={{ margin: "0 auto 10px", opacity: 0.5 }} />
-                        <h3>Akses Terbatas Aturan RBAC</h3>
-                        <p style={{ fontSize: "12px", maxWidth: "420px", margin: "6px auto 0" }}>
-                          Peran Anda saat ini adalah <strong>{currentUser.role}</strong>. Sesuai prinsip <em>Separation of Duties</em>, hanya peran <strong>CLAIM_VERIFIER</strong> yang berhak mengambil keputusan telaah verifikasi klaim.
-                        </p>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                        <span className="eyebrow">PILIH TINDAKAN TELAAH VERIFIKASI:</span>
-
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-                          {/* Option RELEASE */}
-                          <div
-                            onClick={() => setSelectedDecision("RELEASE")}
-                            style={{
-                              padding: "16px",
-                              borderRadius: "16px",
-                              border: `2px solid ${selectedDecision === "RELEASE" ? "var(--green)" : "var(--line)"}`,
-                              background: selectedDecision === "RELEASE" ? "#edf6f0" : "#ffffff",
-                              cursor: "pointer",
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                              <span
-                                style={{
-                                  width: "14px",
-                                  height: "14px",
-                                  borderRadius: "50%",
-                                  border: "2px solid var(--green)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                {selectedDecision === "RELEASE" && (
-                                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--green)" }} />
-                                )}
-                              </span>
-                              <strong style={{ fontSize: "13px", color: "var(--dark-green)" }}>RELEASE</strong>
-                            </div>
-                            <p style={{ fontSize: "11px", color: "var(--muted)", margin: 0, lineHeight: 1.4 }}>
-                              Setujui klaim dan teruskan ke pencairan dana INA-CBGS.
-                            </p>
-                          </div>
-
-                          {/* Option CLARIFY */}
-                          <div
-                            onClick={() => setSelectedDecision("CLARIFY")}
-                            style={{
-                              padding: "16px",
-                              borderRadius: "16px",
-                              border: `2px solid ${selectedDecision === "CLARIFY" ? "#b38432" : "var(--line)"}`,
-                              background: selectedDecision === "CLARIFY" ? "#fdf8ee" : "#ffffff",
-                              cursor: "pointer",
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                              <span
-                                style={{
-                                  width: "14px",
-                                  height: "14px",
-                                  borderRadius: "50%",
-                                  border: "2px solid #b38432",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                {selectedDecision === "CLARIFY" && (
-                                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#b38432" }} />
-                                )}
-                              </span>
-                              <strong style={{ fontSize: "13px", color: "#b38432" }}>CLARIFY</strong>
-                            </div>
-                            <p style={{ fontSize: "11px", color: "var(--muted)", margin: 0, lineHeight: 1.4 }}>
-                              Tahan sementara dan mintakan klarifikasi berkas ke Faskes.
-                            </p>
-                          </div>
-
-                          {/* Option ESCALATE */}
-                          <div
-                            onClick={() => setSelectedDecision("ESCALATE_AUDIT")}
-                            style={{
-                              padding: "16px",
-                              borderRadius: "16px",
-                              border: `2px solid ${selectedDecision === "ESCALATE_AUDIT" ? "#c95353" : "var(--line)"}`,
-                              background: selectedDecision === "ESCALATE_AUDIT" ? "#faecec" : "#ffffff",
-                              cursor: "pointer",
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                              <span
-                                style={{
-                                  width: "14px",
-                                  height: "14px",
-                                  borderRadius: "50%",
-                                  border: "2px solid #c95353",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                {selectedDecision === "ESCALATE_AUDIT" && (
-                                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#c95353" }} />
-                                )}
-                              </span>
-                              <strong style={{ fontSize: "13px", color: "#c95353" }}>ESCALATE AUDIT</strong>
-                            </div>
-                            <p style={{ fontSize: "11px", color: "var(--muted)", margin: 0, lineHeight: 1.4 }}>
-                              Eskalasi ke Tim Investigasi Khusus Fraud BPJS Kesehatan.
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Notes Textarea */}
-                        <div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                            <span className="eyebrow">CATATAN PERTIMBANGAN VERIFIKATOR (WAJIB):</span>
-                            <small className="muted">Minimal 5 karakter &bull; Tersimpan permanen</small>
-                          </div>
-                          <textarea
-                            rows={3}
-                            value={reviewNotes}
-                            onChange={(e) => setReviewNotes(e.target.value)}
-                            placeholder="Tuliskan alasan pertimbangan medis atau hasil verifikasi rekam medis..."
-                            style={{
-                              width: "100%",
-                              padding: "12px",
-                              borderRadius: "16px",
-                              border: "1px solid var(--line)",
-                              background: "var(--surface)",
-                              fontSize: "12px",
-                              fontFamily: "inherit",
-                            }}
-                          />
-                        </div>
-
-                        {/* Submit Button */}
-                        <button
-                          className="button button-primary"
-                          onClick={() => handleReviewDecision(selectedDecision)}
-                          disabled={submittingReview}
-                          style={{ width: "100%", fontSize: "13px", borderRadius: "24px" }}
-                        >
-                          {submittingReview ? (
-                            <>
-                              <RefreshCw size={16} className="animate-spin" />
-                              Menyimpan Keputusan ke PostgreSQL...
-                            </>
-                          ) : (
-                            <>
-                              <Send size={16} />
-                              Simpan Keputusan Telaah Klaim
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* TAB 4: JEJAK AUDIT KLAIM */}
-                {activeTab === "history" && (
-                  <div>
-                    <span className="eyebrow" style={{ display: "block", marginBottom: "12px" }}>
-                      RIWAYAT TELAAH UNTUK KLAIM INI
-                    </span>
-                    {!selectedClaim.human_reviews || selectedClaim.human_reviews.length === 0 ? (
-                      <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
-                        Belum ada tindakan telaah yang tercatat untuk klaim ini.
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {selectedClaim.human_reviews.map((rev) => (
-                          <div
-                            key={rev.id}
-                            style={{
-                              padding: "14px",
-                              borderRadius: "16px",
-                              border: "1px solid var(--line)",
-                              background: "var(--surface)",
-                              fontSize: "12px",
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                              <strong>{rev.reviewer_name}</strong>
-                              <span style={{ fontSize: "11px", color: "var(--muted)" }}>
-                                {new Date(rev.reviewed_at).toLocaleString("id-ID")}
-                              </span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                              <span style={{ fontSize: "10px", color: "var(--muted)" }}>{rev.reviewer_role}</span>
-                              <span
-                                style={{
-                                  fontSize: "10px",
-                                  fontWeight: 800,
-                                  padding: "2px 8px",
-                                  borderRadius: "10px",
-                                  background: rev.decision === "RELEASE" ? "#e5f4ec" : rev.decision === "CLARIFY" ? "#f8ecd4" : "#faecec",
-                                  color: rev.decision === "RELEASE" ? "var(--dark-green)" : rev.decision === "CLARIFY" ? "#b38432" : "#c95353",
-                                }}
-                              >
-                                {rev.decision}
-                              </span>
-                            </div>
-                            <p style={{ margin: 0, background: "#ffffff", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--line)", fontSize: "11px" }}>
-                              "{rev.notes}"
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer (Template Native Styling) */}
-        <footer className="app-footer" style={{ marginTop: "32px" }}>
-          <span>
-            &copy; 2026 AURA-JKN<span className="footer-dot">&bull;</span>Autonomous Relational Anti-Fraud System
-          </span>
-          <span>
-            <i />
-            PostgreSQL Live (19.999 Klaim)<span className="footer-dot">&bull;</span>BPJS Kesehatan Healthkathon 2026
-          </span>
-        </footer>
-      </main>
-
-      {/* MODAL: SIMULASI KLAIM BARU (Task 3.6) */}
-      <LiveClaimSimulatorModal
-        isOpen={showSimulatorModal}
-        onClose={() => setShowSimulatorModal(false)}
-        backendUrl={BACKEND_URL}
-        authToken={currentUser.token}
-        onClaimCreated={(newClaimId) => {
-          fetchClaims(newClaimId);
-        }}
+        }
       />
 
-      {/* MODAL: AUDIT TRAIL LOG & CONTROLLED FEEDBACK AI (Task 2.4) */}
-      {showAuditModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(30, 36, 31, 0.45)",
-            backdropFilter: "blur(3px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "24px",
-            zIndex: 100,
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              maxWidth: "820px",
-              width: "100%",
-              maxHeight: "86vh",
-              padding: "24px",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: "28px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
-              <div>
-                <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0 }}>
-                  Jejak Audit &amp; Controlled Feedback AI
-                </h2>
-                <small className="muted">
-                  Log imutabel &amp; dataset retraining model R-GCN dari PostgreSQL
-                </small>
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        <MetricCard title="TOTAL KLAIM DATABASE" value={data?.summary.total_claims?.toLocaleString("id-ID") || "—"} subtitle={`Rata-rata FRI: ${data?.summary.avg_fri ?? "—"} • PostgreSQL Live`} icon={<Database size={18}/>}/>
+        <MetricCard title="RISIKO TINGGI (FRI ≥ 70)" value={data?.summary.high_risk_count?.toLocaleString("id-ID") || "—"} subtitle="Perlu telaah prioritas" color="#dc2626" icon={<ShieldAlert size={18}/>}/>
+        <MetricCard title="KASUS TERBUKA" value={perfData ? Object.values(perfData.investigation?.open_cases ?? {}).toString() : (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Antrean investigasi aktif" color="#d97706" icon={<ClipboardList size={18}/>}/>
+        <MetricCard title="SELESAI DIINVESTIGASI" value={perfData?.investigation?.throughput_all_time ?? "—"} subtitle="Total kasus resolved + closed" color="#059669" icon={<CheckCircle2 size={18}/>}/>
+      </div>
+
+      {/* Second row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        <MetricCard title="TARIF KLAIM DITAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Pre-payment gate: REJECT_FOR_HUMAN_REVIEW" color="#7c3aed" icon={<Scale size={18}/>}/>
+        <MetricCard title="MEDIAN WAKTU INVESTIGASI" value={perfData?.investigation?.median_investigation_hours ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dari review dimulai hingga selesai" icon={<Clock size={18}/>}/>
+        <MetricCard title="KELENGKAPAN BUKTI" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Kasus dengan minimal 1 catatan review" color="#0284c7" icon={<BookOpen size={18}/>}/>
+        <MetricCard title="VERSI MODEL AI" value={perfData?.model?.current_version || "1.0.0"} subtitle={`R-GCN PyTorch Geometric • Inferensi terakhir: ${formatDate(perfData?.model?.last_inference)}`} color="#db2777" icon={<Zap size={18}/>}/>
+      </div>
+
+      {/* Data Source Badges */}
+      {dataSourceError && <DataSourceBanner error={dataSourceError}/>}
+
+      {/* Case Queue Preview */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+        <div className="card" style={{ padding: "18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px" }}>
+            <strong>Antrean Kasus</strong>
+            <button className="button button-secondary" style={{ fontSize: "11px", padding: "4px 12px", minHeight: 0 }} onClick={() => { setActiveSection("investigation"); fetchCases(); }}>Lihat Semua →</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {Object.entries(STATUS_CONFIG).slice(0, 5).map(([status, cfg]) => (
+              <div key={status} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: "10px", background: "#f9fafb" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                  <span style={{ color: cfg.color }}>{cfg.icon}</span>{cfg.label}
+                </div>
+                <strong style={{ color: cfg.color }}>{caseQueueSummary[status] ?? "—"}</strong>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div className="top-navigation" style={{ padding: "4px", borderRadius: "20px" }}>
-                  <button
-                    onClick={() => setAuditModalTab("audit_logs")}
-                    className={auditModalTab === "audit_logs" ? "active" : ""}
-                    style={{ padding: "6px 12px", fontSize: "11.5px" }}
-                  >
-                    Log Jejak Audit
-                  </button>
-                  <button
-                    onClick={() => setAuditModalTab("feedback_export")}
-                    className={auditModalTab === "feedback_export" ? "active" : ""}
-                    style={{ padding: "6px 12px", fontSize: "11.5px" }}
-                  >
-                    Controlled Feedback AI
+            ))}
+          </div>
+        </div>
+
+        {/* System Health */}
+        <div className="card" style={{ padding: "18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px" }}>
+            <strong>Status Layanan</strong>
+            <button className="button button-secondary" style={{ fontSize: "11px", padding: "4px 12px", minHeight: 0 }} onClick={fetchHealth}><RefreshCw size={12}/></button>
+          </div>
+          {healthStatus ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {[
+                { name: "PostgreSQL Database", status: healthStatus.database === "connected" ? "OK" : "ERROR", detail: healthStatus.database },
+                { name: "AI Service (R-GCN FastAPI)", status: healthStatus.ai_service === "connected" ? "OK" : "DEGRADED", detail: healthStatus.ai_service },
+                { name: "Backend API Gateway", status: "OK", detail: "Terhubung" },
+              ].map(svc => (
+                <div key={svc.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: "10px", background: "#f9fafb" }}>
+                  <span style={{ fontSize: "12px" }}>{svc.name}</span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: svc.status === "OK" ? "#d1fae5" : svc.status === "DEGRADED" ? "#fef3c7" : "#fee2e2", color: svc.status === "OK" ? "#059669" : svc.status === "DEGRADED" ? "#d97706" : "#dc2626" }}>{svc.status}</span>
+                </div>
+              ))}
+              <div style={{ marginTop: "8px", padding: "10px 12px", borderRadius: "10px", background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: "11px", color: "#166534" }}>
+                <strong>Zero Mock Data Policy Aktif</strong> — Semua data berasal dari PostgreSQL dan AI inference aktual. Kegagalan ditampilkan, bukan disembunyikan.
+              </div>
+            </div>
+          ) : <LoadingSpinner/>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ============================================================
+  // SECTION: INVESTIGATION
+  // ============================================================
+
+  const renderInvestigationQueue = () => (
+    <div>
+      <SectionHeader
+        title="Antrean Investigasi"
+        subtitle="Daftar kasus yang memerlukan pemeriksaan. Prioritas dihitung berdasarkan FRI, deteksi spasial, dan waktu tunggu."
+        action={
+          <div style={{ display: "flex", gap: "10px" }}>
+            <select value={caseStatusFilter} onChange={e => setCaseStatusFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+              <option value="ALL">Semua Status</option>
+              {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <select value={casePriorityFilter} onChange={e => setCasePriorityFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+              <option value="ALL">Semua Prioritas</option>
+              <option value="HIGH">HIGH</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="LOW">LOW</option>
+            </select>
+            <button className="button button-secondary" onClick={fetchCases} disabled={casesLoading}><RefreshCw size={14} className={casesLoading ? "animate-spin" : ""}/></button>
+          </div>
+        }
+      />
+
+      {/* Queue Stats */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+        {Object.entries(STATUS_CONFIG).map(([status, cfg]) => (
+          <button key={status} onClick={() => setCaseStatusFilter(caseStatusFilter === status ? "ALL" : status)}
+            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "20px", border: `1px solid ${caseStatusFilter === status ? cfg.color : "var(--line)"}`, background: caseStatusFilter === status ? cfg.bg : "#fff", color: cfg.color, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
+            {cfg.icon}<span>{cfg.label}</span><strong style={{ marginLeft: "4px" }}>{caseQueueSummary[status] ?? 0}</strong>
+          </button>
+        ))}
+      </div>
+
+      {casesLoading ? <LoadingSpinner/> : cases.length === 0 ? (
+        <EmptyState icon={<Inbox size={48}/>} message="Tidak ada kasus dalam antrean" sub="Kasus baru akan muncul setelah klaim di-flag oleh sistem"/>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {cases.map(c => (
+            <div key={c.id} className="card" style={{ padding: "16px 18px", cursor: "pointer", border: selectedCase?.id === c.id ? "2px solid var(--green)" : "1px solid var(--line)" }}
+              onClick={() => { setSelectedCase(c); setInvestigationView("evidence_center"); }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <span style={{ fontWeight: 700, fontSize: "13px", fontFamily: "monospace" }}>{c.case_number}</span>
+                    <StatusBadge status={c.status}/>
+                    <PriorityBadge priority={c.priority}/>
+                    {c.sla_breached && <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: "#fee2e2", color: "#dc2626" }}>⚠ SLA Terlampaui</span>}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                    <span>Klaim: <strong>{c.claim_id}</strong></span>
+                    {c.claim_summary?.risk_level && <span>Risiko: <strong style={{ color: PRIORITY_CONFIG[c.claim_summary.risk_level]?.color }}>{c.claim_summary.risk_level}</strong></span>}
+                    {c.claim_summary?.fraud_risk_index !== null && <span>FRI: <strong>{c.claim_summary.fraud_risk_index}</strong></span>}
+                    {c.wait_hours !== null && <span>Menunggu: <strong>{c.wait_hours} jam</strong></span>}
+                    {c.assigned_to && <span>Ditugaskan ke: <strong>{c.assigned_to}</strong></span>}
+                  </div>
+                  {c.priority_reasons.length > 0 && (
+                    <div style={{ marginTop: "6px", fontSize: "11px", color: "#7c3aed" }}>
+                      <strong>Alasan prioritas:</strong> {c.priority_reasons.join(" • ")}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <button className="button button-secondary" style={{ fontSize: "11px", padding: "4px 10px", minHeight: 0 }}
+                    onClick={e => { e.stopPropagation(); setSelectedCase(c); setInvestigationView("evidence_center"); }}>
+                    <Eye size={12}/> Detail
                   </button>
                 </div>
-                <button className="icon-button" onClick={() => setShowAuditModal(false)}>
-                  <X size={18} />
-                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderEvidenceCenter = () => {
+    if (!selectedCase) return <EmptyState icon={<FolderOpen size={48}/>} message="Pilih kasus dari antrean" sub="Klik kasus untuk melihat Evidence Center"/>;
+    const ec = caseDetail;
+
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+          <button className="button button-secondary" style={{ fontSize: "11px", padding: "6px 12px", minHeight: 0 }} onClick={() => { setInvestigationView("queue"); setSelectedCase(null); setCaseDetail(null); }}>
+            ← Kembali ke Antrean
+          </button>
+          <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>Evidence Center — {selectedCase.case_number}</h1>
+          <StatusBadge status={selectedCase.status}/>
+          <PriorityBadge priority={selectedCase.priority}/>
+        </div>
+
+        {caseDetailLoading ? <LoadingSpinner/> : ec ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            {/* Ringkasan Kasus */}
+            <div className="card" style={{ padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <Hash size={16} style={{ color: "var(--green)" }}/><strong>Ringkasan Kasus</strong>
+              </div>
+              <div style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                {[
+                  ["Nomor Kasus", ec.case_summary?.case_number],
+                  ["Klaim ID", ec.case_summary?.claim_id],
+                  ["Status", <StatusBadge key="s" status={ec.case_summary?.status || ""}/>],
+                  ["Ditugaskan ke", ec.case_summary?.assigned_to || "Belum ditugaskan"],
+                  ["SLA Deadline", formatDate(ec.case_summary?.sla_deadline)],
+                  ["Dibuat", formatDate(ec.case_summary?.created_at)],
+                  ["Outcome", ec.final_outcome?.outcome || "Belum ada hasil"],
+                ].map(([k, v]) => (
+                  <div key={k as string} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--line)" }}>
+                    <span style={{ color: "var(--muted)" }}>{k}</span><span style={{ fontWeight: 600, textAlign: "right" }}>{v || "-"}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {auditModalTab === "feedback_export" ? (
-              <div style={{ flex: 1, overflowY: "auto" }}>
-                <ControlledFeedbackPanel
-                  backendUrl={BACKEND_URL}
-                  authToken={currentUser.token}
-                />
+            {/* Fakta Tercatat */}
+            <div className="card" style={{ padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                <Database size={16} style={{ color: "#0284c7" }}/><strong>Fakta Tercatat</strong>
+                <span style={{ fontSize: "10px", background: "#e0f2fe", color: "#0284c7", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>OBSERVED FACT</span>
               </div>
-            ) : (
-              <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-                {loadingAuditLogs ? (
-                  <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
-                    <RefreshCw size={20} className="animate-spin text-green" style={{ margin: "0 auto 8px" }} />
-                    Memuat data log audit...
+              <p style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "10px" }}>{ec.observed_facts?._description}</p>
+              <div style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "5px" }}>
+                {ec.observed_facts && Object.entries(ec.observed_facts).filter(([k]) => !k.startsWith("_")).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid var(--line)" }}>
+                    <span style={{ color: "var(--muted)", fontFamily: "monospace", fontSize: "11px" }}>{k}</span>
+                    <span style={{ fontWeight: 600, textAlign: "right", maxWidth: "55%", overflow: "hidden", textOverflow: "ellipsis" }}>{String(v ?? "-")}</span>
                   </div>
-                ) : auditLogs.length === 0 ? (
-                  <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
-                    {currentUser.role !== "AUDITOR" && currentUser.role !== "ADMINISTRATOR"
-                      ? "Log operasional lengkap memerlukan otorisasi peran AUDITOR atau ADMINISTRATOR. Silakan beralih ke tab Controlled Feedback AI atau ganti peran RBAC di pojok kanan atas."
-                      : "Belum ada log audit tercatat."}
+                ))}
+              </div>
+            </div>
+
+            {/* Pola Terdeteksi */}
+            <div className="card" style={{ padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                <AlertCircle size={16} style={{ color: "#d97706" }}/><strong>Pola Terdeteksi</strong>
+                <span style={{ fontSize: "10px", background: "#fef3c7", color: "#d97706", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>DETECTED PATTERN</span>
+              </div>
+              <p style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "10px" }}>{ec.detected_patterns?._description}</p>
+              <div style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ padding: "8px 12px", borderRadius: "10px", background: "#fef3c7" }}>
+                  <strong>Pemicu Utama:</strong> {ec.detected_patterns?.primary_trigger || "Tidak ada"}
+                </div>
+                {(ec.detected_patterns?.evidence_reasons as string[] || []).map((r: string, i: number) => (
+                  <div key={i} style={{ display: "flex", gap: "8px", fontSize: "11px", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+                    <ChevronRight size={12} style={{ color: "#d97706", flexShrink: 0, marginTop: 2 }}/>{r}
                   </div>
-                ) : (
-                  auditLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: "14px",
-                        border: "1px solid var(--line)",
-                        background: "var(--surface)",
-                        fontSize: "12px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <strong style={{ color: "var(--dark-green)" }}>{log.action}</strong>
-                          <span style={{ fontFamily: "monospace", fontSize: "11px", color: "var(--muted)" }}>{log.targetId}</span>
-                        </div>
-                        <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>
-                          Oleh: <strong>{log.actorName}</strong> ({log.actorRole})
-                        </div>
-                      </div>
-                      <span style={{ fontSize: "11px", color: "var(--muted)", fontFamily: "monospace" }}>
-                        {new Date(log.timestamp).toLocaleString("id-ID")}
-                      </span>
+                ))}
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+                  <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "8px", background: ec.detected_patterns?.spatial_conflict_detected ? "#fee2e2" : "#f1f5f9", color: ec.detected_patterns?.spatial_conflict_detected ? "#dc2626" : "#64748b" }}>
+                    Konflik Spasial: {ec.detected_patterns?.spatial_conflict_detected ? "YA ⚠" : "Tidak"}
+                  </span>
+                  <span style={{ fontSize: "11px", padding: "3px 8px", borderRadius: "8px", background: "#f1f5f9" }}>
+                    Volume Harian Dokter: {ec.detected_patterns?.doctor_daily_volume ?? "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Output Model AI */}
+            <div className="card" style={{ padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                <Zap size={16} style={{ color: "#db2777" }}/><strong>Output Model AI</strong>
+                <span style={{ fontSize: "10px", background: "#fce7f3", color: "#db2777", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>AI OUTPUT</span>
+              </div>
+              <p style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "10px" }}>{ec.ai_output?._description}</p>
+              <div style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <div style={{ padding: "10px 12px", borderRadius: "10px", background: "#f9fafb", textAlign: "center" }}>
+                    <div style={{ fontSize: "10px", color: "var(--muted)" }}>Fraud Risk Index</div>
+                    <div style={{ fontSize: "22px", fontWeight: 800, color: ec.ai_output?.risk_level === "HIGH" ? "#dc2626" : ec.ai_output?.risk_level === "MEDIUM" ? "#d97706" : "#059669" }}>{ec.ai_output?.fraud_risk_index ?? "—"}</div>
+                  </div>
+                  <div style={{ padding: "10px 12px", borderRadius: "10px", background: "#f9fafb", textAlign: "center" }}>
+                    <div style={{ fontSize: "10px", color: "var(--muted)" }}>Probabilitas Anomali</div>
+                    <div style={{ fontSize: "22px", fontWeight: 800 }}>{ec.ai_output?.fraud_probability !== null ? `${(ec.ai_output.fraud_probability * 100).toFixed(1)}%` : "—"}</div>
+                  </div>
+                </div>
+                <div style={{ padding: "8px 12px", borderRadius: "10px", background: "#fce7f3", fontSize: "11px", color: "#831843" }}>
+                  <AlertTriangle size={12} style={{ display: "inline", marginRight: "4px" }}/>{ec.ai_output?._legal_disclaimer}
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--muted)" }}>Model: {ec.ai_output?.model_name} v{ec.ai_output?.model_version} • {formatDate(ec.ai_output?.evaluated_at)}</div>
+              </div>
+            </div>
+
+            {/* Temuan Petugas */}
+            <div className="card" style={{ padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <UserCheck size={16} style={{ color: "#059669" }}/><strong>Temuan Petugas</strong>
+                <span style={{ fontSize: "10px", background: "#d1fae5", color: "#059669", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>INVESTIGATOR FINDING</span>
+              </div>
+              {ec.investigator_findings?.reviews?.length === 0 ? (
+                <EmptyState icon={<ClipboardList size={32}/>} message="Belum ada catatan review" sub="Gunakan panel tindakan untuk memulai"/>
+              ) : (
+                ec.investigator_findings?.reviews?.map((r: any) => (
+                  <div key={r.id} style={{ padding: "10px 12px", borderRadius: "10px", background: "#f9fafb", marginBottom: "8px", fontSize: "12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                      <strong>{r.reviewer_name}</strong><RoleBadge role={r.reviewer_role}/>
                     </div>
-                  ))
+                    <div style={{ marginBottom: "4px" }}><span style={{ fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: r.decision === "RELEASE" ? "#d1fae5" : r.decision === "ESCALATE_AUDIT" ? "#fee2e2" : "#fef3c7", color: r.decision === "RELEASE" ? "#059669" : r.decision === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706" }}>{r.decision}</span></div>
+                    <p style={{ color: "var(--muted)", margin: "6px 0 0", fontSize: "11px" }}>{r.notes}</p>
+                    <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>{formatDate(r.reviewed_at)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Tindakan Tersedia */}
+            <div className="card" style={{ padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <Send size={16} style={{ color: "var(--green)" }}/><strong>Tindakan Tersedia</strong>
+              </div>
+
+              {caseActionResult && (
+                <div style={{ padding: "10px 14px", borderRadius: "10px", marginBottom: "12px", background: caseActionResult.success ? "#d1fae5" : "#fee2e2", color: caseActionResult.success ? "#059669" : "#dc2626", fontSize: "12px", fontWeight: 600 }}>
+                  {caseActionResult.success ? <CheckCircle2 size={14} style={{ display: "inline", marginRight: "6px" }}/> : <XCircle size={14} style={{ display: "inline", marginRight: "6px" }}/>}
+                  {caseActionResult.message}
+                </div>
+              )}
+
+              {selectedCase.available_actions.length === 0 ? (
+                <div style={{ fontSize: "12px", color: "var(--muted)", padding: "12px", background: "#f9fafb", borderRadius: "10px" }}>
+                  Tidak ada tindakan tersedia untuk status ini atau role Anda ({currentUser.role}).
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: "10px" }}>
+                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "6px" }}>Pilih Tindakan:</label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {selectedCase.available_actions.map(a => (
+                        <button key={a.action} onClick={() => setCaseAction(a.action)}
+                          style={{ textAlign: "left", padding: "8px 12px", borderRadius: "10px", border: `1px solid ${caseAction === a.action ? "var(--green)" : "var(--line)"}`, background: caseAction === a.action ? "#e5f4ec" : "#fff", fontSize: "12px", cursor: "pointer", fontWeight: caseAction === a.action ? 700 : 500 }}>
+                          <ArrowRight size={12} style={{ display: "inline", marginRight: "6px" }}/>{a.description} → <strong>{a.to_status}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "10px" }}>
+                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Catatan (wajib untuk eskalasi/resolusi):</label>
+                    <textarea value={caseNotes} onChange={e => setCaseNotes(e.target.value)} rows={3}
+                      placeholder="Tuliskan temuan, alasan, atau catatan pemeriksaan..."
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--line)", fontSize: "12px", resize: "vertical", fontFamily: "inherit" }}/>
+                  </div>
+                  <button className="button button-primary" disabled={!caseAction || caseActionLoading} onClick={performCaseAction} style={{ width: "100%" }}>
+                    {caseActionLoading ? <RefreshCw size={14} className="animate-spin"/> : <Send size={14}/>}
+                    {caseActionLoading ? "Memproses..." : "Jalankan Tindakan"}
+                  </button>
+                </>
+              )}
+
+              {/* Also allow claim-level review */}
+              {ec.observed_facts?.claim_id && (
+                <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "8px", fontWeight: 700 }}>CATATAN REVIEW KLAIM (LEGACY):</div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {(["RELEASE", "CLARIFY", "ESCALATE_AUDIT"] as const).map(d => (
+                      <button key={d} onClick={() => handleReviewDecision(d)} disabled={submittingReview}
+                        style={{ padding: "6px 14px", borderRadius: "10px", border: "1px solid var(--line)", fontSize: "11px", fontWeight: 700, cursor: "pointer", background: d === "RELEASE" ? "#d1fae5" : d === "ESCALATE_AUDIT" ? "#fee2e2" : "#fef3c7", color: d === "RELEASE" ? "#059669" : d === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706" }}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Riwayat Transisi */}
+            <div className="card" style={{ padding: "18px", gridColumn: "1 / -1" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <History size={16} style={{ color: "var(--green)" }}/><strong>Riwayat Kasus</strong>
+                <span style={{ fontSize: "10px", background: "#d1fae5", color: "#059669", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>FINAL OUTCOME</span>
+              </div>
+              <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
+                {ec.case_history?.transitions?.map((t: any, i: number) => (
+                  <div key={i} style={{ flexShrink: 0, padding: "10px 14px", borderRadius: "12px", background: "#f9fafb", border: "1px solid var(--line)", minWidth: "160px" }}>
+                    <div style={{ fontSize: "10px", color: "var(--muted)" }}>{t.from_status} → <strong>{t.to_status}</strong></div>
+                    <div style={{ fontSize: "11px", fontWeight: 700, marginTop: "4px" }}>{t.actor_name}</div>
+                    <div style={{ fontSize: "10px", color: "var(--muted)" }}>{t.actor_role}</div>
+                    {t.notes && <div style={{ fontSize: "10px", marginTop: "4px", color: "#374151", fontStyle: "italic" }}>"{t.notes}"</div>}
+                    <div style={{ fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>{formatDate(t.at)}</div>
+                  </div>
+                ))}
+                {(!ec.case_history?.transitions || ec.case_history.transitions.length === 0) && (
+                  <span style={{ fontSize: "12px", color: "var(--muted)" }}>Belum ada transisi status tercatat.</span>
                 )}
               </div>
-            )}
-
-            <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--line)", textAlign: "right" }}>
-              <button className="button button-secondary" onClick={() => setShowAuditModal(false)}>
-                Tutup
-              </button>
+              {ec.final_outcome?._disclaimer && (
+                <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "10px", background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: "11px", color: "#166534" }}>
+                  <Scale size={12} style={{ display: "inline", marginRight: "6px" }}/>{ec.final_outcome._disclaimer}
+                </div>
+              )}
             </div>
           </div>
+        ) : (
+          <div style={{ display: "flex", justifyContent: "center", gap: "16px", padding: "32px 0" }}>
+            <div className="card" style={{ padding: "24px", textAlign: "center" }}>
+              <RefreshCw size={24} className="animate-spin" style={{ color: "var(--green)", marginBottom: "12px" }}/>
+              <p style={{ color: "var(--muted)", fontSize: "13px" }}>Memuat Evidence Center dari database…</p>
+              <button className="button button-secondary" style={{ marginTop: "16px", fontSize: "12px" }} onClick={() => fetchCaseDetail(selectedCase.id)}>Coba Lagi</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderAlertExplorer = () => (
+    <div>
+      <SectionHeader title="Antrean Klaim / Alert Explorer" subtitle={`${data?.claims.length ?? 0} dari ${data?.summary.total_claims?.toLocaleString("id-ID") ?? "—"} klaim — sumber: PostgreSQL Live`}
+        action={
+          <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ position: "relative" }}>
+              <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
+              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchClaims()} placeholder="Cari claim ID, dokter, faskes…"
+                style={{ paddingLeft: "32px", padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "200px" }}/>
+            </div>
+            <select value={riskFilter} onChange={e => setRiskFilter(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+              <option value="ALL">Semua Risiko</option>
+              <option value="HIGH">HIGH</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="LOW">LOW</option>
+              <option value="UNASSESSED">Belum Diases</option>
+            </select>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "6px 12px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+              <option value="fri_desc">FRI Tertinggi</option>
+              <option value="fri_asc">FRI Terendah</option>
+              <option value="tariff_desc">Tarif Terbesar</option>
+              <option value="newest">Terbaru</option>
+            </select>
+            <button className="button button-secondary" onClick={fetchClaims} disabled={loading}><RefreshCw size={14} className={loading ? "animate-spin" : ""}/></button>
+          </div>
+        }
+      />
+
+      {dataSourceError && <DataSourceBanner error={dataSourceError}/>}
+      {reviewBanner && (
+        <div style={{ padding: "12px 16px", borderRadius: "12px", marginBottom: "16px", background: reviewBanner.success ? "#d1fae5" : "#fee2e2", color: reviewBanner.success ? "#059669" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600 }}>{reviewBanner.success ? <CheckCircle2 size={14} style={{ display: "inline", marginRight: "6px" }}/> : <XCircle size={14} style={{ display: "inline", marginRight: "6px" }}/>}{reviewBanner.message}</span>
+          <button onClick={() => setReviewBanner(null)} className="icon-button"><X size={14}/></button>
         </div>
       )}
 
-      {/* MODAL: USER MANAGEMENT */}
-      {showUserMgmtModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(30, 36, 31, 0.45)",
-            backdropFilter: "blur(3px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "24px",
-            zIndex: 100,
-          }}
-        >
-          <div
-            className="card"
-            style={{
-              maxWidth: "760px",
-              width: "100%",
-              maxHeight: "85vh",
-              padding: "24px",
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: "28px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <div>
-                <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0 }}>Manajemen Pengguna &amp; RBAC</h2>
-                <small className="muted">Otorisasi Administrator untuk mengelola akun dan izin peran</small>
-              </div>
-              <button className="icon-button" onClick={() => setShowUserMgmtModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {userMgmtError && (
-              <div style={{ padding: "10px 14px", background: "#faecec", color: "#a53e3e", borderRadius: "12px", fontSize: "12px", marginBottom: "12px" }}>
-                {userMgmtError}
-              </div>
-            )}
-            {userMgmtSuccess && (
-              <div style={{ padding: "10px 14px", background: "#edf6f0", color: "var(--dark-green)", borderRadius: "12px", fontSize: "12px", marginBottom: "12px" }}>
-                {userMgmtSuccess}
-              </div>
-            )}
-
-            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Add User Form */}
-              <form
-                onSubmit={handleCreateUser}
-                style={{
-                  padding: "16px",
-                  borderRadius: "18px",
-                  background: "var(--surface)",
-                  border: "1px solid var(--line)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                }}
-              >
-                <strong style={{ fontSize: "13px" }}>Daftarkan Akun Pengguna Baru</strong>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <div>
-                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Username:</label>
-                    <input
-                      type="text"
-                      required
-                      value={newUsername}
-                      onChange={(e) => setNewUsername(e.target.value)}
-                      placeholder="contoh: verifikator_jateng"
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: "12px", border: "1px solid var(--line)", background: "#ffffff", fontSize: "12px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Nama Lengkap:</label>
-                    <input
-                      type="text"
-                      required
-                      value={newFullName}
-                      onChange={(e) => setNewFullName(e.target.value)}
-                      placeholder="contoh: Dr. Rina S. (Verifikator)"
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: "12px", border: "1px solid var(--line)", background: "#ffffff", fontSize: "12px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Kata Sandi:</label>
-                    <input
-                      type="password"
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Minimal 6 karakter"
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: "12px", border: "1px solid var(--line)", background: "#ffffff", fontSize: "12px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Peran (Role):</label>
-                    <select
-                      value={newRole}
-                      onChange={(e) => setNewRole(e.target.value as AppRole)}
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: "12px", border: "1px solid var(--line)", background: "#ffffff", fontSize: "12px" }}
-                    >
-                      <option value="CLAIM_VERIFIER">CLAIM_VERIFIER (Verifikator Klaim)</option>
-                      <option value="FRAUD_ANALYST">FRAUD_ANALYST (Analis Investigasi)</option>
-                      <option value="AUDITOR">AUDITOR (Auditor Kepatuhan)</option>
-                      <option value="ADMINISTRATOR">ADMINISTRATOR (Keamanan Sistem)</option>
-                    </select>
-                  </div>
+      {loading ? <LoadingSpinner/> : (
+        <div style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: "16px", alignItems: "start" }}>
+          {/* Claim List */}
+          <div className="card" style={{ padding: "14px", maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
+            <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, marginBottom: "10px", padding: "0 4px" }}>DAFTAR ALERT — {data?.claims.length ?? 0} RECORD</div>
+            {(!data?.claims || data.claims.length === 0) ? (
+              <EmptyState icon={<Inbox size={32}/>} message="Tidak ada klaim" sub="Coba ubah filter"/>
+            ) : data.claims.map(c => (
+              <button key={c.claim_id} onClick={() => setSelectedClaim(c)}
+                style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: "12px", marginBottom: "6px", border: `1px solid ${selectedClaim?.claim_id === c.claim_id ? "var(--green)" : "var(--line)"}`, background: selectedClaim?.claim_id === c.claim_id ? "#e5f4ec" : "#fff", cursor: "pointer" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                  <span style={{ fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>{c.claim_id.substring(0, 18)}…</span>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "8px", background: c.risk_level === "HIGH" ? "#fee2e2" : c.risk_level === "MEDIUM" ? "#fef3c7" : "#d1fae5", color: c.risk_level === "HIGH" ? "#dc2626" : c.risk_level === "MEDIUM" ? "#d97706" : "#059669" }}>
+                    {c.risk_level}
+                  </span>
                 </div>
-                <button type="submit" className="button button-primary" style={{ alignSelf: "flex-start", marginTop: "4px" }}>
-                  Tambah Pengguna
-                </button>
-              </form>
+                <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                  FRI: <strong>{c.fraud_risk_index ?? "—"}</strong> • {c.service_date} • {formatIDR(c.ina_cbgs_tariff)}
+                </div>
+              </button>
+            ))}
+          </div>
 
-              {/* Users Table */}
-              <div style={{ borderRadius: "16px", border: "1px solid var(--line)", overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", textAlign: "left" }}>
-                  <thead style={{ background: "var(--surface)", borderBottom: "1px solid var(--line)" }}>
-                    <tr>
-                      <th style={{ padding: "10px 14px" }}>Username</th>
-                      <th style={{ padding: "10px 14px" }}>Nama Lengkap</th>
-                      <th style={{ padding: "10px 14px" }}>Peran</th>
-                      <th style={{ padding: "10px 14px" }}>Status</th>
-                      <th style={{ padding: "10px 14px", textAlign: "right" }}>Aksi</th>
-                    </tr>
-                  </thead>
+          {/* Claim Detail */}
+          {selectedClaim ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div className="card" style={{ padding: "18px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 800, fontFamily: "monospace" }}>{selectedClaim.claim_id}</h2>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: selectedClaim.risk_level === "HIGH" ? "#fee2e2" : "#fef3c7", color: selectedClaim.risk_level === "HIGH" ? "#dc2626" : "#d97706" }}>{selectedClaim.risk_level} RISK</span>
+                      <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9" }}>FRI: {selectedClaim.fraud_risk_index ?? "—"}</span>
+                      {selectedClaim.is_synthetic && <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f0f9ff", color: "#0284c7" }}>DATA SINTETIS (Healthkathon)</span>}
+                    </div>
+                  </div>
+                  {hasPermission(currentUser.role, ["investigate", "start_review"]) && (
+                    <button className="button button-primary" style={{ fontSize: "11px" }} onClick={() => createCaseFromClaim(selectedClaim.claim_id)}>
+                      <PlusCircle size={13}/> Buat Kasus
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", fontSize: "12px" }}>
+                  {[["Pasien", selectedClaim.patient_id], ["Dokter", selectedClaim.doctor_id], ["Faskes", selectedClaim.facility_id], ["ICD-10", selectedClaim.icd10_code], ["Tanggal Layanan", selectedClaim.service_date], ["Tarif INA-CBGs", formatIDR(selectedClaim.ina_cbgs_tariff)], ["LOS", `${selectedClaim.length_of_stay} hari`], ["Kelas Faskes", selectedClaim.facility_class], ["Wilayah Pasien", selectedClaim.home_region]].map(([k, v]) => (
+                    <div key={k} style={{ padding: "8px 10px", borderRadius: "8px", background: "#f9fafb" }}>
+                      <div style={{ fontSize: "10px", color: "var(--muted)" }}>{k}</div>
+                      <div style={{ fontWeight: 600, fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v || "-"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* XAI */}
+              {selectedClaim.xai_explanation && (
+                <div className="card" style={{ padding: "18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <Zap size={16} style={{ color: "#db2777" }}/><strong>Output Model AI</strong>
+                    <span style={{ fontSize: "10px", background: "#fce7f3", color: "#db2777", padding: "2px 6px", borderRadius: "8px" }}>AI OUTPUT — Bukan pembuktian fraud</span>
+                  </div>
+                  <div style={{ padding: "10px 14px", borderRadius: "10px", background: "#fef3c7", fontSize: "12px", marginBottom: "10px" }}>
+                    <strong>Pemicu:</strong> {selectedClaim.xai_explanation.primary_fraud_trigger}
+                  </div>
+                  {selectedClaim.xai_explanation.evidence_reasons.map((r, i) => (
+                    <div key={i} style={{ display: "flex", gap: "8px", fontSize: "11px", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+                      <ChevronRight size={12} style={{ color: "#db2777", flexShrink: 0, marginTop: 2 }}/>{r}
+                    </div>
+                  ))}
+                  {selectedClaim.xai_explanation.subgraph_evidence?.nodes?.length > 0 && (
+                    <div style={{ marginTop: "12px" }}>
+                      <SubgraphViewer nodes={selectedClaim.xai_explanation.subgraph_evidence.nodes} edges={selectedClaim.xai_explanation.subgraph_evidence.edges}/>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Review Panel */}
+              {hasPermission(currentUser.role, ["start_review", "record_decision", "investigate"]) && (
+                <div className="card" style={{ padding: "18px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                    <Send size={16} style={{ color: "var(--green)" }}/><strong>Catat Review Klaim</strong>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
+                    {(["RELEASE", "CLARIFY", "ESCALATE_AUDIT"] as const).map(d => (
+                      <button key={d} onClick={() => setSelectedDecision(d)}
+                        style={{ flex: 1, padding: "8px", borderRadius: "10px", border: `1px solid ${selectedDecision === d ? (d === "RELEASE" ? "#059669" : d === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706") : "var(--line)"}`, background: selectedDecision === d ? (d === "RELEASE" ? "#d1fae5" : d === "ESCALATE_AUDIT" ? "#fee2e2" : "#fef3c7") : "#fff", color: d === "RELEASE" ? "#059669" : d === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706", fontWeight: selectedDecision === d ? 800 : 500, fontSize: "11px", cursor: "pointer" }}>
+                        {d === "RELEASE" ? "✓ Release" : d === "CLARIFY" ? "? Klarifikasi" : "↑ Eskalasi"}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} rows={3} placeholder="Catatan pemeriksaan (opsional)…"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--line)", fontSize: "12px", resize: "vertical", fontFamily: "inherit", marginBottom: "10px" }}/>
+                  <button className="button button-primary" style={{ width: "100%" }} onClick={() => handleReviewDecision(selectedDecision)} disabled={submittingReview}>
+                    {submittingReview ? <RefreshCw size={14} className="animate-spin"/> : <Send size={14}/>}
+                    {submittingReview ? "Menyimpan ke PostgreSQL…" : `Simpan Keputusan: ${selectedDecision}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <EmptyState icon={<Eye size={48}/>} message="Pilih klaim dari daftar" sub="Klik klaim untuk melihat detail dan opsi review"/>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderInvestigation = () => (
+    <div style={{ display: "flex", gap: "20px" }}>
+      {/* Sub-nav */}
+      <div style={{ width: "180px", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {([
+            ["queue", "Antrean Kasus", <ClipboardList size={16}/>, "all"],
+            ["evidence_center", "Evidence Center", <FolderOpen size={16}/>, "all"],
+            ["alert_explorer", "Alert Explorer", <AlertCircle size={16}/>, "all"],
+            ["graph", "Graph Explorer", <Network size={16}/>, "all"],
+          ] as const).map(([view, label, icon]) => (
+            <button key={view} onClick={() => setInvestigationView(view as InvestigationView)}
+              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: investigationView === view ? "#e5f4ec" : "transparent", color: investigationView === view ? "var(--dark-green)" : "#374151", fontWeight: investigationView === view ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+              <span style={{ color: investigationView === view ? "var(--green)" : "var(--muted)" }}>{icon}</span>{label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {investigationView === "queue" && renderInvestigationQueue()}
+        {investigationView === "evidence_center" && renderEvidenceCenter()}
+        {investigationView === "alert_explorer" && renderAlertExplorer()}
+        {investigationView === "graph" && (
+          <div>
+            <SectionHeader title="Graph Explorer" subtitle="Visualisasi relasi antar-entitas berdasarkan data klaim aktual"/>
+            {selectedClaim?.xai_explanation?.subgraph_evidence ? (
+              <div className="card" style={{ padding: "18px" }}>
+                <SubgraphViewer nodes={selectedClaim.xai_explanation.subgraph_evidence.nodes} edges={selectedClaim.xai_explanation.subgraph_evidence.edges}/>
+              </div>
+            ) : (
+              <EmptyState icon={<Network size={48}/>} message="Pilih klaim di Alert Explorer" sub="Graf relasi akan muncul berdasarkan data subgraph dari model R-GCN"/>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ============================================================
+  // SECTION: DATA INTELLIGENCE
+  // ============================================================
+
+  const renderDataIngestion = () => (
+    <div>
+      <SectionHeader title="Riwayat Ingestion Data" subtitle="Phase 1 — Rekam jejak proses masuk dataset ke sistem. Semua metrik dari database aktual." action={<button className="button button-secondary" onClick={fetchIngestion} disabled={ingestionLoading}><RefreshCw size={14} className={ingestionLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
+      {ingestionLoading ? <LoadingSpinner/> : ingestionData ? (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
+            <MetricCard title="TOTAL KLAIM DI DB" value={ingestionData.database_summary?.total_claims_in_db?.toLocaleString("id-ID")} subtitle="Record klaim tersimpan" icon={<Database size={18}/>}/>
+            <MetricCard title="TOTAL PASIEN" value={ingestionData.database_summary?.total_patients_in_db?.toLocaleString("id-ID")} subtitle="Pseudonymized ID" icon={<User size={18}/>}/>
+            <MetricCard title="TOTAL DOKTER" value={ingestionData.database_summary?.total_doctors_in_db?.toLocaleString("id-ID")} subtitle="Profil dokter" icon={<Stethoscope size={18}/>}/>
+            <MetricCard title="TOTAL FASKES" value={ingestionData.database_summary?.total_facilities_in_db?.toLocaleString("id-ID")} subtitle="Fasilitas kesehatan" icon={<Building2 size={18}/>}/>
+          </div>
+          {ingestionData.note && (
+            <div style={{ padding: "12px 16px", borderRadius: "12px", background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", marginBottom: "16px", fontSize: "12px" }}>
+              <AlertTriangle size={14} style={{ display: "inline", marginRight: "6px" }}/>{ingestionData.note}
+            </div>
+          )}
+          <div className="card" style={{ padding: "18px" }}>
+            <strong style={{ display: "block", marginBottom: "12px" }}>Log Ingestion Batch</strong>
+            {ingestionData.batches?.length === 0 ? (
+              <EmptyState icon={<Database size={32}/>} message="Belum ada riwayat ingestion tercatat" sub="Data akan muncul setelah proses import dataset berjalan"/>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
+                    {["Batch ID", "Dataset", "Tipe", "Dibaca", "Valid", "Ditolak", "Duplikat", "Status", "Mulai", "Oleh"].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, fontSize: "11px" }}>{h}</th>
+                    ))}
+                  </tr></thead>
                   <tbody>
-                    {managedUsers.map((u) => (
-                      <tr key={u.id} style={{ borderBottom: "1px solid var(--line)" }}>
-                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontWeight: 700 }}>{u.username}</td>
-                        <td style={{ padding: "10px 14px" }}>{u.fullName}</td>
-                        <td style={{ padding: "10px 14px" }}>
-                          <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "8px", background: "#f5f6f2", fontWeight: 600 }}>
-                            {u.role}
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          <span
-                            style={{
-                              fontSize: "10px",
-                              fontWeight: 700,
-                              padding: "2px 8px",
-                              borderRadius: "10px",
-                              background: u.isActive ? "#e5f4ec" : "#faecec",
-                              color: u.isActive ? "var(--dark-green)" : "#c95353",
-                            }}
-                          >
-                            {u.isActive ? "AKTIF" : "NONAKTIF"}
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                          <button
-                            onClick={() => toggleUserActive(u.id, u.isActive)}
-                            className="button button-secondary"
-                            style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
-                          >
-                            {u.isActive ? "Nonaktifkan" : "Aktifkan"}
-                          </button>
-                        </td>
+                    {ingestionData.batches?.map((b: any) => (
+                      <tr key={b.batch_id} style={{ borderBottom: "1px solid var(--line)" }}>
+                        <td style={{ padding: "8px 12px", fontFamily: "monospace", fontSize: "11px" }}>{b.batch_id}</td>
+                        <td style={{ padding: "8px 12px" }}>{b.source_dataset}</td>
+                        <td style={{ padding: "8px 12px" }}>{b.dataset_type}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{b.total_read?.toLocaleString()}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right", color: "#059669", fontWeight: 700 }}>{b.total_valid?.toLocaleString()}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right", color: "#dc2626" }}>{b.total_rejected?.toLocaleString()}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{b.total_duplicates?.toLocaleString()}</td>
+                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: b.status === "COMPLETED" ? "#d1fae5" : "#fef3c7", color: b.status === "COMPLETED" ? "#059669" : "#d97706" }}>{b.status}</span></td>
+                        <td style={{ padding: "8px 12px", fontSize: "11px" }}>{formatDate(b.started_at)}</td>
+                        <td style={{ padding: "8px 12px" }}>{b.initiated_by}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <EmptyState icon={<Database size={48}/>} message="Gagal memuat riwayat ingestion" sub="Pastikan koneksi database aktif"/>
+      )}
+    </div>
+  );
 
-            <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--line)", textAlign: "right" }}>
-              <button className="button button-secondary" onClick={() => setShowUserMgmtModal(false)}>
-                Tutup
-              </button>
+  const renderModelEval = () => (
+    <div>
+      <SectionHeader title="Evaluasi Model AI" subtitle="Status model R-GCN PyTorch Geometric — metrik evaluasi memerlukan ground truth yang divalidasi"/>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+        <MetricCard title="VERSI MODEL AKTIF" value={perfData?.model?.current_version || "1.0.0"} subtitle={`Terakhir inferensi: ${formatDate(perfData?.model?.last_inference)}`} icon={<Zap size={18}/>}/>
+        <MetricCard title="COVERAGE ASESMEN" value={perfData?.data_quality?.assessment_coverage_pct !== undefined ? `${perfData.data_quality.assessment_coverage_pct}%` : null} subtitle="Klaim yang telah diases oleh model" color="#0284c7" icon={<Target size={18}/>}/>
+      </div>
+      <div className="card" style={{ padding: "18px" }}>
+        <strong>Metrik Evaluasi Model</strong>
+        <div style={{ marginTop: "12px", padding: "16px", borderRadius: "12px", background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e", fontSize: "12px" }}>
+          <AlertTriangle size={14} style={{ display: "inline", marginRight: "6px" }}/>
+          <strong>Precision, Recall, PR-AUC belum tersedia.</strong> Metrik evaluasi memerlukan dataset ground truth yang telah divalidasi secara independen. Gunakan endpoint <code>/api/feedback-export</code> untuk mengumpulkan feedback label yang tervalidasi, lalu jalankan evaluasi terpisah.
+        </div>
+        <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+          {[["Precision", null], ["Recall", null], ["PR-AUC", null], ["Precision@K", null]].map(([k, v]) => (
+            <div key={k as string} style={{ padding: "12px 16px", borderRadius: "10px", background: "#f9fafb", textAlign: "center" }}>
+              <div style={{ fontSize: "11px", color: "var(--muted)" }}>{k}</div>
+              <div style={{ fontSize: "20px", fontWeight: 800, color: "var(--muted)", fontStyle: "italic" }}>N/A</div>
+              <div style={{ fontSize: "10px", color: "var(--muted)" }}>Memerlukan ground truth</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDataIntelligence = () => (
+    <div style={{ display: "flex", gap: "20px" }}>
+      <div style={{ width: "180px", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {([["ingestion", "Data Ingestion", <Database size={16}/>], ["quality", "Kualitas Data", <CheckSquare size={16}/>], ["alert_explorer", "Alert Explorer", <AlertCircle size={16}/>], ["model_eval", "Evaluasi Model", <Zap size={16}/>]] as const).map(([v, l, ic]) => (
+            <button key={v} onClick={() => setDataView(v as DataView)}
+              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: dataView === v ? "#e5f4ec" : "transparent", color: dataView === v ? "var(--dark-green)" : "#374151", fontWeight: dataView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+              <span style={{ color: dataView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ flex: 1 }}>
+        {dataView === "ingestion" && renderDataIngestion()}
+        {dataView === "quality" && (
+          <div>
+            <SectionHeader title="Kualitas Data" subtitle="Tingkat validitas, kelengkapan, dan konsistensi dataset"/>
+            {perfLoading ? <LoadingSpinner/> : perfData ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+                <MetricCard title="TOTAL KLAIM" value={perfData.data_quality?.total_claims?.toLocaleString("id-ID")} icon={<Database size={18}/>}/>
+                <MetricCard title="SUDAH DIASES" value={perfData.data_quality?.assessed_claims?.toLocaleString("id-ID")} subtitle={`Coverage: ${perfData.data_quality?.assessment_coverage_pct}%`} color="#059669" icon={<CheckCircle2 size={18}/>}/>
+                <MetricCard title="BELUM DIASES" value={perfData.data_quality?.not_assessed?.toLocaleString("id-ID")} color="#d97706" icon={<Hourglass size={18}/>}/>
+                <MetricCard title="RISIKO TINGGI" value={perfData.data_quality?.high_risk?.toLocaleString("id-ID")} color="#dc2626" icon={<ShieldAlert size={18}/>}/>
+                <MetricCard title="RISIKO SEDANG" value={perfData.data_quality?.medium_risk?.toLocaleString("id-ID")} color="#d97706" icon={<AlertTriangle size={18}/>}/>
+                <MetricCard title="RISIKO RENDAH" value={perfData.data_quality?.low_risk?.toLocaleString("id-ID")} color="#059669" icon={<ShieldCheck size={18}/>}/>
+              </div>
+            ) : <LoadingSpinner/>}
+          </div>
+        )}
+        {dataView === "alert_explorer" && renderAlertExplorer()}
+        {dataView === "model_eval" && renderModelEval()}
+      </div>
+    </div>
+  );
+
+  // ============================================================
+  // SECTION: REPORTS
+  // ============================================================
+
+  const renderPerformanceDashboard = () => (
+    <div>
+      <SectionHeader title="Business Performance Dashboard" subtitle={`Metrik operasional aktual — 30 hari terakhir • Diperbarui: ${formatDate(new Date().toISOString())}`}
+        action={<button className="button button-secondary" onClick={fetchPerformance} disabled={perfLoading}><RefreshCw size={14} className={perfLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
+      {perfLoading ? <LoadingSpinner/> : perfData ? (
+        <>
+          <div style={{ padding: "12px 16px", borderRadius: "12px", background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0369a1", marginBottom: "20px", fontSize: "12px" }}>
+            <Info size={14} style={{ display: "inline", marginRight: "6px" }}/>
+            Semua metrik dihitung dari data operasional aktual. Lihat <code>metrics_definitions</code> di response API untuk definisi lengkap setiap metrik.
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+            <MetricCard title="THROUGHPUT (SEMUA WAKTU)" value={perfData.investigation?.throughput_all_time} subtitle="Kasus resolved + closed" color="#059669" icon={<TrendingUp size={18}/>}/>
+            <MetricCard title="BACKLOG (TERBUKA)" value={perfData.investigation?.backlog} subtitle="Menunggu pemeriksaan" color="#d97706" icon={<Inbox size={18}/>}/>
+            <MetricCard title="MEDIAN WAKTU INVESTIGASI" value={perfData.investigation?.median_investigation_hours !== null ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dari review dimulai → selesai" icon={<Clock size={18}/>}/>
+            <MetricCard title="ALERT REVIEW RATE" value={perfData.alert_quality?.alert_review_rate !== null ? `${perfData.alert_quality.alert_review_rate}%` : null} subtitle={`${perfData.alert_quality?.reviewed_in_period} review dalam periode`} color="#0284c7" icon={<Eye size={18}/>}/>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+            <MetricCard title="FP RATE (TERVERIFIKASI)" value={perfData.alert_quality?.verified_false_positive_rate !== null ? `${perfData.alert_quality.verified_false_positive_rate}%` : null} subtitle="HIGH-risk yang di-RELEASE" color="#7c3aed" icon={<Scale size={18}/>}/>
+            <MetricCard title="KELENGKAPAN BUKTI" value={perfData.evidence?.evidence_completeness_pct !== null ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle={`${perfData.evidence?.cases_with_evidence} kasus dengan review`} color="#059669" icon={<BookOpen size={18}/>}/>
+            <MetricCard title="PRECISION@K" value={null} subtitle={perfData.alert_quality?.precision_at_k_note} icon={<Target size={18}/>}/>
+            <MetricCard title="AUDIT EVENTS (PERIODE)" value={perfData.audit_trail?.audit_events_in_period} subtitle="Tindakan penting tercatat" icon={<History size={18}/>}/>
+          </div>
+
+          {/* Priority distribution */}
+          <div className="card" style={{ padding: "18px", marginBottom: "16px" }}>
+            <strong>Distribusi Prioritas Kasus</strong>
+            <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
+              {Object.entries(perfData.investigation?.priority_distribution || {}).map(([p, count]) => (
+                <div key={p} style={{ flex: 1, padding: "12px 16px", borderRadius: "10px", textAlign: "center", background: PRIORITY_CONFIG[p]?.bg || "#f1f5f9" }}>
+                  <div style={{ fontSize: "11px", color: PRIORITY_CONFIG[p]?.color || "#64748b", fontWeight: 700 }}>{p}</div>
+                  <div style={{ fontSize: "28px", fontWeight: 800, color: PRIORITY_CONFIG[p]?.color || "#64748b" }}>{count as number}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: "16px" }}>
+            <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, marginBottom: "8px" }}>DISCLAIMER METRIK BISNIS</div>
+            <div style={{ fontSize: "12px", color: "#374151", lineHeight: 1.6 }}>
+              • Kasus yang belum diperiksa tidak dihitung sebagai false positive.<br/>
+              • Semua klaim yang ditandai tidak otomatis dianggap kerugian yang berhasil dicegah.<br/>
+              • Nominal tarif adalah nilai yang ditahan sementara, bukan kerugian yang terverifikasi.<br/>
+              • Baseline metrik: <strong>Not Established</strong> — sistem baru beroperasi. Ukur kondisi awal sekarang untuk evaluasi masa depan.
+            </div>
+          </div>
+        </>
+      ) : <EmptyState icon={<BarChart3 size={48}/>} message="Data dashboard belum dimuat" sub="Klik Segarkan atau tunggu otomatis"/>}
+    </div>
+  );
+
+  const renderReports = () => (
+    <div style={{ display: "flex", gap: "20px" }}>
+      <div style={{ width: "180px", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {([["performance", "Business Performance", <BarChart3 size={16}/>], ["outcomes", "Investigation Outcomes", <Award size={16}/>], ["model", "Model Performance", <Zap size={16}/>], ["audit", "Audit Reports", <History size={16}/>]] as const).map(([v, l, ic]) => (
+            <button key={v} onClick={() => setReportsView(v as ReportsView)}
+              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: reportsView === v ? "#e5f4ec" : "transparent", color: reportsView === v ? "var(--dark-green)" : "#374151", fontWeight: reportsView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+              <span style={{ color: reportsView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ flex: 1 }}>
+        {reportsView === "performance" && renderPerformanceDashboard()}
+        {reportsView === "outcomes" && (
+          <div>
+            <SectionHeader title="Investigation Outcomes" subtitle="Hasil pemeriksaan berdasarkan keputusan petugas"/>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+              <MetricCard title="KASUS SELESAI" value={perfData?.investigation?.resolved_cases} color="#059669" icon={<CheckCircle2 size={18}/>}/>
+              <MetricCard title="KASUS DITUTUP" value={perfData?.investigation?.closed_cases} icon={<Lock size={18}/>}/>
+              <MetricCard title="KASUS DIESKALASI" value={perfData?.investigation?.escalated_cases} color="#dc2626" icon={<ArrowUpRight size={18}/>}/>
+            </div>
+          </div>
+        )}
+        {reportsView === "model" && renderModelEval()}
+        {reportsView === "audit" && (
+          <div>
+            <SectionHeader title="Audit Reports" subtitle="Log operasional tercatat — akses dibatasi berdasarkan role"
+              action={<button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
+            {!hasPermission(currentUser.role, ["view_audit"]) ? (
+              <div className="card" style={{ padding: "24px", textAlign: "center" }}>
+                <Lock size={32} style={{ color: "var(--muted)", marginBottom: "12px" }}/>
+                <p style={{ color: "var(--muted)" }}>Role <RoleBadge role={currentUser.role}/> tidak memiliki akses ke log audit operasional.</p>
+              </div>
+            ) : auditLoading ? <LoadingSpinner/> : (
+              <div className="card" style={{ padding: "0", overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                  <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
+                    {["Waktu", "Aktor", "Role", "Aksi", "Target", "Metadata"].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px", fontWeight: 700 }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {auditLogs.length === 0 ? (
+                      <tr><td colSpan={6} style={{ textAlign: "center", padding: "32px", color: "var(--muted)" }}>Belum ada log tersimpan</td></tr>
+                    ) : auditLogs.map(l => (
+                      <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                        <td style={{ padding: "8px 14px", whiteSpace: "nowrap" }}>{formatDate(l.timestamp)}</td>
+                        <td style={{ padding: "8px 14px", fontWeight: 600 }}>{l.actorName}</td>
+                        <td style={{ padding: "8px 14px" }}><RoleBadge role={l.actorRole}/></td>
+                        <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px" }}>{l.action}</td>
+                        <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px", maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis" }}>{l.targetId}</td>
+                        <td style={{ padding: "8px 14px", fontSize: "10px", color: "var(--muted)", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>{JSON.stringify(l.payload || {})}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ============================================================
+  // SECTION: ADMINISTRATION
+  // ============================================================
+
+  const renderAdministration = () => (
+    <div style={{ display: "flex", gap: "20px" }}>
+      {currentUser.role !== "ADMINISTRATOR" && (
+        <div className="card" style={{ padding: "24px", textAlign: "center", width: "100%" }}>
+          <Lock size={32} style={{ color: "var(--muted)", marginBottom: "12px" }}/>
+          <p style={{ color: "var(--muted)" }}>Panel Administrasi hanya dapat diakses oleh <strong>Administrator Sistem</strong>.</p>
+          <p style={{ color: "var(--muted)", fontSize: "12px" }}>Role Anda saat ini: <RoleBadge role={currentUser.role}/></p>
+        </div>
+      )}
+      {currentUser.role === "ADMINISTRATOR" && (
+        <>
+          <div style={{ width: "180px", flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {([["users", "Kelola Pengguna", <Users size={16}/>], ["health", "System Health", <Activity size={16}/>], ["audit_trail", "Audit Trail", <History size={16}/>]] as const).map(([v, l, ic]) => (
+                <button key={v} onClick={() => setAdminView(v as AdminView)}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: adminView === v ? "#e5f4ec" : "transparent", color: adminView === v ? "var(--dark-green)" : "#374151", fontWeight: adminView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+                  <span style={{ color: adminView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            {adminView === "users" && (
+              <div>
+                <SectionHeader title="Kelola Pengguna & RBAC" subtitle="Administrator tidak memiliki hak mengubah hasil investigasi atau menetapkan fraud"/>
+                {userMgmtError && <div style={{ padding: "10px 14px", background: "#faecec", color: "#a53e3e", borderRadius: "12px", marginBottom: "12px", fontSize: "12px" }}>{userMgmtError}</div>}
+                {userMgmtSuccess && <div style={{ padding: "10px 14px", background: "#d1fae5", color: "#059669", borderRadius: "12px", marginBottom: "12px", fontSize: "12px" }}>{userMgmtSuccess}</div>}
+                <form onSubmit={handleCreateUser} className="card" style={{ padding: "18px", marginBottom: "16px" }}>
+                  <strong style={{ display: "block", marginBottom: "12px" }}>Daftarkan Akun Baru</strong>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    {[["Username", newUsername, setNewUsername, "contoh: verifikator_jateng", "text"], ["Nama Lengkap", newFullName, setNewFullName, "contoh: Dr. Rina S.", "text"], ["Kata Sandi", newPassword, setNewPassword, "Min 6 karakter", "password"]].map(([label, val, setter, ph, type]) => (
+                      <div key={label as string}>
+                        <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>{label as string}:</label>
+                        <input type={type as string} required value={val as string} onChange={e => (setter as any)(e.target.value)} placeholder={ph as string}
+                          style={{ width: "100%", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--line)", fontSize: "12px" }}/>
+                      </div>
+                    ))}
+                    <div>
+                      <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>Peran:</label>
+                      <select value={newRole} onChange={e => setNewRole(e.target.value as AppRole)} style={{ width: "100%", padding: "8px 12px", borderRadius: "10px", border: "1px solid var(--line)", fontSize: "12px" }}>
+                        <option value="VERIFIKATOR">VERIFIKATOR — Tinjau & catat pemeriksaan</option>
+                        <option value="INVESTIGATOR">INVESTIGATOR — Investigasi & susun temuan</option>
+                        <option value="SUPERVISOR">SUPERVISOR — Pantau antrean & eskalasi</option>
+                        <option value="DATA_ANALYST">DATA_ANALYST — Kualitas data & model</option>
+                        <option value="ADMINISTRATOR">ADMINISTRATOR — Kelola sistem</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button type="submit" className="button button-primary" style={{ marginTop: "12px" }}>Tambah Pengguna</button>
+                </form>
+                <div className="card" style={{ padding: "0", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                    <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
+                      {["Username", "Nama", "Peran", "Status", "Dibuat", "Aksi"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {usersLoading ? <tr><td colSpan={6} style={{ textAlign: "center", padding: "24px" }}><RefreshCw size={18} className="animate-spin" style={{ color: "var(--green)" }}/></td></tr>
+                      : managedUsers.map(u => (
+                        <tr key={u.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                          <td style={{ padding: "10px 14px", fontFamily: "monospace", fontWeight: 700 }}>{u.username}</td>
+                          <td style={{ padding: "10px 14px" }}>{u.fullName}</td>
+                          <td style={{ padding: "10px 14px" }}><RoleBadge role={u.role}/></td>
+                          <td style={{ padding: "10px 14px" }}><span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: u.isActive ? "#d1fae5" : "#fee2e2", color: u.isActive ? "#059669" : "#dc2626" }}>{u.isActive ? "AKTIF" : "NONAKTIF"}</span></td>
+                          <td style={{ padding: "10px 14px", fontSize: "11px", color: "var(--muted)" }}>{formatDate(u.createdAt)}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <button onClick={() => toggleUserActive(u.id, u.isActive)} className="button button-secondary" style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px" }}>{u.isActive ? "Nonaktifkan" : "Aktifkan"}</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {adminView === "health" && (
+              <div>
+                <SectionHeader title="System Health" subtitle="Status layanan dan integrasi backend" action={<button className="button button-secondary" onClick={fetchHealth}><RefreshCw size={14}/>Cek Status</button>}/>
+                {healthStatus ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                    {[
+                      { name: "PostgreSQL Database", status: healthStatus.database, key: "database" },
+                      { name: "AI Service FastAPI (R-GCN)", status: healthStatus.ai_service, key: "ai_service" },
+                    ].map(svc => (
+                      <div key={svc.key} className="card" style={{ padding: "18px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <strong>{svc.name}</strong>
+                          <span style={{ fontSize: "11px", fontWeight: 700, padding: "4px 12px", borderRadius: "20px", background: svc.status === "connected" ? "#d1fae5" : "#fee2e2", color: svc.status === "connected" ? "#059669" : "#dc2626" }}>{svc.status === "connected" ? "● AKTIF" : "● TIDAK TERHUBUNG"}</span>
+                        </div>
+                        <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "8px" }}>{JSON.stringify(healthStatus[svc.key])}</div>
+                      </div>
+                    ))}
+                    <div className="card" style={{ padding: "18px", gridColumn: "1 / -1" }}>
+                      <strong>Raw Health Response</strong>
+                      <pre style={{ marginTop: "8px", fontSize: "11px", background: "#f9fafb", padding: "12px", borderRadius: "8px", overflow: "auto" }}>{JSON.stringify(healthStatus, null, 2)}</pre>
+                    </div>
+                  </div>
+                ) : <EmptyState icon={<Activity size={48}/>} message="Belum ada data health" sub="Klik Cek Status"/>}
+              </div>
+            )}
+            {adminView === "audit_trail" && (
+              <div>
+                <SectionHeader title="Audit Trail Lengkap" subtitle="Semua tindakan penting tercatat dengan aktor, role, dan timestamp" action={<button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
+                {auditLoading ? <LoadingSpinner/> : (
+                  <div className="card" style={{ padding: "0", overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                      <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
+                        {["Waktu", "Aktor", "Role", "Aksi", "Target ID"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
+                      </tr></thead>
+                      <tbody>
+                        {auditLogs.length === 0 ? <tr><td colSpan={5} style={{ textAlign: "center", padding: "32px", color: "var(--muted)" }}>Belum ada log tersimpan</td></tr>
+                        : auditLogs.map(l => (
+                          <tr key={l.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                            <td style={{ padding: "8px 14px", whiteSpace: "nowrap" }}>{formatDate(l.timestamp)}</td>
+                            <td style={{ padding: "8px 14px", fontWeight: 600 }}>{l.actorName}</td>
+                            <td style={{ padding: "8px 14px" }}><RoleBadge role={l.actorRole}/></td>
+                            <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px" }}>{l.action}</td>
+                            <td style={{ padding: "8px 14px", fontFamily: "monospace", fontSize: "11px", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>{l.targetId}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // ============================================================
+  // MAIN RENDER
+  // ============================================================
+
+  const NAV_ITEMS: Array<{ key: NavSection; label: string; icon: React.ReactNode; roles: string[] }> = [
+    { key: "overview", label: "Overview", icon: <LayoutGrid size={20}/>, roles: ["all"] },
+    { key: "investigation", label: "Investigation", icon: <FolderOpen size={20}/>, roles: ["ADMINISTRATOR","VERIFIKATOR","INVESTIGATOR","SUPERVISOR","FRAUD_ANALYST","CLAIM_VERIFIER","AUDITOR"] },
+    { key: "data_intelligence", label: "Data Intelligence", icon: <Database size={20}/>, roles: ["all"] },
+    { key: "reports", label: "Reports", icon: <BarChart3 size={20}/>, roles: ["ADMINISTRATOR","SUPERVISOR","DATA_ANALYST","AUDITOR"] },
+    { key: "administration", label: "Administration", icon: <Settings size={20}/>, roles: ["ADMINISTRATOR"] },
+  ];
+
+  return (
+    <>
+      {/* TOPBAR */}
+      <header className="topbar">
+        <div className="topbar-brand">
+          <div className="brand" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <img src="/aura-jkn-logo.png" alt="AURA JKN" style={{ height: "40px", width: "auto", borderRadius: "8px", background: "#fff", padding: "2px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}/>
+            <div>
+              <div style={{ fontSize: "18px", fontWeight: 800, letterSpacing: "-0.5px", color: "#0F2942" }}>AURA <span style={{ color: "#0284C7" }}>JKN</span></div>
+              <div style={{ fontSize: "8px", fontWeight: 700, letterSpacing: "1.5px", color: "#0284C7", textTransform: "uppercase" }}>Evidence-Linked Claim Intelligence</div>
             </div>
           </div>
         </div>
-      )}
+
+        <nav className="top-navigation" aria-label="Navigasi Utama">
+          {NAV_ITEMS.filter(n => n.roles.includes("all") || n.roles.includes(currentUser.role)).map(n => (
+            <button key={n.key} onClick={() => setActiveSection(n.key)} className={activeSection === n.key ? "active" : ""}>
+              {n.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="topbar-actions">
+          <button className="icon-button" title="Segarkan" onClick={fetchClaims} disabled={loading}>
+            <RefreshCw size={18} className={loading ? "animate-spin text-green" : ""}/>
+          </button>
+          <div className="relative">
+            <button className="button button-secondary" style={{ minHeight: "36px", padding: "6px 14px", fontSize: "12px", borderRadius: "20px" }} onClick={() => setRoleMenuOpen(v => !v)}>
+              <UserCheck size={14} style={{ color: rCfg.color }}/><span>{rCfg.label}</span><ChevronDown size={13}/>
+            </button>
+            {roleMenuOpen && (
+              <div className="card" style={{ position: "absolute", right: 0, top: "44px", zIndex: 50, padding: "8px", borderRadius: "16px", width: "240px", boxShadow: "0 10px 25px rgba(0,0,0,0.12)" }}>
+                <div style={{ padding: "6px 10px", fontSize: "10px", color: "var(--muted)", fontWeight: 700 }}>GANTI PERAN RBAC:</div>
+                {(["ADMINISTRATOR","VERIFIKATOR","INVESTIGATOR","SUPERVISOR","DATA_ANALYST"] as const).map(role => {
+                  const cfg = ROLE_CONFIG[role];
+                  return (
+                    <button key={role} onClick={() => switchRole(role)} style={{ width: "100%", textAlign: "left", padding: "8px 12px", borderRadius: "10px", fontSize: "12px", fontWeight: currentUser.role === role ? 700 : 400, color: currentUser.role === role ? cfg.color : "#374151", background: currentUser.role === role ? cfg.bg : "transparent", cursor: "pointer", border: "none" }}>
+                      <div style={{ fontWeight: 700 }}>{cfg.label}</div>
+                      <div style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 400 }}>{cfg.description}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="topbar-divider"/>
+          <button className="profile-button" title={currentUser.fullName}>
+            <span className="avatar avatar-profile" style={{ background: rCfg.bg, color: rCfg.color, border: `2px solid ${rCfg.color}` }}>
+              {currentUser.fullName.substring(0, 2).toUpperCase()}
+            </span>
+          </button>
+        </div>
+      </header>
+
+      {/* SIDEBAR */}
+      <aside className="sidebar" aria-label="Navigasi cepat">
+        <nav className="sidebar-group">
+          {NAV_ITEMS.filter(n => n.roles.includes("all") || n.roles.includes(currentUser.role)).map(n => (
+            <button key={n.key} title={n.label} aria-label={n.label} onClick={() => setActiveSection(n.key)} className={activeSection === n.key ? "active" : ""}>
+              {n.icon}<span className="sidebar-tooltip">{n.label}</span>
+            </button>
+          ))}
+        </nav>
+        <nav className="sidebar-group">
+          <button title="Simulasi Klaim Baru" onClick={() => setShowSimulatorModal(true)}>
+            <PlusCircle size={20} strokeWidth={1.6}/><span className="sidebar-tooltip">Simulasi Klaim Baru</span>
+          </button>
+          <button title="Zero Mock Data Policy" onClick={() => alert("AURA-JKN Zero Mock Policy Aktif: Semua data berasal dari PostgreSQL aktual. Tidak ada skor, graf, atau metrik yang direkayasa.")}>
+            <ShieldCheck size={20} strokeWidth={1.6} style={{ color: "var(--green)" }}/><span className="sidebar-tooltip">Zero Mock Policy Aktif</span>
+          </button>
+        </nav>
+        <nav className="sidebar-group sidebar-bottom">
+          <button title="Database" onClick={fetchClaims}>
+            <Database size={20} strokeWidth={1.6}/><span className="sidebar-tooltip">{data?.summary.total_claims?.toLocaleString("id-ID") ?? "—"} Klaim di DB</span>
+          </button>
+        </nav>
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <main id="main-content" className="main-content">
+        {/* Global Review Banner */}
+        {reviewBanner && activeSection !== "investigation" && (
+          <div style={{ padding: "12px 16px", borderRadius: "12px", marginBottom: "16px", background: reviewBanner.success ? "#d1fae5" : "#fee2e2", color: reviewBanner.success ? "#059669" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600 }}>{reviewBanner.message}</span>
+            <button onClick={() => setReviewBanner(null)} className="icon-button"><X size={14}/></button>
+          </div>
+        )}
+
+        {/* Section Router */}
+        {activeSection === "overview" && renderOverview()}
+        {activeSection === "investigation" && renderInvestigation()}
+        {activeSection === "data_intelligence" && renderDataIntelligence()}
+        {activeSection === "reports" && renderReports()}
+        {activeSection === "administration" && renderAdministration()}
+      </main>
+
+      {/* SIMULATOR MODAL */}
+      <LiveClaimSimulatorModal
+        isOpen={showSimulatorModal}
+        onClose={() => setShowSimulatorModal(false)}
+        backendUrl={BACKEND_URL}
+        authToken={currentUser.token}
+        onClaimCreated={() => {
+          fetchClaims();
+          fetchCases();
+        }}
+      />
     </>
   );
 }

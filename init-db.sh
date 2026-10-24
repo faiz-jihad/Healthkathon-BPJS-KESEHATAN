@@ -23,7 +23,7 @@ if ! $DOCKER_CMD exec -T backend test -d /app/src; then
     $DOCKER_CMD cp backend/tsconfig.json backend:/app/tsconfig.json 2>/dev/null || true
 fi
 
-echo "🌱 [2/3] Menanam 4 Akun RBAC & Fixture Benchmark ke PostgreSQL..."
+echo "🌱 [2/3] Menanam 5 Akun RBAC Resmi, Kasus Benchmark & Fixture ke PostgreSQL..."
 $DOCKER_CMD exec -T backend node node_modules/tsx/dist/cli.mjs prisma/seed.ts
 
 echo "📦 [3/3] Mengimpor Dataset Massal Parquet Resmi BPJS Kesehatan..."
