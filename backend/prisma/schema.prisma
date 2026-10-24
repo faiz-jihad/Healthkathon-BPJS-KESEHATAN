@@ -2,7 +2,8 @@
 // Aligned with Proposal AURA-JKN & Phase 2-3 FastAPI Service (app.py)
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

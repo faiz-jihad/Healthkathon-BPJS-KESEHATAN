@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install openssl for Prisma schema engine on Alpine
+RUN apk add --no-cache openssl libc6-compat
+
 # Install build dependencies
 COPY package.json package-lock.json* ./
 RUN npm ci || npm install
@@ -19,6 +22,9 @@ RUN npm run build
 # Production runtime stage
 FROM node:20-alpine AS runner
 WORKDIR /app
+
+# Install openssl for Prisma runtime on Alpine
+RUN apk add --no-cache openssl libc6-compat
 
 ENV NODE_ENV=production
 ENV PORT=3001

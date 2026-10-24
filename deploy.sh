@@ -95,6 +95,9 @@ done
 echo "✅ PostgreSQL siap."
 
 # 9. Push Schema & Seed Initial Users / Benchmark Fixtures
+echo "🔧 Memastikan dependensi OpenSSL aktif di container backend..."
+$DOCKER_CMD exec -T -u root backend apk add --no-cache openssl libc6-compat 2>/dev/null || true
+
 echo "🗄️ Menyinkronkan skema tabel database (Prisma db push)..."
 $DOCKER_CMD exec -T backend npx prisma db push --accept-data-loss
 
