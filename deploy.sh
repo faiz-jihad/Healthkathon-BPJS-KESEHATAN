@@ -5,6 +5,9 @@
 # =================================================================
 set -e
 
+# Gunakan /var/tmp agar file build sementara menggunakan disk utama (23GB+)
+export TMPDIR=/var/tmp
+
 echo "================================================================="
 echo "🚀 [AURA-JKN] Memulai proses instalasi & deployment di VPS..."
 echo "================================================================="
