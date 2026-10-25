@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Info,
   Check,
+  CheckCircle2,
   ShieldCheck,
   Sparkles,
   AlertCircle,
@@ -258,6 +259,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [welcomeUser, setWelcomeUser] = useState<{
+    fullName: string;
+    username: string;
+    role: string;
+    roleLabel: string;
+  } | null>(null);
 
   const handleSubmit = async (e?: React.FormEvent, customUser?: string, customPass?: string) => {
     if (e) e.preventDefault();
@@ -287,13 +294,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
 
       if (res.ok && json.token && json.user) {
         sessionStorage.setItem("aura_token", json.token);
-        onLoginSuccess({
-          id: json.user.id,
-          username: json.user.username,
+        const rLabel = PRESET_ACCOUNTS.find((a) => a.role === json.user.role)?.label || json.user.role;
+        setWelcomeUser({
           fullName: json.user.fullName,
+          username: json.user.username,
           role: json.user.role,
-          token: json.token,
+          roleLabel: rLabel,
         });
+        setTimeout(() => {
+          onLoginSuccess({
+            id: json.user.id,
+            username: json.user.username,
+            fullName: json.user.fullName,
+            role: json.user.role,
+            token: json.token,
+          });
+        }, 1300);
       } else {
         setErrorMsg(json.error || "Gagal masuk: kredensial tidak valid.");
       }
@@ -339,6 +355,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
       {/* ========================================================================= */}
       {/* Top-Right Big Lime Orb */}
       <div
+        className="floating-orb-a"
         style={{
           position: "absolute",
           top: "40px",
@@ -353,6 +370,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
       />
       {/* Top-Right Small Lime Orb */}
       <div
+        className="floating-orb-b"
         style={{
           position: "absolute",
           top: "20px",
@@ -367,6 +385,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
       />
       {/* Bottom-Left Big Lime Orb */}
       <div
+        className="floating-orb-a"
         style={{
           position: "absolute",
           bottom: "-50px",
@@ -381,6 +400,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
       />
       {/* Bottom-Left Small Lime Orb */}
       <div
+        className="floating-orb-b"
         style={{
           position: "absolute",
           bottom: "80px",
@@ -398,6 +418,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
       {/* Main Elevated Card Container (White with Rounded Corners & Subtly Spaced) */}
       {/* ========================================================================= */}
       <div
+        className="login-card-animated"
         style={{
           width: "100%",
           maxWidth: "1080px",
@@ -434,9 +455,146 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
           </div>
 
           {/* ------------------------------------------------------------- */}
-          {/* Right Column: Clean Minimalist Form                           */}
+          {/* Right Column: Clean Minimalist Form or Welcome Celebration    */}
           {/* ------------------------------------------------------------- */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+          {welcomeUser ? (
+            <div
+              className="login-welcome-box"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+                padding: "36px 18px",
+                gap: "20px",
+              }}
+            >
+              {/* Animated Success Checkmark Badge */}
+              <div
+                className="welcome-check-pulse"
+                style={{
+                  width: "78px",
+                  height: "78px",
+                  borderRadius: "50%",
+                  backgroundColor: "#ECFDF5",
+                  border: "2.5px solid #10B981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 12px 28px -6px rgba(16, 185, 129, 0.35)",
+                  color: "#059669",
+                }}
+              >
+                <CheckCircle2 size={44} strokeWidth={2.4} />
+              </div>
+
+              {/* Greeting Headings */}
+              <div>
+                <span
+                  style={{
+                    display: "inline-block",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "#047857",
+                    backgroundColor: "#D1FAE5",
+                    padding: "4px 14px",
+                    borderRadius: "9999px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  Autentikasi Kedinasan Terverifikasi
+                </span>
+                <h2
+                  style={{
+                    fontSize: "28px",
+                    fontWeight: 800,
+                    color: "#0F172A",
+                    margin: 0,
+                    letterSpacing: "-0.03em",
+                  }}
+                >
+                  Selamat Datang Kembali!
+                </h2>
+                <p
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    color: "#059669",
+                    marginTop: "8px",
+                    marginBottom: 0,
+                  }}
+                >
+                  {welcomeUser.fullName}
+                </p>
+                <p
+                  style={{
+                    fontSize: "13px",
+                    color: "#64748B",
+                    marginTop: "4px",
+                    marginBottom: 0,
+                    fontWeight: 500,
+                  }}
+                >
+                  {welcomeUser.roleLabel} • NIP / ID: {welcomeUser.username}
+                </p>
+              </div>
+
+              {/* Progress & Transition Indicator */}
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "340px",
+                  marginTop: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: "12px",
+                    color: "#64748B",
+                    marginBottom: "6px",
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>Mempersiapkan Ruang Kerja AURA-JKN...</span>
+                  <span style={{ color: "#059669", fontWeight: 700 }}>100%</span>
+                </div>
+                <div
+                  style={{
+                    width: "100%",
+                    height: "7px",
+                    backgroundColor: "#E2E8F0",
+                    borderRadius: "9999px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    className="welcome-progress-fill"
+                    style={{
+                      height: "100%",
+                      backgroundColor: "#098a58",
+                      borderRadius: "9999px",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#94A3B8",
+                  margin: 0,
+                }}
+              >
+                Mengalihkan ke dasbor audit & analitik integritas klaim BPJS Kesehatan...
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
             {/* Form Title & Subtitle */}
             <div>
               <h1
@@ -766,6 +924,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
               </div>
             </form>
           </div>
+          )}
         </div>
 
         {/* Footer Note */}

@@ -49,12 +49,33 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [activeFilter, setActiveFilter] = useState<"all" | "unread" | "critical" | "role">("all");
   const [desktopNotifGranted, setDesktopNotifGranted] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       setDesktopNotifGranted(Notification.permission === "granted");
     }
   }, []);
+
+  const handleClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 260);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isClosing]);
 
   const requestDesktopPermission = async () => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -144,6 +165,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   return (
     <div
+      className={`drawer-backdrop ${isClosing ? "is-closing" : ""}`}
       style={{
         position: "fixed",
         inset: 0,
@@ -153,16 +175,16 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         display: "flex",
         justifyContent: "flex-end",
       }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
-        className="animate-slide-left"
+        className={isClosing ? "drawer-slide-out" : "drawer-slide-in"}
         style={{
           width: "100%",
           maxWidth: "480px",
           height: "100%",
           background: "#ffffff",
-          boxShadow: "-10px 0 30px rgba(0, 0, 0, 0.15)",
+          boxShadow: "-12px 0 36px rgba(0, 0, 0, 0.16)",
           display: "flex",
           flexDirection: "column",
         }}
@@ -240,7 +262,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               </button>
               <button
                 className="icon-button"
-                onClick={onClose}
+                onClick={handleClose}
                 title="Tutup"
                 style={{ padding: "6px", borderRadius: "8px" }}
               >
