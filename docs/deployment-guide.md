@@ -73,7 +73,7 @@ npm run dev
 DATABASE_URL="postgresql://aura_user:aura_password@localhost:5432/aura_jkn_db?schema=public"
 AI_SERVICE_URL="http://localhost:8000"
 PORT=3001
-AUTH_SECRET="aura-jkn-secure-hmac-secret-healthkathon-2026-bpjs"
+AUTH_SECRET="aura-jkn-production-auth-secret-healthkathon-2026-bpjs-secure-token-vault"
 ```
 
 ### Frontend (`frontend/.env`):

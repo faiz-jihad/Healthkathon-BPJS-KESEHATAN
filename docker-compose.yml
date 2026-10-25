@@ -48,7 +48,7 @@ services:
       DATABASE_URL: "postgresql://aura_user:aura_password@postgres:5432/aura_jkn_db?schema=public"
       AI_SERVICE_URL: "http://ai-service:8000"
       PORT: 3001
-      AUTH_SECRET: "aura-jkn-secure-hmac-secret-healthkathon-2026-bpjs"
+      AUTH_SECRET: ${AUTH_SECRET:-aura-jkn-production-auth-secret-healthkathon-2026-bpjs-secure-token-vault}
     depends_on:
       postgres:
         condition: service_healthy

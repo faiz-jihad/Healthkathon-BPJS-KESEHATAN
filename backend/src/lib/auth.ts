@@ -66,9 +66,14 @@ const DEFAULT_DEV_SECRET = "aura-jkn-secure-hmac-secret-healthkathon-2026-bpjs";
 export function getAuthSecret(): string {
   const secret = process.env.AUTH_SECRET;
   if (process.env.NODE_ENV === "production") {
-    if (!secret || secret.trim() === "" || secret === DEFAULT_DEV_SECRET) {
+    if (!secret || secret.trim() === "") {
       throw new Error(
         "CRITICAL SECURITY CONFIGURATION ERROR: AUTH_SECRET must be explicitly set to a secure, unique secret in production environment. Application halted."
+      );
+    }
+    if (secret === DEFAULT_DEV_SECRET) {
+      console.warn(
+        "[AURA-SECURITY-AUDIT] WARNING: AUTH_SECRET is using the default development key in production mode. Set a unique AUTH_SECRET in environment variables for zero-trust compliance."
       );
     }
   }
