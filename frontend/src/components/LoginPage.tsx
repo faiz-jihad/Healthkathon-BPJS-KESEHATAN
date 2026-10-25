@@ -1,19 +1,16 @@
 import React, { useState } from "react";
 import {
-  ShieldCheck,
-  Lock,
-  User,
-  Key,
   Eye,
   EyeOff,
-  ArrowRight,
-  AlertCircle,
+  ChevronDown,
+  Info,
+  Check,
+  ShieldCheck,
   Sparkles,
-  Database,
-  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
   Shield,
-  Activity,
-  ChevronRight
+  Lock,
 } from "lucide-react";
 
 interface LoginPageProps {
@@ -33,26 +30,23 @@ const PRESET_ACCOUNTS = [
     label: "Petugas Verifikator",
     username: "verifier_aura",
     password: "verifier_password_2026",
-    color: "#0284c7",
-    bg: "#e0f2fe",
-    desc: "Verifikasi berkas, telaah pra-pembayaran klaim & INA-CBG",
+    fullName: "dr. Andi Pratama, Sp.PD",
+    desc: "Verifikasi pra-pembayaran klaim & audit berkas INA-CBG",
   },
   {
     role: "INVESTIGATOR",
     label: "Investigator Anti-Fraud",
     username: "investigator_aura",
     password: "investigator_password_2026",
-    color: "#d97706",
-    bg: "#fef3c7",
-    desc: "Analisis graf relasi faskes-dokter & investigasi sindikat",
+    fullName: "Budi Santoso, S.H.",
+    desc: "Analisis jejaring graf relasi faskes-dokter & sindikat",
   },
   {
     role: "SUPERVISOR",
     label: "Supervisor Antrean",
     username: "supervisor_aura",
     password: "supervisor_password_2026",
-    color: "#059669",
-    bg: "#d1fae5",
+    fullName: "Dra. Siti Rahmawati, M.Kes",
     desc: "Persetujuan eskalasi, pemantauan SLA 24 jam & beban tim",
   },
   {
@@ -60,27 +54,216 @@ const PRESET_ACCOUNTS = [
     label: "Analis Mutu Data",
     username: "analyst_aura",
     password: "analyst_password_2026",
-    color: "#4f46e5",
-    bg: "#e0e7ff",
-    desc: "Evaluasi model AI Graph RGCN & kalibrasi ambang batas FRI",
+    fullName: "Rendra Kurniawan, M.Kom",
+    desc: "Evaluasi model AI Graph RGCN & kalibrasi ambang batas",
   },
   {
     role: "ADMINISTRATOR",
     label: "Administrator Keamanan",
     username: "admin_aura",
     password: "admin_password_2026",
-    color: "#334155",
-    bg: "#f1f5f9",
+    fullName: "Admin Sistem AURA-JKN",
     desc: "Manajemen akun RBAC, jejak audit & integritas sistem",
   },
 ];
 
+/**
+ * Geometric Bauhaus / Neo-Constructivist Vector Art
+ * Precision-scaled SVG vector mosaic replicating the exact green geometric tiles from the design.
+ */
+const GeometricBauhausArt: React.FC = () => {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        maxWidth: "460px",
+        aspectRatio: "1 / 1",
+        borderRadius: "20px",
+        overflow: "hidden",
+        backgroundColor: "#224A1E",
+        boxShadow: "0 12px 30px -8px rgba(34, 74, 30, 0.25)",
+      }}
+    >
+      {/* Floating mini badge logo at top-left matching design */}
+      <div
+        style={{
+          position: "absolute",
+          top: "16px",
+          left: "16px",
+          zIndex: 5,
+          width: "36px",
+          height: "36px",
+          borderRadius: "10px",
+          backgroundColor: "#84CC16",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+        }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M5 5C13 5 19 11 19 19H12C12 15.13 8.87 12 5 12V5Z"
+            fill="#1E3E1A"
+          />
+          <circle cx="9" cy="9" r="2.5" fill="#A3E635" />
+        </svg>
+      </div>
+
+      <svg
+        viewBox="0 0 400 400"
+        style={{ width: "100%", height: "100%", display: "block" }}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <defs>
+          <clipPath id="tile-clip">
+            <rect width="400" height="400" rx="20" />
+          </clipPath>
+        </defs>
+
+        <g clipPath="url(#tile-clip)">
+          {/* Base Background Grid */}
+          <rect width="400" height="400" fill="#224A1E" />
+
+          {/* ========================================================= */}
+          {/* ROW 1 (y: 0 - 133) */}
+          {/* ========================================================= */}
+          {/* Tile (0,0): Deep Green base with quarter-circle cuts */}
+          <rect x="0" y="0" width="133" height="133" fill="#2B5523" />
+          <path
+            d="M 0,0 L 60,0 C 60,60 120,60 120,133 L 0,133 Z"
+            fill="#1E3E1A"
+          />
+          <path
+            d="M 60,0 C 60,70 0,70 0,133 L 133,133 L 133,0 Z"
+            fill="#3F762E"
+            opacity="0.9"
+          />
+
+          {/* Tile (1,0): Bright Lime diagonal triangles & quarter circle */}
+          <rect x="133" y="0" width="134" height="133" fill="#1E3E1A" />
+          <polygon points="133,0 267,0 267,60" fill="#84CC16" />
+          <polygon points="133,0 267,60 190,133 133,133" fill="#A3E635" />
+          <polygon points="190,133 267,60 267,133" fill="#2B5523" />
+
+          {/* Tile (2,0): Deep olive corner blocks */}
+          <rect x="267" y="0" width="133" height="133" fill="#1C3817" />
+          <path
+            d="M 400,0 C 326,0 267,59 267,133 L 400,133 Z"
+            fill="#346624"
+          />
+          <path
+            d="M 400,0 C 350,0 310,40 310,90 L 400,90 Z"
+            fill="#1C3817"
+          />
+
+          {/* ========================================================= */}
+          {/* ROW 2 (y: 133 - 267) */}
+          {/* ========================================================= */}
+          {/* Tile (0,1): Massive curved quarter band (Left Road) */}
+          <rect x="0" y="133" width="133" height="134" fill="#1C3817" />
+          <path
+            d="M 133,133 C 59,133 0,192 0,267 L 50,267 C 50,221 87,183 133,183 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 133,183 C 87,183 50,221 50,267 L 133,267 Z"
+            fill="#152B11"
+          />
+
+          {/* Tile (1,1): The iconic central leaf / petal in vibrant lime */}
+          <rect x="133" y="133" width="134" height="134" fill="#1C3817" />
+          <path
+            d="M 133,267 C 133,193 200,133 267,133 C 267,207 200,267 133,267 Z"
+            fill="#A3E635"
+          />
+          <path
+            d="M 160,267 C 160,210 215,160 267,160 C 267,215 215,267 160,267 Z"
+            fill="#BEF264"
+            opacity="0.8"
+          />
+
+          {/* Tile (2,1): Large Concentric Target Bullseye with Square Cutout */}
+          <rect x="267" y="133" width="133" height="134" fill="#1C3817" />
+          {/* Outer Lime Ring */}
+          <circle cx="334" cy="200" r="66" fill="#84CC16" />
+          {/* Inner Dark Green Ring */}
+          <circle cx="334" cy="200" r="46" fill="#1E3E1A" />
+          {/* Center Lime Core */}
+          <circle cx="334" cy="200" r="24" fill="#A3E635" />
+          {/* Inset square notch cutting through bottom-left quadrant of target */}
+          <rect x="267" y="200" width="67" height="67" fill="#84CC16" />
+          <path
+            d="M 267,200 L 334,200 L 334,267 L 267,267 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 300,200 L 334,200 L 334,234 L 300,234 Z"
+            fill="#A3E635"
+          />
+
+          {/* ========================================================= */}
+          {/* ROW 3 (y: 267 - 400) */}
+          {/* ========================================================= */}
+          {/* Tile (0,2): Bottom Left Concentric Band Arcs */}
+          <rect x="0" y="267" width="133" height="133" fill="#2B5523" />
+          <path
+            d="M 0,267 L 50,267 C 50,313 87,350 133,350 L 133,400 C 59,400 0,341 0,267 Z"
+            fill="#1E3E1A"
+          />
+          <path
+            d="M 0,334 C 36,334 66,364 66,400 L 0,400 Z"
+            fill="#A3E635"
+          />
+
+          {/* Tile (1,2): Diagonal curved fan segments */}
+          <rect x="133" y="267" width="134" height="133" fill="#224A1E" />
+          <path
+            d="M 133,267 C 207,267 267,327 267,400 L 133,400 Z"
+            fill="#3F762E"
+          />
+          <path
+            d="M 133,334 C 170,334 200,364 200,400 L 133,400 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 133,367 C 151,367 167,383 167,400 L 133,400 Z"
+            fill="#A3E635"
+          />
+
+          {/* Tile (2,2): Bottom Right Geometric Quarter Cut */}
+          <rect x="267" y="267" width="133" height="133" fill="#1C3817" />
+          <path
+            d="M 400,267 C 326,267 267,326 267,400 L 334,400 C 334,363 363,334 400,334 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 400,334 C 363,334 334,363 334,400 L 400,400 Z"
+            fill="#A3E635"
+          />
+        </g>
+      </svg>
+    </div>
+  );
+};
+
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl }) => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [username, setUsername] = useState("verifier_aura");
+  const [password, setPassword] = useState("verifier_password_2026");
+  const [firstName, setFirstName] = useState("Andi");
+  const [lastName, setLastName] = useState("Pratama");
+  const [selectedRole, setSelectedRole] = useState("VERIFIKATOR");
+  const [selectedMonth, setSelectedMonth] = useState("January");
+  const [dobDay, setDobDay] = useState("15");
+  const [dobYear, setDobYear] = useState("1988");
+  const [countryRegion, setCountryRegion] = useState("Indonesia (Kantor Pusat BPJS Kesehatan)");
+
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const handleSubmit = async (e?: React.FormEvent, customUser?: string, customPass?: string) => {
     if (e) e.preventDefault();
@@ -88,12 +271,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
     const finalPass = customPass || password;
 
     if (!finalUser || !finalPass) {
-      setErrorMsg("Mohon masukkan nama pengguna dan kata sandi.");
+      setErrorMsg("Mohon masukkan nama pengguna / NIP dan kata sandi.");
       return;
     }
 
     setLoading(true);
     setErrorMsg(null);
+    setSuccessMsg(null);
 
     try {
       const res = await fetch(`${backendUrl}/api/auth/login`, {
@@ -129,7 +313,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
   const handleSelectPreset = (acc: typeof PRESET_ACCOUNTS[0]) => {
     setUsername(acc.username);
     setPassword(acc.password);
+    setSelectedRole(acc.role);
+    setFirstName(acc.fullName.split(" ")[0]);
+    setLastName(acc.fullName.split(" ").slice(1).join(" "));
     handleSubmit(undefined, acc.username, acc.password);
+  };
+
+  const handleRoleDropdownChange = (roleKey: string) => {
+    setSelectedRole(roleKey);
+    const matched = PRESET_ACCOUNTS.find((a) => a.role === roleKey);
+    if (matched) {
+      setUsername(matched.username);
+      setPassword(matched.password);
+      setFirstName(matched.fullName.split(" ")[0]);
+      setLastName(matched.fullName.split(" ").slice(1).join(" "));
+    }
   };
 
   return (
@@ -139,420 +337,651 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(ellipse at top, #0d281e 0%, #06140e 60%, #030805 100%)",
-        color: "#ffffff",
-        padding: "24px 16px",
+        backgroundColor: "#F9FAF8",
+        padding: "32px 16px",
         position: "relative",
         overflow: "hidden",
+        fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Dynamic Background Glow Elements */}
+      {/* ========================================================================= */}
+      {/* Decorative Floating Lime Orbs (Matching the Exact Visual Atmosphere)     */}
+      {/* ========================================================================= */}
+      {/* Top-Right Big Lime Orb */}
       <div
         style={{
           position: "absolute",
-          top: "-150px",
-          right: "-100px",
-          width: "450px",
-          height: "450px",
+          top: "40px",
+          right: "40px",
+          width: "120px",
+          height: "120px",
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(9, 138, 88, 0.25) 0%, transparent 70%)",
-          filter: "blur(50px)",
+          backgroundColor: "#A3E635",
+          opacity: 0.9,
           pointerEvents: "none",
         }}
       />
+      {/* Top-Right Small Lime Orb */}
       <div
         style={{
           position: "absolute",
-          bottom: "-150px",
-          left: "-100px",
-          width: "500px",
-          height: "500px",
+          top: "20px",
+          right: "180px",
+          width: "36px",
+          height: "36px",
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(3, 105, 161, 0.18) 0%, transparent 70%)",
-          filter: "blur(60px)",
+          backgroundColor: "#A3E635",
+          opacity: 0.85,
+          pointerEvents: "none",
+        }}
+      />
+      {/* Bottom-Left Big Lime Orb */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "-50px",
+          left: "-30px",
+          width: "200px",
+          height: "200px",
+          borderRadius: "50%",
+          backgroundColor: "#A3E635",
+          opacity: 0.85,
+          pointerEvents: "none",
+        }}
+      />
+      {/* Bottom-Left Small Lime Orb */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "80px",
+          left: "140px",
+          width: "44px",
+          height: "44px",
+          borderRadius: "50%",
+          backgroundColor: "#A3E635",
+          opacity: 0.9,
           pointerEvents: "none",
         }}
       />
 
+      {/* ========================================================================= */}
+      {/* Main Elevated Card Container (White with Rounded Corners & Subtly Spaced) */}
+      {/* ========================================================================= */}
       <div
         style={{
           width: "100%",
-          maxWidth: "1020px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-          gap: "32px",
-          alignItems: "center",
+          maxWidth: "1080px",
+          backgroundColor: "#FFFFFF",
+          borderRadius: "28px",
+          boxShadow:
+            "0 30px 70px -15px rgba(34, 74, 30, 0.08), 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03)",
+          padding: "48px 52px",
           position: "relative",
           zIndex: 10,
         }}
       >
-        {/* Kolom Kiri: Branding & Kredibilitas Sistem */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
-            <div
-              style={{
-                width: "46px",
-                height: "46px",
-                borderRadius: "14px",
-                background: "linear-gradient(135deg, #098a58 0%, #076641 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 8px 24px rgba(9, 138, 88, 0.4)",
-              }}
-            >
-              <ShieldCheck size={26} strokeWidth={2.4} style={{ color: "#ffffff" }} />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: "22px",
-                  fontWeight: 900,
-                  letterSpacing: "-0.5px",
-                  lineHeight: 1.1,
-                }}
-              >
-                AURA<span style={{ color: "#34d399" }}>JKN</span>
-              </div>
-              <div style={{ fontSize: "11px", color: "#a7f3d0", fontWeight: 600, letterSpacing: "0.5px" }}>
-                BPJS KESEHATAN • SISTEM SKRINING PRA-PEMBAYARAN
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h1
-              style={{
-                fontSize: "28px",
-                fontWeight: 800,
-                color: "#f8fafc",
-                lineHeight: 1.3,
-                margin: "0 0 10px 0",
-              }}
-            >
-              Autonomous Relational Anti-Fraud & Graph Intelligence
-            </h1>
-            <p
-              style={{
-                fontSize: "14px",
-                color: "#94a3b8",
-                lineHeight: 1.6,
-                margin: 0,
-              }}
-            >
-              Gerbang verifikasi berkas klaim digital terintegrasi model Graph RGCN dan pangkalan data PostgreSQL. Menjamin keabsahan klaim, pencegahan kecurangan, dan akurasi pra-pembayaran sebelum dana dicairkan.
-            </p>
-          </div>
-
-          {/* Keunggulan Produksi BPJS */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                padding: "10px 14px",
-                borderRadius: "12px",
-                background: "rgba(255, 255, 255, 0.04)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-              }}
-            >
-              <CheckCircle2 size={18} style={{ color: "#34d399", flexShrink: 0 }} />
-              <div style={{ fontSize: "12px", color: "#cbd5e1" }}>
-                <strong>Zero Mock Architecture:</strong> Data live bersumber dari pangkalan data resmi PostgreSQL.
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                padding: "10px 14px",
-                borderRadius: "12px",
-                background: "rgba(255, 255, 255, 0.04)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-              }}
-            >
-              <Lock size={18} style={{ color: "#38bdf8", flexShrink: 0 }} />
-              <div style={{ fontSize: "12px", color: "#cbd5e1" }}>
-                <strong>Keamanan Berstandar PBKDF2:</strong> Token kriptografis HMAC SHA-256 berkepatuhan UU PDP No. 27/2022.
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                padding: "10px 14px",
-                borderRadius: "12px",
-                background: "rgba(255, 255, 255, 0.04)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-              }}
-            >
-              <Activity size={18} style={{ color: "#fbbf24", flexShrink: 0 }} />
-              <div style={{ fontSize: "12px", color: "#cbd5e1" }}>
-                <strong>5 Peran Terisolasi (RBAC):</strong> Hak akses ketat sesuai tupoksi operasional verifikasi & investigasi.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Kolom Kanan: Card Login Form */}
         <div
           style={{
-            background: "rgba(15, 23, 42, 0.85)",
-            backdropFilter: "blur(16px)",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            borderRadius: "24px",
-            padding: "32px 28px",
-            boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.6)",
+            display: "grid",
+            gridTemplateColumns: "minmax(320px, 440px) 1fr",
+            gap: "56px",
+            alignItems: "center",
           }}
+          className="login-grid-container"
         >
-          <div style={{ marginBottom: "20px" }}>
-            <h2
-              style={{
-                fontSize: "20px",
-                fontWeight: 800,
-                color: "#ffffff",
-                margin: "0 0 6px 0",
-              }}
-            >
-              Masuk ke Dashboard
-            </h2>
-            <p style={{ fontSize: "13px", color: "#94a3b8", margin: 0 }}>
-              Gunakan akun resmi operasional BPJS Kesehatan Anda.
-            </p>
+          {/* ------------------------------------------------------------- */}
+          {/* Left Column: Geometric Bauhaus Mosaic Graphic                 */}
+          {/* ------------------------------------------------------------- */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <GeometricBauhausArt />
           </div>
 
-          {/* Error Message */}
-          {errorMsg && (
-            <div
-              style={{
-                background: "rgba(239, 68, 68, 0.15)",
-                border: "1px solid rgba(239, 68, 68, 0.4)",
-                borderRadius: "12px",
-                padding: "10px 14px",
-                marginBottom: "16px",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                color: "#fca5a5",
-                fontSize: "12px",
-              }}
-            >
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {/* Form Login */}
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* ------------------------------------------------------------- */}
+          {/* Right Column: Clean Minimalist Form                           */}
+          {/* ------------------------------------------------------------- */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+            {/* Form Title & Switch Link */}
             <div>
-              <label
+              <h1
                 style={{
-                  display: "block",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: "#cbd5e1",
-                  marginBottom: "6px",
+                  fontSize: "32px",
+                  fontWeight: 800,
+                  color: "#1E293B",
+                  letterSpacing: "-0.03em",
+                  margin: 0,
+                  lineHeight: 1.2,
                 }}
               >
-                Nama Pengguna (Username)
-              </label>
-              <div style={{ position: "relative" }}>
-                <User
-                  size={16}
+                {mode === "signin" ? "Masuk ke Akun" : "Create an account"}
+              </h1>
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "#64748B",
+                  marginTop: "8px",
+                  marginBottom: 0,
+                  fontWeight: 500,
+                }}
+              >
+                {mode === "signin" ? (
+                  <>
+                    Belum memiliki akses dinas?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("signup");
+                        setErrorMsg(null);
+                      }}
+                      style={{
+                        color: "#0284C7",
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Daftar Petugas Baru
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("signin");
+                        setErrorMsg(null);
+                      }}
+                      style={{
+                        color: "#0284C7",
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Sign in
+                    </button>
+                  </>
+                )}
+              </p>
+            </div>
+
+            {/* Error Notification Banner */}
+            {errorMsg && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  backgroundColor: "#FEF2F2",
+                  border: "1px solid #FCA5A5",
+                  color: "#DC2626",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                }}
+              >
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* Success Notification Banner */}
+            {successMsg && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  backgroundColor: "#F0FDF4",
+                  border: "1px solid #86EFAC",
+                  color: "#16A34A",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                }}
+              >
+                <Check size={16} style={{ flexShrink: 0 }} />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            {/* Form Fields */}
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Field 1: Email / Username */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label
                   style={{
-                    position: "absolute",
-                    left: "14px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#64748b",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    color: "#64748B",
                   }}
-                />
+                >
+                  {mode === "signin" ? "Email address / NIP" : "Email address"}
+                </label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. verifier_aura"
-                  disabled={loading}
+                  placeholder={mode === "signin" ? "verifier_aura / nama@bpjs-kesehatan.go.id" : "nama.petugas@bpjs-kesehatan.go.id"}
+                  required
                   style={{
                     width: "100%",
-                    padding: "12px 14px 12px 40px",
-                    borderRadius: "12px",
-                    background: "rgba(2, 6, 23, 0.7)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    color: "#ffffff",
-                    fontSize: "14px",
-                    outline: "none",
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: "#cbd5e1",
-                  marginBottom: "6px",
-                }}
-              >
-                Kata Sandi (Password)
-              </label>
-              <div style={{ position: "relative" }}>
-                <Key
-                  size={16}
-                  style={{
-                    position: "absolute",
-                    left: "14px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "#64748b",
-                  }}
-                />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  disabled={loading}
-                  style={{
-                    width: "100%",
-                    padding: "12px 40px 12px 40px",
-                    borderRadius: "12px",
-                    background: "rgba(2, 6, 23, 0.7)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    color: "#ffffff",
-                    fontSize: "14px",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  style={{
-                    position: "absolute",
-                    right: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
+                    padding: "8px 0",
                     border: "none",
-                    color: "#64748b",
-                    cursor: "pointer",
-                    padding: "4px",
+                    borderBottom: "1.5px solid #E2E8F0",
+                    fontSize: "15px",
+                    color: "#1E293B",
+                    fontWeight: 500,
+                    outline: "none",
+                    backgroundColor: "transparent",
+                    transition: "border-color 0.2s ease",
                   }}
-                  title={showPassword ? "Sembunyikan" : "Tampilkan"}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                  onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
+                  onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
+                />
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                marginTop: "8px",
-                padding: "14px",
-                borderRadius: "12px",
-                background: "linear-gradient(135deg, #098a58 0%, #076641 100%)",
-                color: "#ffffff",
-                fontSize: "14px",
-                fontWeight: 700,
-                border: "none",
-                cursor: loading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                boxShadow: "0 6px 18px rgba(9, 138, 88, 0.35)",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {loading ? (
-                <span>Memverifikasi kredensial...</span>
-              ) : (
-                <>
-                  <span>Masuk ke Sistem AURA-JKN</span>
-                  <ArrowRight size={16} />
-                </>
+              {/* Field 2 (Signup Mode): First Name & Last Name */}
+              {mode === "signup" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                      First name
+                    </label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Andi"
+                      style={{
+                        width: "100%",
+                        padding: "8px 0",
+                        border: "none",
+                        borderBottom: "1.5px solid #E2E8F0",
+                        fontSize: "15px",
+                        color: "#1E293B",
+                        fontWeight: 500,
+                        outline: "none",
+                        backgroundColor: "transparent",
+                      }}
+                      onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
+                      onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                      Last name
+                    </label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Pratama"
+                      style={{
+                        width: "100%",
+                        padding: "8px 0",
+                        border: "none",
+                        borderBottom: "1.5px solid #E2E8F0",
+                        fontSize: "15px",
+                        color: "#1E293B",
+                        fontWeight: 500,
+                        outline: "none",
+                        backgroundColor: "transparent",
+                      }}
+                      onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
+                      onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
+                    />
+                  </div>
+                </div>
               )}
-            </button>
-          </form>
 
-          {/* Quick Demo Access Bar */}
-          <div style={{ marginTop: "24px", paddingTop: "18px", borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "#34d399",
-                marginBottom: "10px",
-                textTransform: "uppercase",
-              }}
-            >
-              <Sparkles size={13} />
-              <span>Akses Cepat Pengujian Peran (1-Klik):</span>
-            </div>
+              {/* Field 3: Password with Eye Toggle */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                  Password
+                </label>
+                <div style={{ position: "relative", width: "100%" }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••••••"
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "8px 32px 8px 0",
+                      border: "none",
+                      borderBottom: "1.5px solid #E2E8F0",
+                      fontSize: "15px",
+                      color: "#1E293B",
+                      fontWeight: 500,
+                      outline: "none",
+                      backgroundColor: "transparent",
+                      transition: "border-color 0.2s ease",
+                    }}
+                    onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
+                    onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "0",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94A3B8",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "4px",
+                      cursor: "pointer",
+                    }}
+                    title={showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              {PRESET_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.role}
-                  type="button"
-                  onClick={() => handleSelectPreset(acc)}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: "10px",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                  title={acc.desc}
-                >
-                  <div>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: "#ffffff" }}>
-                      {acc.label}
+              {/* Field 4 (Signup Mode): Date of birth */}
+              {mode === "signup" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                      Date of birth
+                    </label>
+                    <Info size={14} style={{ color: "#65A30D" }} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: "16px" }}>
+                    <div style={{ position: "relative" }}>
+                      <select
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "8px 24px 8px 0",
+                          border: "none",
+                          borderBottom: "1.5px solid #E2E8F0",
+                          fontSize: "14px",
+                          color: "#1E293B",
+                          backgroundColor: "transparent",
+                          outline: "none",
+                          appearance: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", color: "#64748B", pointerEvents: "none" }} />
                     </div>
-                    <div style={{ fontSize: "9px", color: "#94a3b8" }}>
-                      @{acc.username}
+                    <div>
+                      <input
+                        type="text"
+                        value={dobDay}
+                        onChange={(e) => setDobDay(e.target.value)}
+                        placeholder="Day"
+                        style={{
+                          width: "100%",
+                          padding: "8px 0",
+                          border: "none",
+                          borderBottom: "1.5px solid #E2E8F0",
+                          fontSize: "14px",
+                          color: "#1E293B",
+                          backgroundColor: "transparent",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        value={dobYear}
+                        onChange={(e) => setDobYear(e.target.value)}
+                        placeholder="Year"
+                        style={{
+                          width: "100%",
+                          padding: "8px 0",
+                          border: "none",
+                          borderBottom: "1.5px solid #E2E8F0",
+                          fontSize: "14px",
+                          color: "#1E293B",
+                          backgroundColor: "transparent",
+                          outline: "none",
+                        }}
+                      />
                     </div>
                   </div>
-                  <ChevronRight size={13} style={{ color: "#64748b" }} />
+                </div>
+              )}
+
+              {/* Field 5: Country / Region (Styled as Unit Kerja / Peran Kedinasan) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                  {mode === "signin" ? "Unit Kerja / Peran Kedinasan" : "Country/Region"}
+                </label>
+                <div style={{ position: "relative" }}>
+                  {mode === "signin" ? (
+                    <select
+                      value={selectedRole}
+                      onChange={(e) => handleRoleDropdownChange(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "8px 24px 8px 0",
+                        border: "none",
+                        borderBottom: "1.5px solid #E2E8F0",
+                        fontSize: "14px",
+                        color: "#1E293B",
+                        fontWeight: 600,
+                        backgroundColor: "transparent",
+                        outline: "none",
+                        appearance: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {PRESET_ACCOUNTS.map((acc) => (
+                        <option key={acc.role} value={acc.role}>
+                          {acc.label} ({acc.fullName})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      value={countryRegion}
+                      onChange={(e) => setCountryRegion(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "8px 24px 8px 0",
+                        border: "none",
+                        borderBottom: "1.5px solid #E2E8F0",
+                        fontSize: "14px",
+                        color: "#1E293B",
+                        fontWeight: 600,
+                        backgroundColor: "transparent",
+                        outline: "none",
+                        appearance: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="Indonesia (Kantor Pusat BPJS Kesehatan)">Indonesia (Kantor Pusat BPJS Kesehatan)</option>
+                      <option value="Kedeputian Wilayah Jawa Barat">Kedeputian Wilayah Jawa Barat</option>
+                      <option value="Kedeputian Wilayah Jawa Tengah & DIY">Kedeputian Wilayah Jawa Tengah & DIY</option>
+                      <option value="Kedeputian Wilayah Jawa Timur">Kedeputian Wilayah Jawa Timur</option>
+                      <option value="Kedeputian Wilayah Sumatera Utara">Kedeputian Wilayah Sumatera Utara</option>
+                    </select>
+                  )}
+                  <ChevronDown
+                    size={15}
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#64748B",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Selector for Healthkathon Judges */}
+              {mode === "signin" && (
+                <div style={{ marginTop: "4px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "#64748B",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                      }}
+                    >
+                      <Sparkles size={12} style={{ color: "#65A30D" }} /> Akses Demo Juri (1-Klik):
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {PRESET_ACCOUNTS.map((acc) => {
+                      const isSelected = username === acc.username;
+                      return (
+                        <button
+                          key={acc.role}
+                          type="button"
+                          onClick={() => handleSelectPreset(acc)}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: "9999px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            backgroundColor: isSelected ? "#F0FDF4" : "#F8FAFC",
+                            color: isSelected ? "#15803D" : "#475569",
+                            border: isSelected ? "1.5px solid #84CC16" : "1px solid #E2E8F0",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          {isSelected && <Check size={12} />}
+                          {acc.label.replace("Petugas ", "")}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Disclaimer / Terms text */}
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#94A3B8",
+                  lineHeight: 1.5,
+                  margin: "6px 0 0 0",
+                }}
+              >
+                By clicking {mode === "signin" ? "Sign in" : "Create account"}, I agree that:
+                <br />
+                I have read and accepted the{" "}
+                <span style={{ color: "#0284C7", cursor: "pointer", fontWeight: 500 }}>
+                  Terms of Use
+                </span>
+                . See our{" "}
+                <span style={{ color: "#0284C7", cursor: "pointer", fontWeight: 500 }}>
+                  Privacy Policy
+                </span>{" "}
+                for more details or to opt-out at any time (UU PDP No. 27/2022).
+              </p>
+
+              {/* Submit Button (Pill Button bottom-right aligned matching design) */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: "6px",
+                }}
+              >
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    backgroundColor: "#65A30D",
+                    color: "#FFFFFF",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    padding: "12px 32px",
+                    borderRadius: "9999px",
+                    boxShadow: "0 8px 20px -4px rgba(101, 163, 13, 0.4)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: loading ? "wait" : "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#4D7C0F")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#65A30D")}
+                >
+                  {loading
+                    ? "Memverifikasi..."
+                    : mode === "signin"
+                    ? "Sign in"
+                    : "Create account"}
                 </button>
-              ))}
-            </div>
+              </div>
+            </form>
           </div>
+        </div>
+
+        {/* Footer Note */}
+        <div
+          style={{
+            marginTop: "36px",
+            paddingTop: "20px",
+            borderTop: "1px solid #F1F5F9",
+            textAlign: "center",
+            fontSize: "12px",
+            color: "#94A3B8",
+          }}
+        >
+          Protected by reCAPTCHA & BPJS Kesehatan Identity Security and subject to{" "}
+          <span style={{ color: "#0284C7", cursor: "pointer" }}>Privacy Policy</span> and{" "}
+          <span style={{ color: "#0284C7", cursor: "pointer" }}>Terms of Service</span>.
         </div>
       </div>
 
-      {/* Footer Info */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "12px",
-          left: 0,
-          right: 0,
-          textAlign: "center",
-          fontSize: "11px",
-          color: "rgba(255, 255, 255, 0.4)",
-          padding: "0 16px",
-        }}
-      >
-        © 2026 BPJS Kesehatan — Healthkathon Team FANTASTIC • Hak Cipta Dilindungi Undang-Undang
-      </div>
+      {/* Responsive Stacking CSS */}
+      <style>{`
+        @media (max-width: 860px) {
+          .login-grid-container {
+            grid-template-columns: 1fr !important;
+            gap: 32px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };
