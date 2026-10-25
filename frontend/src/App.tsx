@@ -67,37 +67,37 @@ interface PerformanceData {
 // ============================================================
 
 const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; description: string }> = {
-  ADMINISTRATOR: { label: "Administrator Sistem", color: "#7c3aed", bg: "#f3e8ff", description: "Kelola akun & sistem" },
-  VERIFIKATOR:   { label: "Verifikator",          color: "#0284c7", bg: "#e0f2fe", description: "Tinjau & catat pemeriksaan" },
-  INVESTIGATOR:  { label: "Investigator",          color: "#d97706", bg: "#fef3c7", description: "Investigasi & susun temuan" },
-  SUPERVISOR:    { label: "Supervisor",            color: "#059669", bg: "#d1fae5", description: "Pantau antrean & eskalasi" },
-  DATA_ANALYST:  { label: "Data/AI Analyst",       color: "#db2777", bg: "#fce7f3", description: "Kualitas data & model AI" },
+  ADMINISTRATOR: { label: "Administrator Sistem", color: "#334155", bg: "#f1f5f9", description: "Kelola akun & sistem" },
+  VERIFIKATOR:   { label: "Verifikator",          color: "#0369a1", bg: "#e0f2fe", description: "Tinjau & catat pemeriksaan" },
+  INVESTIGATOR:  { label: "Investigator",          color: "#b45309", bg: "#fef3c7", description: "Investigasi & susun temuan" },
+  SUPERVISOR:    { label: "Supervisor",            color: "#098a58", bg: "#e6efe6", description: "Pantau antrean & eskalasi" },
+  DATA_ANALYST:  { label: "Data/AI Analyst",       color: "#1e3a5f", bg: "#eaf0f6", description: "Kualitas data & model AI" },
   // Legacy
-  FRAUD_ANALYST: { label: "Investigator",          color: "#d97706", bg: "#fef3c7", description: "Investigasi" },
-  CLAIM_VERIFIER:{ label: "Verifikator",           color: "#0284c7", bg: "#e0f2fe", description: "Verifikasi" },
-  AUDITOR:       { label: "Data/AI Analyst",       color: "#db2777", bg: "#fce7f3", description: "Analitik" },
+  FRAUD_ANALYST: { label: "Investigator",          color: "#b45309", bg: "#fef3c7", description: "Investigasi" },
+  CLAIM_VERIFIER:{ label: "Verifikator",           color: "#0369a1", bg: "#e0f2fe", description: "Verifikasi" },
+  AUDITOR:       { label: "Data/AI Analyst",       color: "#1e3a5f", bg: "#eaf0f6", description: "Analitik" },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   NEW:               { label: "Baru", color: "#64748b", bg: "#f1f5f9", icon: <Inbox size={12}/> },
-  FLAGGED_FOR_REVIEW:{ label: "Menunggu Review", color: "#d97706", bg: "#fef3c7", icon: <AlertTriangle size={12}/> },
-  UNDER_REVIEW:      { label: "Sedang Ditinjau", color: "#0284c7", bg: "#e0f2fe", icon: <Eye size={12}/> },
-  AWAITING_EVIDENCE: { label: "Menunggu Bukti", color: "#7c3aed", bg: "#f3e8ff", icon: <HelpCircle size={12}/> },
-  ESCALATED:         { label: "Dieskalasi", color: "#dc2626", bg: "#fee2e2", icon: <ArrowUpRight size={12}/> },
-  RESOLVED:          { label: "Selesai", color: "#059669", bg: "#d1fae5", icon: <CheckCircle2 size={12}/> },
-  CLOSED:            { label: "Ditutup", color: "#6b7280", bg: "#f3f4f6", icon: <Lock size={12}/> },
+  FLAGGED_FOR_REVIEW:{ label: "Menunggu Review", color: "#b45309", bg: "#fef3c7", icon: <AlertTriangle size={12}/> },
+  UNDER_REVIEW:      { label: "Sedang Ditinjau", color: "#0369a1", bg: "#e0f2fe", icon: <Eye size={12}/> },
+  AWAITING_EVIDENCE: { label: "Menunggu Bukti", color: "#475569", bg: "#f1f5f9", icon: <HelpCircle size={12}/> },
+  ESCALATED:         { label: "Dieskalasi", color: "#c95353", bg: "#faecec", icon: <ArrowUpRight size={12}/> },
+  RESOLVED:          { label: "Selesai", color: "#098a58", bg: "#e6efe6", icon: <CheckCircle2 size={12}/> },
+  CLOSED:            { label: "Ditutup", color: "#64748b", bg: "#f1f5f9", icon: <Lock size={12}/> },
 };
 
 const PRIORITY_CONFIG: Record<string, { color: string; bg: string; dot: string }> = {
-  HIGH:   { color: "#dc2626", bg: "#fee2e2", dot: "#dc2626" },
-  MEDIUM: { color: "#d97706", bg: "#fef3c7", dot: "#d97706" },
-  LOW:    { color: "#059669", bg: "#d1fae5", dot: "#059669" },
+  HIGH:   { color: "#c95353", bg: "#faecec", dot: "#c95353" },
+  MEDIUM: { color: "#b45309", bg: "#fef3c7", dot: "#b45309" },
+  LOW:    { color: "#098a58", bg: "#e6efe6", dot: "#098a58" },
 };
 
 const OUTCOME_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  REFERRED_FOR_ACTION:   { label: "Direkomendasikan Tindakan Lanjut", color: "#dc2626", bg: "#fee2e2" },
-  CLEARED:               { label: "Klaim Terverifikasi Sah (Cleared)", color: "#059669", bg: "#d1fae5" },
-  INSUFFICIENT_EVIDENCE: { label: "Bukti Belum Memadai", color: "#d97706", bg: "#fef3c7" },
+  REFERRED_FOR_ACTION:   { label: "Direkomendasikan Tindakan Lanjut", color: "#c95353", bg: "#faecec" },
+  CLEARED:               { label: "Klaim Terverifikasi Sah (Cleared)", color: "#098a58", bg: "#e6efe6" },
+  INSUFFICIENT_EVIDENCE: { label: "Bukti Belum Memadai", color: "#b45309", bg: "#fef3c7" },
   CLOSED_ADMINISTRATIVE: { label: "Ditutup Administratif", color: "#64748b", bg: "#f1f5f9" },
 };
 
@@ -652,10 +652,10 @@ export function App() {
 
       {/* Second row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <MetricCard title="TARIF KLAIM DITAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Pre-payment gate: REJECT_FOR_HUMAN_REVIEW" color="#7c3aed" icon={<Scale size={18}/>}/>
+        <MetricCard title="TARIF KLAIM DITAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Pre-payment gate: REJECT_FOR_HUMAN_REVIEW" color="#076641" icon={<Scale size={18}/>}/>
         <MetricCard title="MEDIAN WAKTU INVESTIGASI" value={perfData?.investigation?.median_investigation_hours ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dari review dimulai hingga selesai" icon={<Clock size={18}/>}/>
-        <MetricCard title="KELENGKAPAN BUKTI" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Kasus dengan minimal 1 catatan review" color="#0284c7" icon={<BookOpen size={18}/>}/>
-        <MetricCard title="VERSI MODEL AI" value={perfData?.model?.current_version || "1.0.0"} subtitle={`R-GCN PyTorch Geometric • Inferensi terakhir: ${formatDate(perfData?.model?.last_inference)}`} color="#db2777" icon={<Zap size={18}/>}/>
+        <MetricCard title="KELENGKAPAN BUKTI" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Kasus dengan minimal 1 catatan review" color="#0369a1" icon={<BookOpen size={18}/>}/>
+        <MetricCard title="VERSI MODEL AI" value={perfData?.model?.current_version || "1.0.0"} subtitle={`R-GCN PyTorch Geometric • Inferensi terakhir: ${formatDate(perfData?.model?.last_inference)}`} color="#1e3a5f" icon={<Zap size={18}/>}/>
       </div>
 
       {/* Data Source Badges */}
@@ -789,7 +789,7 @@ export function App() {
                     {c.assigned_to && <span>Ditugaskan ke: <strong>{c.assigned_to}</strong></span>}
                   </div>
                   {c.priority_reasons.length > 0 && (
-                    <div style={{ marginTop: "6px", fontSize: "11px", color: "#7c3aed" }}>
+                    <div style={{ marginTop: "6px", fontSize: "11px", color: "#475569" }}>
                       <strong>Alasan prioritas:</strong> {c.priority_reasons.join(" • ")}
                     </div>
                   )}
@@ -902,23 +902,23 @@ export function App() {
             {/* Output Model AI */}
             <div className="card" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                <Zap size={16} style={{ color: "#db2777" }}/><strong>Output Model AI</strong>
-                <span style={{ fontSize: "10px", background: "#fce7f3", color: "#db2777", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>AI OUTPUT</span>
+                <Zap size={16} style={{ color: "var(--green)" }}/><strong>Output Model AI</strong>
+                <span style={{ fontSize: "10px", background: "#e6efe6", color: "var(--dark-green)", padding: "2px 8px", borderRadius: "20px", fontWeight: 700 }}>AI OUTPUT</span>
               </div>
               <p style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "10px" }}>{ec.ai_output?._description}</p>
               <div style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  <div style={{ padding: "10px 12px", borderRadius: "10px", background: "#f9fafb", textAlign: "center" }}>
-                    <div style={{ fontSize: "10px", color: "var(--muted)" }}>Fraud Risk Index</div>
-                    <div style={{ fontSize: "22px", fontWeight: 800, color: ec.ai_output?.risk_level === "HIGH" ? "#dc2626" : ec.ai_output?.risk_level === "MEDIUM" ? "#d97706" : "#059669" }}>{ec.ai_output?.fraud_risk_index ?? "—"}</div>
+                  <div style={{ padding: "10px 12px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #edf0e9", textAlign: "center" }}>
+                    <div style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 600 }}>Fraud Risk Index</div>
+                    <div style={{ fontSize: "22px", fontWeight: 800, color: ec.ai_output?.risk_level === "HIGH" ? "#c95353" : ec.ai_output?.risk_level === "MEDIUM" ? "#b45309" : "#098a58" }}>{ec.ai_output?.fraud_risk_index ?? "—"}</div>
                   </div>
-                  <div style={{ padding: "10px 12px", borderRadius: "10px", background: "#f9fafb", textAlign: "center" }}>
-                    <div style={{ fontSize: "10px", color: "var(--muted)" }}>Probabilitas Anomali</div>
-                    <div style={{ fontSize: "22px", fontWeight: 800 }}>{ec.ai_output?.fraud_probability !== null ? `${(ec.ai_output.fraud_probability * 100).toFixed(1)}%` : "—"}</div>
+                  <div style={{ padding: "10px 12px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #edf0e9", textAlign: "center" }}>
+                    <div style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 600 }}>Probabilitas Anomali</div>
+                    <div style={{ fontSize: "22px", fontWeight: 800, color: "#1e241f" }}>{ec.ai_output?.fraud_probability !== null ? `${(ec.ai_output.fraud_probability * 100).toFixed(1)}%` : "—"}</div>
                   </div>
                 </div>
-                <div style={{ padding: "8px 12px", borderRadius: "10px", background: "#fce7f3", fontSize: "11px", color: "#831843" }}>
-                  <AlertTriangle size={12} style={{ display: "inline", marginRight: "4px" }}/>{ec.ai_output?._legal_disclaimer}
+                <div style={{ padding: "9px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e2e8f0", fontSize: "11px", color: "#475569", lineHeight: 1.5 }}>
+                  <ShieldCheck size={13} style={{ display: "inline", marginRight: "6px", color: "var(--green)", verticalAlign: "-2px" }}/>{ec.ai_output?._legal_disclaimer}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--muted)" }}>Model: {ec.ai_output?.model_name} v{ec.ai_output?.model_version} • {formatDate(ec.ai_output?.evaluated_at)}</div>
               </div>
@@ -1168,10 +1168,10 @@ export function App() {
               <EmptyState icon={<Inbox size={32}/>} message="Tidak ada klaim" sub="Coba ubah filter"/>
             ) : data.claims.map(c => (
               <button key={c.claim_id} onClick={() => setSelectedClaim(c)}
-                style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: "12px", marginBottom: "6px", border: `1px solid ${selectedClaim?.claim_id === c.claim_id ? "var(--green)" : "var(--line)"}`, background: selectedClaim?.claim_id === c.claim_id ? "#e5f4ec" : "#fff", cursor: "pointer" }}>
+                style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: "12px", marginBottom: "6px", border: `1px solid ${selectedClaim?.claim_id === c.claim_id ? "var(--green)" : "var(--line)"}`, background: selectedClaim?.claim_id === c.claim_id ? "#e6efe6" : "#fff", cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                   <span style={{ fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>{c.claim_id.substring(0, 18)}…</span>
-                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "8px", background: c.risk_level === "HIGH" ? "#fee2e2" : c.risk_level === "MEDIUM" ? "#fef3c7" : "#d1fae5", color: c.risk_level === "HIGH" ? "#dc2626" : c.risk_level === "MEDIUM" ? "#d97706" : "#059669" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "8px", background: c.risk_level === "HIGH" ? "#faecec" : c.risk_level === "MEDIUM" ? "#fef3c7" : "#e6efe6", color: c.risk_level === "HIGH" ? "#c95353" : c.risk_level === "MEDIUM" ? "#b45309" : "#076641" }}>
                     {c.risk_level}
                   </span>
                 </div>
@@ -1180,11 +1180,11 @@ export function App() {
                 </div>
                 <div style={{ display: "flex", gap: "6px", marginTop: "4px", flexWrap: "wrap" }}>
                   {c.fraud_scenario && (
-                    <span style={{ fontSize: "9.5px", fontWeight: 700, padding: "1px 6px", borderRadius: "6px", background: "#f3e8ff", color: "#7c3aed" }}>
+                    <span style={{ fontSize: "9.5px", fontWeight: 700, padding: "1px 6px", borderRadius: "6px", background: "#f1f5f9", color: "#334155" }}>
                       Skenario {c.fraud_scenario}
                     </span>
                   )}
-                  <span style={{ fontSize: "9.5px", fontWeight: 600, padding: "1px 6px", borderRadius: "6px", background: c.review_status === "PENDING_REVIEW" ? "#f1f5f9" : "#d1fae5", color: c.review_status === "PENDING_REVIEW" ? "#64748b" : "#059669" }}>
+                  <span style={{ fontSize: "9.5px", fontWeight: 600, padding: "1px 6px", borderRadius: "6px", background: c.review_status === "PENDING_REVIEW" ? "#f1f5f9" : "#e6efe6", color: c.review_status === "PENDING_REVIEW" ? "#64748b" : "#076641" }}>
                     {c.review_status}
                   </span>
                 </div>
@@ -1200,10 +1200,10 @@ export function App() {
                   <div>
                     <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 800, fontFamily: "monospace" }}>{selectedClaim.claim_id}</h2>
                     <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: selectedClaim.risk_level === "HIGH" ? "#fee2e2" : "#fef3c7", color: selectedClaim.risk_level === "HIGH" ? "#dc2626" : "#d97706" }}>{selectedClaim.risk_level} RISK</span>
+                      <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: selectedClaim.risk_level === "HIGH" ? "#faecec" : "#fef3c7", color: selectedClaim.risk_level === "HIGH" ? "#c95353" : "#b45309" }}>{selectedClaim.risk_level} RISK</span>
                       <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9" }}>FRI: {selectedClaim.fraud_risk_index ?? "—"}</span>
-                      <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#e0f2fe", color: "#0284c7", fontWeight: 700 }}>Gate: {selectedClaim.pre_payment_gate}</span>
-                      {selectedClaim.is_synthetic && <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f0f9ff", color: "#0284c7" }}>DATA SINTETIS (Healthkathon)</span>}
+                      <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#e0f2fe", color: "#0369a1", fontWeight: 700 }}>Gate: {selectedClaim.pre_payment_gate}</span>
+                      {selectedClaim.is_synthetic && <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9", color: "#475569" }}>DATA SINTETIS (Healthkathon)</span>}
                     </div>
                   </div>
                   {hasPermission(currentUser.role, ["investigate", "start_review"]) && (
@@ -1226,15 +1226,15 @@ export function App() {
               {selectedClaim.xai_explanation && (
                 <div className="card" style={{ padding: "18px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                    <Zap size={16} style={{ color: "#db2777" }}/><strong>Output Model AI</strong>
-                    <span style={{ fontSize: "10px", background: "#fce7f3", color: "#db2777", padding: "2px 6px", borderRadius: "8px" }}>AI OUTPUT — Bukan pembuktian fraud</span>
+                    <Zap size={16} style={{ color: "var(--green)" }}/><strong>Output Model AI</strong>
+                    <span style={{ fontSize: "10px", background: "#e6efe6", color: "var(--dark-green)", padding: "2px 8px", borderRadius: "20px", fontWeight: 700 }}>AI OUTPUT — Bukan pembuktian fraud</span>
                   </div>
-                  <div style={{ padding: "10px 14px", borderRadius: "10px", background: "#fef3c7", fontSize: "12px", marginBottom: "10px" }}>
+                  <div style={{ padding: "10px 14px", borderRadius: "10px", background: "#fef3c7", border: "1px solid #fde68a", fontSize: "12px", marginBottom: "10px" }}>
                     <strong>Pemicu:</strong> {selectedClaim.xai_explanation.primary_fraud_trigger}
                   </div>
                   {selectedClaim.xai_explanation.evidence_reasons.map((r, i) => (
                     <div key={i} style={{ display: "flex", gap: "8px", fontSize: "11px", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
-                      <ChevronRight size={12} style={{ color: "#db2777", flexShrink: 0, marginTop: 2 }}/>{r}
+                      <ChevronRight size={12} style={{ color: "#b45309", flexShrink: 0, marginTop: 2 }}/>{r}
                     </div>
                   ))}
                   {selectedClaim.xai_explanation.subgraph_evidence?.nodes?.length > 0 && (
@@ -1254,7 +1254,7 @@ export function App() {
                   <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
                     {(["RELEASE", "CLARIFY", "ESCALATE_AUDIT"] as const).map(d => (
                       <button key={d} onClick={() => setSelectedDecision(d)}
-                        style={{ flex: 1, padding: "8px", borderRadius: "10px", border: `1px solid ${selectedDecision === d ? (d === "RELEASE" ? "#059669" : d === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706") : "var(--line)"}`, background: selectedDecision === d ? (d === "RELEASE" ? "#d1fae5" : d === "ESCALATE_AUDIT" ? "#fee2e2" : "#fef3c7") : "#fff", color: d === "RELEASE" ? "#059669" : d === "ESCALATE_AUDIT" ? "#dc2626" : "#d97706", fontWeight: selectedDecision === d ? 800 : 500, fontSize: "11px", cursor: "pointer" }}>
+                        style={{ flex: 1, padding: "8px", borderRadius: "10px", border: `1px solid ${selectedDecision === d ? (d === "RELEASE" ? "var(--green)" : d === "ESCALATE_AUDIT" ? "#c95353" : "#b45309") : "var(--line)"}`, background: selectedDecision === d ? (d === "RELEASE" ? "#e6efe6" : d === "ESCALATE_AUDIT" ? "#faecec" : "#fef3c7") : "#fff", color: d === "RELEASE" ? "var(--dark-green)" : d === "ESCALATE_AUDIT" ? "#c95353" : "#b45309", fontWeight: selectedDecision === d ? 700 : 500, fontSize: "11px", cursor: "pointer" }}>
                         {d === "RELEASE" ? "✓ Release (Label 0)" : d === "CLARIFY" ? "? Klarifikasi" : "↑ Eskalasi (Label 1)"}
                       </button>
                     ))}
@@ -1279,8 +1279,8 @@ export function App() {
   const renderInvestigation = () => (
     <div style={{ display: "flex", gap: "20px" }}>
       {/* Sub-nav */}
-      <div style={{ width: "180px", flexShrink: 0 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div style={{ width: "200px", flexShrink: 0 }}>
+        <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
           {([
             ["queue", "Antrean Kasus", <ClipboardList size={16}/>],
             ["my_cases", "Kasus Saya", <UserCheck size={16}/>],
@@ -1289,7 +1289,7 @@ export function App() {
             ["graph", "Graph Explorer", <Network size={16}/>],
           ] as const).map(([view, label, icon]) => (
             <button key={view} onClick={() => setInvestigationView(view as InvestigationView)}
-              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: investigationView === view ? "#e5f4ec" : "transparent", color: investigationView === view ? "var(--dark-green)" : "#374151", fontWeight: investigationView === view ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: investigationView === view ? "#e6efe6" : "transparent", color: investigationView === view ? "var(--dark-green)" : "#475569", fontWeight: investigationView === view ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
               <span style={{ color: investigationView === view ? "var(--green)" : "var(--muted)" }}>{icon}</span>{label}
             </button>
           ))}
@@ -1390,11 +1390,11 @@ export function App() {
 
   const renderDataIntelligence = () => (
     <div style={{ display: "flex", gap: "20px" }}>
-      <div style={{ width: "180px", flexShrink: 0 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div style={{ width: "200px", flexShrink: 0 }}>
+        <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
           {([["ingestion", "Data Ingestion", <Database size={16}/>], ["quality", "Kualitas Data", <CheckSquare size={16}/>], ["alert_explorer", "Alert Explorer", <AlertCircle size={16}/>], ["model_eval", "Evaluasi Model", <Zap size={16}/>]] as const).map(([v, l, ic]) => (
             <button key={v} onClick={() => setDataView(v as DataView)}
-              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: dataView === v ? "#e5f4ec" : "transparent", color: dataView === v ? "var(--dark-green)" : "#374151", fontWeight: dataView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: dataView === v ? "#e6efe6" : "transparent", color: dataView === v ? "var(--dark-green)" : "#475569", fontWeight: dataView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
               <span style={{ color: dataView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
             </button>
           ))}
@@ -1444,7 +1444,7 @@ export function App() {
             <MetricCard title="ALERT REVIEW RATE" value={perfData.alert_quality?.alert_review_rate !== null ? `${perfData.alert_quality.alert_review_rate}%` : null} subtitle={`${perfData.alert_quality?.reviewed_in_period} review dalam periode`} color="#0284c7" icon={<Eye size={18}/>}/>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-            <MetricCard title="FP RATE (TERVERIFIKASI)" value={perfData.alert_quality?.verified_false_positive_rate !== null ? `${perfData.alert_quality.verified_false_positive_rate}%` : null} subtitle="HIGH-risk yang di-RELEASE" color="#7c3aed" icon={<Scale size={18}/>}/>
+            <MetricCard title="FP RATE (TERVERIFIKASI)" value={perfData.alert_quality?.verified_false_positive_rate !== null ? `${perfData.alert_quality.verified_false_positive_rate}%` : null} subtitle="HIGH-risk yang di-RELEASE" color="#b45309" icon={<Scale size={18}/>}/>
             <MetricCard title="KELENGKAPAN BUKTI" value={perfData.evidence?.evidence_completeness_pct !== null ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle={`${perfData.evidence?.cases_with_evidence} kasus dengan review`} color="#059669" icon={<BookOpen size={18}/>}/>
             <MetricCard title="PRECISION@K" value={null} subtitle={perfData.alert_quality?.precision_at_k_note} icon={<Target size={18}/>}/>
             <MetricCard title="AUDIT EVENTS (PERIODE)" value={perfData.audit_trail?.audit_events_in_period} subtitle="Tindakan penting tercatat" icon={<History size={18}/>}/>
@@ -1479,11 +1479,11 @@ export function App() {
 
   const renderReports = () => (
     <div style={{ display: "flex", gap: "20px" }}>
-      <div style={{ width: "180px", flexShrink: 0 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div style={{ width: "200px", flexShrink: 0 }}>
+        <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
           {([["performance", "Business Performance", <BarChart3 size={16}/>], ["outcomes", "Investigation Outcomes", <Award size={16}/>], ["model", "Model Performance", <Zap size={16}/>], ["audit", "Audit Reports", <History size={16}/>]] as const).map(([v, l, ic]) => (
             <button key={v} onClick={() => setReportsView(v as ReportsView)}
-              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: reportsView === v ? "#e5f4ec" : "transparent", color: reportsView === v ? "var(--dark-green)" : "#374151", fontWeight: reportsView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: reportsView === v ? "#e6efe6" : "transparent", color: reportsView === v ? "var(--dark-green)" : "#475569", fontWeight: reportsView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
               <span style={{ color: reportsView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
             </button>
           ))}
@@ -1609,11 +1609,11 @@ export function App() {
       )}
       {currentUser.role === "ADMINISTRATOR" && (
         <>
-          <div style={{ width: "180px", flexShrink: 0 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ width: "200px", flexShrink: 0 }}>
+            <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
               {([["users", "Kelola Pengguna", <Users size={16}/>], ["health", "System Health", <Activity size={16}/>], ["audit_trail", "Audit Trail", <History size={16}/>]] as const).map(([v, l, ic]) => (
                 <button key={v} onClick={() => setAdminView(v as AdminView)}
-                  style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", borderRadius: "10px", border: "none", background: adminView === v ? "#e5f4ec" : "transparent", color: adminView === v ? "var(--dark-green)" : "#374151", fontWeight: adminView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left" }}>
+                  style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: adminView === v ? "#e6efe6" : "transparent", color: adminView === v ? "var(--dark-green)" : "#475569", fontWeight: adminView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
                   <span style={{ color: adminView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
                 </button>
               ))}
@@ -1772,10 +1772,11 @@ export function App() {
       <header className="topbar">
         <div className="topbar-brand">
           <div className="brand" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <img src="/aura-jkn-logo.png" alt="AURA JKN" style={{ height: "40px", width: "auto", borderRadius: "8px", background: "#fff", padding: "2px", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}/>
-            <div>
-              <div style={{ fontSize: "18px", fontWeight: 800, letterSpacing: "-0.5px", color: "#0F2942" }}>AURA <span style={{ color: "#0284C7" }}>JKN</span></div>
-              <div style={{ fontSize: "8px", fontWeight: 700, letterSpacing: "1.5px", color: "#0284C7", textTransform: "uppercase" }}>Evidence-Linked Claim Intelligence</div>
+            <div className="brand-symbol">
+              <ShieldCheck size={24} strokeWidth={2.4}/>
+            </div>
+            <div className="brand-name">
+              AURA<span>JKN</span>
             </div>
           </div>
         </div>
