@@ -227,10 +227,10 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
         >
           <div>
             <h2 style={{ fontSize: "18px", fontWeight: 800, margin: 0 }}>
-              Simulasi Klaim Baru (Live Pre-Payment Gate)
+              Simulasi Pengajuan Berkas Klaim (Penyaringan Pra-Pembayaran)
             </h2>
             <small className="muted">
-              Uji pengajuan klaim baru dari VClaim Faskes &rarr; Evaluasi R-GCN FastAPI &rarr; Simpan ke PostgreSQL
+              Uji alur berkas klaim dari faskes mitra &rarr; Skrining cerdas pencegahan fraud &rarr; Pencatatan ke pangkalan data resmi
             </small>
           </div>
           <button className="icon-button" onClick={onClose}>
@@ -254,7 +254,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
         >
           <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "flex", alignItems: "center", gap: "4px" }}>
             <Sparkles size={13} className="text-green" />
-            PRESET UJI CEPAT:
+            PILIHAN SKENARIO PENGUJIAN:
           </span>
           <button
             type="button"
@@ -262,7 +262,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             className="button button-secondary"
             style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
           >
-            Skenario C (Konflik Spasial-Temporal)
+            Skenario C: Konflik Lokasi &amp; Waktu (Klaim Fiktif)
           </button>
           <button
             type="button"
@@ -270,7 +270,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             className="button button-secondary"
             style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
           >
-            Skenario B (Volume Dokter Ekstrem)
+            Skenario B: Beban Layanan Ekstrem (Upcoding)
           </button>
           <button
             type="button"
@@ -278,7 +278,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             className="button button-secondary"
             style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
           >
-            Skenario A (Phantom Rujukan)
+            Skenario A: Anomali Rujukan Berulang (Doctor Shopping)
           </button>
           <button
             type="button"
@@ -286,7 +286,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             className="button button-secondary"
             style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
           >
-            Klaim Wajar (Auto-Approve)
+            Klaim Wajar &amp; Sesuai Prosedur (Lolos Otomatis)
           </button>
         </div>
 
@@ -314,7 +314,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  ID Klaim Baru:
+                  Nomor Berkas Klaim:
                 </label>
                 <input
                   type="text"
@@ -327,7 +327,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  ID Dokter (DPJP):
+                  Kode Dokter DPJP:
                 </label>
                 <input
                   type="text"
@@ -340,7 +340,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Spesialisasi Dokter:
+                  Keahlian / Spesialisasi Medis:
                 </label>
                 <input
                   type="text"
@@ -353,7 +353,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  ID Faskes:
+                  Kode Fasilitas Kesehatan (Faskes):
                 </label>
                 <input
                   type="text"
@@ -366,7 +366,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Kelas Faskes:
+                  Tingkat Fasilitas Kesehatan:
                 </label>
                 <select
                   value={facilityClass}
@@ -374,13 +374,13 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
                   style={{ width: "100%", padding: "8px 12px", borderRadius: "12px", border: "1px solid var(--line)", background: "#ffffff", fontSize: "12px" }}
                 >
                   <option value="FKRTL">FKRTL (Rumah Sakit Rujukan)</option>
-                  <option value="FKTP">FKTP (Fasilitas Tingkat Pertama)</option>
+                  <option value="FKTP">FKTP (Puskesmas / Klinik Pratama)</option>
                 </select>
               </div>
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Diagnosis Utama (ICD-10):
+                  Diagnosis Utama (Kode ICD-10):
                 </label>
                 <input
                   type="text"
@@ -393,7 +393,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Tanggal Layanan (YYYY-MM-DD):
+                  Tanggal Pelayanan Pasien:
                 </label>
                 <input
                   type="text"
@@ -406,7 +406,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Jam Layanan (HH:MM:SS):
+                  Jam Pelayanan Pasien:
                 </label>
                 <input
                   type="text"
@@ -419,7 +419,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Tarif INA-CBGs (IDR):
+                  Besaran Tarif INA-CBG (Rp):
                 </label>
                 <input
                   type="number"
@@ -433,7 +433,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Lama Rawat / LOS (Hari):
+                  Lama Rawat / Hari Rawat (LOS):
                 </label>
                 <input
                   type="number"
@@ -447,7 +447,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Wilayah Pasien:
+                  Daerah Asal Peserta:
                 </label>
                 <input
                   type="text"
@@ -460,24 +460,24 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                  Tag Skenario Uji:
+                  Jenis Skenario Pengujian:
                 </label>
                 <select
                   value={fraudScenario}
                   onChange={(e) => setFraudScenario(e.target.value)}
                   style={{ width: "100%", padding: "8px 12px", borderRadius: "12px", border: "1px solid var(--line)", background: "#ffffff", fontSize: "12px" }}
                 >
-                  <option value="">Klaim Wajar (Normal)</option>
-                  <option value="A">Skenario A (Phantom Rujukan)</option>
-                  <option value="B">Skenario B (Volume Ekstrem)</option>
-                  <option value="C">Skenario C (Konflik Spasial-Temporal)</option>
+                  <option value="">Klaim Wajar (Normal / Tanpa Anomali)</option>
+                  <option value="A">Skenario A: Anomali Rujukan Berulang (Doctor Shopping)</option>
+                  <option value="B">Skenario B: Beban Pelayanan Dokter Ekstrem (Upcoding)</option>
+                  <option value="C">Skenario C: Konflik Lokasi &amp; Waktu (Klaim Fiktif)</option>
                 </select>
               </div>
             </div>
 
             <div>
               <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
-                ID Pasien (Pseudonim Salted SHA-256 Hash sesuai UU PDP):
+                ID Peserta (Kode Anonim Terproteksi Salted SHA-256 sesuai UU Pelindungan Data Pribadi):
               </label>
               <input
                 type="text"
@@ -497,12 +497,12 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
               {submitting ? (
                 <>
                   <RefreshCw size={16} className="animate-spin" />
-                  Mengirim ke Pre-Payment Gate &amp; Menyimpan ke PostgreSQL...
+                  Memproses Skrining Berkas &amp; Memverifikasi Aturan Pra-Pembayaran...
                 </>
               ) : (
                 <>
                   <Send size={16} />
-                  Uji Klaim ke Pre-Payment Gate
+                  Kirimkan Berkas ke Penyaringan Pra-Pembayaran
                 </>
               )}
             </button>
@@ -523,30 +523,30 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800, color: "var(--dark-green)", fontSize: "13px" }}>
                   <CheckCircle2 size={18} className="text-green" />
-                  Klaim {simResult.claim_id} Tersimpan di PostgreSQL &amp; Tercatat di Audit Log!
+                  Berkas Klaim {simResult.claim_id} Berhasil Diterima &amp; Tercatat Resmi di Pangkalan Data!
                 </div>
                 <span style={{ fontSize: "11px", fontWeight: 700, padding: "3px 10px", borderRadius: "12px", background: "#ffffff", border: "1px solid var(--line)" }}>
-                  {simResult.ai_service_connected ? "AI Engine Live" : "AI Offline (PENDING_ASSESSMENT)"}
+                  {simResult.ai_service_connected ? "Skrining Cerdas Siap & Aktif" : "Menunggu Antrean Skrining"}
                 </span>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", fontSize: "12px" }}>
                 <div style={{ background: "#ffffff", padding: "10px 12px", borderRadius: "12px", border: "1px solid var(--line)" }}>
-                  <small className="muted" style={{ display: "block" }}>Skor FRI / Risiko</small>
+                  <small className="muted" style={{ display: "block" }}>Indeks Risiko Anomali (FRI)</small>
                   <strong style={{ fontSize: "15px" }}>
                     {simResult.record?.fraud_risk_index !== null
-                      ? `FRI ${simResult.record.fraud_risk_index} (${simResult.record.risk_level})`
-                      : "UNASSESSED"}
+                      ? `FRI ${simResult.record.fraud_risk_index} (${simResult.record.risk_level === "HIGH" ? "Risiko Tinggi" : simResult.record.risk_level === "MEDIUM" ? "Risiko Sedang" : "Risiko Wajar"})`
+                      : "Belum Diskrining"}
                   </strong>
                 </div>
                 <div style={{ background: "#ffffff", padding: "10px 12px", borderRadius: "12px", border: "1px solid var(--line)" }}>
-                  <small className="muted" style={{ display: "block" }}>Keputusan Pre-Payment Gate</small>
+                  <small className="muted" style={{ display: "block" }}>Keputusan Penapisan Pra-Pembayaran</small>
                   <strong style={{ fontSize: "13px", color: simResult.record?.pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW" ? "#c95353" : "var(--dark-green)" }}>
-                    {simResult.record?.pre_payment_gate}
+                    {simResult.record?.pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW" ? "Tahan Sementara (Wajib Telaah Petugas)" : simResult.record?.pre_payment_gate === "AUTO_APPROVE" ? "Persetujuan Otomatis (Lolos Skrining)" : simResult.record?.pre_payment_gate || "Sedang Diproses"}
                   </strong>
                 </div>
                 <div style={{ background: "#ffffff", padding: "10px 12px", borderRadius: "12px", border: "1px solid var(--line)" }}>
-                  <small className="muted" style={{ display: "block" }}>Tarif Klaim</small>
+                  <small className="muted" style={{ display: "block" }}>Nilai Klaim Ditahan Sementara</small>
                   <strong style={{ fontSize: "13px" }}>
                     {formatIDR(simResult.record?.ina_cbgs_tariff || tariff)}
                   </strong>
@@ -567,10 +567,11 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
           }}
         >
           <button className="button button-secondary" onClick={onClose}>
-            Tutup Simulator
+            Tutup Jendela
           </button>
         </div>
       </div>
     </div>
   );
 };
+

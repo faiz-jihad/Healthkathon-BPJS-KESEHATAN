@@ -18,11 +18,11 @@ interface SubgraphViewerProps {
 }
 
 const NODE_COLORS: Record<string, { bg: string; border: string; badgeBg: string; text: string; badge: string }> = {
-  claim: { bg: "#ffffff", border: "#c95353", badgeBg: "#f9e8e8", text: "#a53e3e", badge: "KLAIM" },
+  claim: { bg: "#ffffff", border: "#c95353", badgeBg: "#f9e8e8", text: "#a53e3e", badge: "BERKAS KLAIM" },
   doctor: { bg: "#ffffff", border: "#076641", badgeBg: "#e2eee5", text: "#076641", badge: "DOKTER (DPJP)" },
-  facility: { bg: "#ffffff", border: "#098a58", badgeBg: "#e5f4ec", text: "#098a58", badge: "FASKES" },
-  patient: { bg: "#ffffff", border: "#80729c", badgeBg: "#e8e3f3", text: "#5c4f78", badge: "PASIEN (HASH)" },
-  diagnosis: { bg: "#ffffff", border: "#b2835b", badgeBg: "#f4e4d8", text: "#8c5b30", badge: "DIAGNOSIS" },
+  facility: { bg: "#ffffff", border: "#098a58", badgeBg: "#e5f4ec", text: "#098a58", badge: "FASKES MITRA" },
+  patient: { bg: "#ffffff", border: "#80729c", badgeBg: "#e8e3f3", text: "#5c4f78", badge: "PESERTA (ANONIM)" },
+  diagnosis: { bg: "#ffffff", border: "#b2835b", badgeBg: "#f4e4d8", text: "#8c5b30", badge: "DIAGNOSIS (ICD-10)" },
 };
 
 export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, onNodeSelect }) => {
@@ -81,6 +81,17 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
 
     const typeCounters: Record<string, number> = {};
 
+    const formatRelation = (rel: string): string => {
+      const lower = (rel || "").toLowerCase();
+      if (lower.includes("conflict")) return "⚠ Konflik Jadwal Ganda";
+      if (lower.includes("treated") || lower.includes("dpjp") || lower.includes("doctor")) return "Ditangani Oleh";
+      if (lower.includes("diagnos") || lower.includes("icd")) return "Diagnosis Medis";
+      if (lower.includes("admit") || lower.includes("facil")) return "Dirawat Di Faskes";
+      if (lower.includes("refer")) return "Rujukan Faskes";
+      if (lower.includes("belong") || lower.includes("patient")) return "Peserta Pemilik";
+      return rel;
+    };
+
     const flowNodes: Node[] = filteredNodes.map((n, idx) => {
       const t = n.type || "entity";
       const count = typeCounters[t] ?? 0;
@@ -90,7 +101,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
       const pos =
         presets && presets[count]
           ? presets[count]
-          : { x: 140 + (idx % 3) * 250, y: 60 + Math.floor(idx / 3) * 140 };
+          : { x: 140 + (idx % 3) * 260, y: 60 + Math.floor(idx / 3) * 150 };
 
       const styleCfg = NODE_COLORS[t] || {
         bg: "#ffffff",
@@ -117,7 +128,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
                   borderColor: isConflict ? "#eec5c5" : styleCfg.border,
                 }}
               >
-                {isConflict ? "KONFLIK SPASIAL" : styleCfg.badge}
+                {isConflict ? "KONFLIK LOKASI TUNGGAL ⚠" : styleCfg.badge}
               </div>
               <div className="text-xs font-bold text-slate-800 leading-snug break-words">
                 {n.label || n.id}
@@ -130,7 +141,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
           border: `${isSelected ? "3px" : "2px"} solid ${isSelected ? "#098a58" : isConflict ? "#c95353" : styleCfg.border}`,
           borderRadius: "16px",
           padding: "10px 14px",
-          width: 210,
+          width: 220,
           cursor: "pointer",
           boxShadow: isSelected
             ? "0 0 0 3px rgba(9, 138, 88, 0.25), 0 4px 14px rgba(0, 0, 0, 0.1)"
@@ -142,7 +153,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
     });
 
     const flowEdges: Edge[] = filteredEdges.map((e, idx) => {
-      const isConflictEdge = e.relation.includes("conflict");
+      const isConflictEdge = (e.relation || "").toLowerCase().includes("conflict");
       const isHighlighted =
         selectedNodeId && (e.source === selectedNodeId || e.target === selectedNodeId);
 
@@ -150,7 +161,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
         id: `e-${idx}-${e.source}-${e.target}`,
         source: e.source,
         target: e.target,
-        label: e.relation,
+        label: formatRelation(e.relation),
         animated: isConflictEdge || Boolean(isHighlighted),
         style: {
           stroke: isHighlighted
@@ -227,7 +238,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
       </div>
 
       {/* Main Flow Canvas */}
-      <div className="w-full h-[360px] relative">
+      <div className="w-full h-[420px] relative">
         <ReactFlow
           nodes={flowNodes}
           edges={flowEdges}
@@ -270,19 +281,19 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
         {/* Bottom Legend */}
         <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm border border-[#edf0e9] rounded-xl px-3 py-1.5 shadow-sm text-[11px] flex items-center gap-3 text-[#1e241f] font-sans">
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#098a58]"></span> Faskes
+            <span className="w-2.5 h-2.5 rounded-full bg-[#098a58]"></span> Faskes Mitra
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#076641]"></span> Dokter
+            <span className="w-2.5 h-2.5 rounded-full bg-[#076641]"></span> Dokter DPJP
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#c95353]"></span> Klaim
+            <span className="w-2.5 h-2.5 rounded-full bg-[#c95353]"></span> Berkas Klaim
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#80729c]"></span> Pasien
+            <span className="w-2.5 h-2.5 rounded-full bg-[#80729c]"></span> Peserta BPJS
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#b2835b]"></span> Diagnosis
+            <span className="w-2.5 h-2.5 rounded-full bg-[#b2835b]"></span> Diagnosis Medis
           </span>
         </div>
       </div>
