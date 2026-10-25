@@ -6041,3 +6041,33 @@ textarea:focus {
     display: none !important;
   }
 }
+
+/* Fix SVG alignment and centering inside EmptyState and cards */
+.empty-state-icon svg,
+.empty-state-svg,
+.card-icon-center svg {
+  display: inline-block !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  vertical-align: middle;
+}
+
+.empty-state-container {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* Graph Explorer custom styles */
+.graph-select-custom {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.6rem center;
+  background-repeat: no-repeat;
+  background-size: 1.3em 1.3em;
+  padding-right: 2.2rem;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}

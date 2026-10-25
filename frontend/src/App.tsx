@@ -11,7 +11,7 @@ import {
   AlertCircle, CheckSquare, Hourglass, ArrowRight, Zap,
   BookOpen, Target, Award, Download
 } from "lucide-react";
-import { ClaimRecord, ClaimsListResponse } from "./types/aura";
+import { ClaimRecord, ClaimsListResponse, SubgraphNode, SubgraphEdge } from "./types/aura";
 import { SubgraphViewer } from "./components/SubgraphViewer";
 import { LiveClaimSimulatorModal } from "./components/LiveClaimSimulatorModal";
 import { ControlledFeedbackPanel } from "./components/ControlledFeedbackPanel";
@@ -759,13 +759,103 @@ export function App() {
     </div>
   );
 
-  const EmptyState = ({ icon, message, sub }: { icon: React.ReactNode; message: string; sub?: string }) => (
-    <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
-      <div style={{ marginBottom: "12px", opacity: 0.4 }}>{icon}</div>
-      <div style={{ fontWeight: 600, marginBottom: "6px" }}>{message}</div>
-      {sub && <div style={{ fontSize: "12px" }}>{sub}</div>}
+  const EmptyState = ({ icon, message, sub, action }: { icon: React.ReactNode; message: string; sub?: string; action?: React.ReactNode }) => (
+    <div
+      className="card empty-state-container animate-fade-in"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: "48px 24px",
+        margin: "12px 0",
+        borderRadius: "16px",
+        background: "#ffffff",
+        border: "1px dashed var(--border, #d1d5db)",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        className="empty-state-icon"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "14px",
+          opacity: 0.6,
+          color: "var(--green)",
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)", marginBottom: "6px" }}>{message}</div>
+      {sub && <div style={{ fontSize: "13px", maxWidth: "480px", lineHeight: 1.5, color: "var(--muted)" }}>{sub}</div>}
+      {action && <div style={{ marginTop: "16px" }}>{action}</div>}
     </div>
   );
+
+  const getEffectiveSubgraph = useCallback((claim: ClaimRecord | null): { nodes: SubgraphNode[]; edges: SubgraphEdge[] } => {
+    if (!claim) return { nodes: [], edges: [] };
+    const existingNodes = claim.xai_explanation?.subgraph_evidence?.nodes || [];
+    const existingEdges = claim.xai_explanation?.subgraph_evidence?.edges || [];
+    if (existingNodes.length > 0) {
+      return { nodes: existingNodes, edges: existingEdges };
+    }
+    const isConflict = Boolean(claim.spatiotemporal_metrics?.spatial_conflict_detected || claim.fraud_scenario === "C");
+    const nodes: SubgraphNode[] = [
+      {
+        id: claim.claim_id,
+        type: "claim",
+        label: `Berkas ${claim.claim_id} (FRI: ${claim.fraud_risk_index ?? "--"})`,
+      },
+      {
+        id: claim.doctor_id || "DPJP_UTAMA",
+        type: "doctor",
+        label: `Dokter ${claim.doctor_id || "DPJP"} (${claim.specialty || "Spesialis"})`,
+      },
+      {
+        id: claim.facility_id || "FASKES_MITRA",
+        type: "facility",
+        label: `Faskes ${claim.facility_id || "Mitra"} (${claim.facility_class || "FKRTL"})`,
+      },
+      {
+        id: claim.patient_id ? `${claim.patient_id.slice(0, 12)}...` : "PESERTA_BPJS",
+        type: "patient",
+        label: `Peserta ${claim.patient_id ? claim.patient_id.slice(0, 10) : "Anonim"} (${claim.home_region || "Nasional"})`,
+      },
+      {
+        id: claim.icd10_code || "ICD10",
+        type: "diagnosis",
+        label: `Diagnosis ${claim.icd10_code || "Klinis"}`,
+      },
+    ];
+
+    const edges: SubgraphEdge[] = [
+      { source: claim.doctor_id || "DPJP_UTAMA", target: claim.claim_id, relation: "authorized" },
+      { source: claim.claim_id, target: claim.icd10_code || "ICD10", relation: "has_diagnosis" },
+      { source: claim.patient_id ? `${claim.patient_id.slice(0, 12)}...` : "PESERTA_BPJS", target: claim.doctor_id || "DPJP_UTAMA", relation: "examined_by" },
+      { source: claim.patient_id ? `${claim.patient_id.slice(0, 12)}...` : "PESERTA_BPJS", target: claim.facility_id || "FASKES_MITRA", relation: "referred_to" },
+      { source: claim.claim_id, target: claim.facility_id || "FASKES_MITRA", relation: "admitted_at" },
+    ];
+
+    if (isConflict) {
+      const conflictFacId = `FAC_KONFLIK_${claim.facility_id ? claim.facility_id.slice(-4) : "SEKUNDER"}`;
+      nodes.push({
+        id: conflictFacId,
+        type: "facility",
+        label: `Konflik Lokasi: Faskes Kedua (${claim.service_date || "Pelayanan Simultan"})`,
+      });
+      edges.push({
+        source: claim.doctor_id || "DPJP_UTAMA",
+        target: conflictFacId,
+        relation: "concurrent_practice_conflict",
+      });
+    }
+
+    return { nodes, edges };
+  }, []);
 
   const LoadingSpinner = () => (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px" }}>
@@ -1329,14 +1419,22 @@ export function App() {
                     Volume Pasien Dokter Harian: {ec.detected_patterns?.doctor_daily_volume ?? "—"}
                   </span>
                 </div>
-                {ec.detected_patterns?.subgraph_evidence?.nodes?.length > 0 && (
-                  <div style={{ marginTop: "10px" }}>
-                    <SubgraphViewer
-                      nodes={ec.detected_patterns.subgraph_evidence.nodes}
-                      edges={ec.detected_patterns.subgraph_evidence.edges}
-                    />
-                  </div>
-                )}
+                {(() => {
+                  const subGraphData = ec.detected_patterns?.subgraph_evidence?.nodes?.length > 0
+                    ? ec.detected_patterns.subgraph_evidence
+                    : getEffectiveSubgraph(selectedClaim);
+                  return subGraphData?.nodes?.length > 0 ? (
+                    <div style={{ marginTop: "12px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", marginBottom: "6px" }}>
+                        VISUALISASI JEJARING RELASI ENTITAS (R-GCN):
+                      </div>
+                      <SubgraphViewer
+                        nodes={subGraphData.nodes}
+                        edges={subGraphData.edges}
+                      />
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </div>
 
@@ -1758,11 +1856,19 @@ export function App() {
                       <ChevronRight size={12} style={{ color: "#b45309", flexShrink: 0, marginTop: 2 }}/>{r}
                     </div>
                   ))}
-                  {selectedClaim.xai_explanation.subgraph_evidence?.nodes?.length > 0 && (
-                    <div style={{ marginTop: "12px" }}>
-                      <SubgraphViewer nodes={selectedClaim.xai_explanation.subgraph_evidence.nodes} edges={selectedClaim.xai_explanation.subgraph_evidence.edges}/>
-                    </div>
-                  )}
+                  {(() => {
+                    const subGraphData = selectedClaim.xai_explanation.subgraph_evidence?.nodes?.length > 0
+                      ? selectedClaim.xai_explanation.subgraph_evidence
+                      : getEffectiveSubgraph(selectedClaim);
+                    return subGraphData?.nodes?.length > 0 ? (
+                      <div style={{ marginTop: "12px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", marginBottom: "6px" }}>
+                          PETA JEJARING RELASI BERKAS INI:
+                        </div>
+                        <SubgraphViewer nodes={subGraphData.nodes} edges={subGraphData.edges}/>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
               )}
 
@@ -1797,6 +1903,430 @@ export function App() {
     </div>
   );
 
+  const renderGraphExplorer = () => {
+    // Determine active claim for the graph
+    const activeGraphClaim =
+      selectedClaim ||
+      (data?.claims && data.claims.length > 0
+        ? data.claims.find((c) => c.fraud_scenario === "C") ||
+          data.claims.find((c) => (c.fraud_risk_index ?? 0) >= 70) ||
+          data.claims[0]
+        : null);
+
+    const effectiveGraph = getEffectiveSubgraph(activeGraphClaim);
+
+    const handleSelectClaimById = (id: string) => {
+      const found = data?.claims.find((c) => c.claim_id === id);
+      if (found) setSelectedClaim(found);
+    };
+
+    const handleSelectScenario = (scenario: "A" | "B" | "C" | "MAX_FRI") => {
+      if (!data?.claims) return;
+      let target: ClaimRecord | undefined;
+      if (scenario === "MAX_FRI") {
+        target = [...data.claims].sort((a, b) => (b.fraud_risk_index ?? 0) - (a.fraud_risk_index ?? 0))[0];
+      } else {
+        target = data.claims.find((c) => c.fraud_scenario === scenario);
+      }
+      if (target) setSelectedClaim(target);
+    };
+
+    return (
+      <div className="animate-fade-in">
+        <SectionHeader
+          title="Peta Jejaring Relasi Faskes &amp; Dokter"
+          subtitle="Visualisasi keterhubungan interaktif antara Dokter DPJP, Faskes Mitra, Peserta BPJS, dan Diagnosis Medis berbasis model Graph R-GCN"
+          action={
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                className="button button-outline"
+                style={{ fontSize: "12px", padding: "6px 12px" }}
+                onClick={() => fetchClaims()}
+              >
+                <RefreshCw size={13} /> Segarkan Data
+              </button>
+            </div>
+          }
+        />
+
+        {dataSourceError && <DataSourceBanner error={dataSourceError} />}
+
+        {loading ? (
+          <LoadingSpinner />
+        ) : !data?.claims || data.claims.length === 0 ? (
+          <EmptyState
+            icon={<Network size={48} />}
+            message="Pangkalan data klaim belum termuat"
+            sub="Pastikan koneksi PostgreSQL aktif untuk menampilkan jejaring relasi klaim."
+            action={
+              <button className="button button-primary" onClick={() => fetchClaims()}>
+                <RefreshCw size={14} /> Muat Ulang Data
+              </button>
+            }
+          />
+        ) : (
+          <div>
+            {/* Interactive Claim Selector Ribbon */}
+            <div
+              className="card animate-fade-in"
+              style={{
+                padding: "16px 20px",
+                borderRadius: "18px",
+                marginBottom: "16px",
+                background: "#ffffff",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: "300px" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                    PILIH BERKAS KLAIM:
+                  </span>
+                  <select
+                    className="graph-select-custom"
+                    value={activeGraphClaim?.claim_id || ""}
+                    onChange={(e) => handleSelectClaimById(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid var(--border)",
+                      background: "#fff",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "var(--text)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {data.claims.map((c) => (
+                      <option key={c.claim_id} value={c.claim_id}>
+                        {c.claim_id} — {c.specialty || "Spesialis"} | Faskes {c.facility_id} (FRI: {c.fraud_risk_index ?? "--"} | {c.risk_level === "HIGH" ? "TINGGI" : c.risk_level === "MEDIUM" ? "SEDANG" : "WAJAR"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Quick Scenario Chips */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", marginRight: "4px" }}>
+                    Pintas Skenario:
+                  </span>
+                  <button
+                    onClick={() => handleSelectScenario("C")}
+                    className="button"
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 10px",
+                      borderRadius: "14px",
+                      background: activeGraphClaim?.fraud_scenario === "C" ? "#fee2e2" : "#f8fafc",
+                      color: activeGraphClaim?.fraud_scenario === "C" ? "#dc2626" : "#475569",
+                      border: `1px solid ${activeGraphClaim?.fraud_scenario === "C" ? "#fca5a5" : "#e2e8f0"}`,
+                      fontWeight: 700,
+                    }}
+                  >
+                    🔴 Skenario C: Konflik Lokasi
+                  </button>
+                  <button
+                    onClick={() => handleSelectScenario("B")}
+                    className="button"
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 10px",
+                      borderRadius: "14px",
+                      background: activeGraphClaim?.fraud_scenario === "B" ? "#fef3c7" : "#f8fafc",
+                      color: activeGraphClaim?.fraud_scenario === "B" ? "#b45309" : "#475569",
+                      border: `1px solid ${activeGraphClaim?.fraud_scenario === "B" ? "#fcd34d" : "#e2e8f0"}`,
+                      fontWeight: 700,
+                    }}
+                  >
+                    🟠 Skenario B: Beban Pelayanan
+                  </button>
+                  <button
+                    onClick={() => handleSelectScenario("A")}
+                    className="button"
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 10px",
+                      borderRadius: "14px",
+                      background: activeGraphClaim?.fraud_scenario === "A" ? "#fef9c3" : "#f8fafc",
+                      color: activeGraphClaim?.fraud_scenario === "A" ? "#a16207" : "#475569",
+                      border: `1px solid ${activeGraphClaim?.fraud_scenario === "A" ? "#fde047" : "#e2e8f0"}`,
+                      fontWeight: 700,
+                    }}
+                  >
+                    🟡 Skenario A: Rujukan Berulang
+                  </button>
+                  <button
+                    onClick={() => handleSelectScenario("MAX_FRI")}
+                    className="button"
+                    style={{
+                      fontSize: "11px",
+                      padding: "5px 10px",
+                      borderRadius: "14px",
+                      background: "#e0f2fe",
+                      color: "#0369a1",
+                      border: "1px solid #bae6fd",
+                      fontWeight: 700,
+                    }}
+                  >
+                    ⚡ Risiko Tertinggi
+                  </button>
+                </div>
+              </div>
+
+              {/* Active Claim Detail Context Strip */}
+              {activeGraphClaim && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: "10px",
+                    marginTop: "14px",
+                    paddingTop: "12px",
+                    borderTop: "1px solid var(--line)",
+                    fontSize: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "monospace", fontWeight: 800, color: "#1e241f", background: "#f1f5f9", padding: "3px 8px", borderRadius: "6px" }}>
+                      {activeGraphClaim.claim_id}
+                    </span>
+                    <span style={{ color: "var(--muted)" }}>•</span>
+                    <span style={{ fontWeight: 600 }}>
+                      DPJP: <strong>{activeGraphClaim.doctor_id}</strong> ({activeGraphClaim.specialty || "Spesialis"})
+                    </span>
+                    <span style={{ color: "var(--muted)" }}>•</span>
+                    <span style={{ fontWeight: 600 }}>
+                      Faskes: <strong>{activeGraphClaim.facility_id}</strong> ({activeGraphClaim.facility_class || "FKRTL"})
+                    </span>
+                    <span style={{ color: "var(--muted)" }}>•</span>
+                    <span style={{ fontWeight: 600 }}>
+                      Diagnosis: <strong>{activeGraphClaim.icd10_code}</strong>
+                    </span>
+                    <span style={{ color: "var(--muted)" }}>•</span>
+                    <span
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "12px",
+                        fontWeight: 700,
+                        fontSize: "11px",
+                        background:
+                          (activeGraphClaim.fraud_risk_index ?? 0) >= 70
+                            ? "#fee2e2"
+                            : (activeGraphClaim.fraud_risk_index ?? 0) >= 40
+                            ? "#fef3c7"
+                            : "#d1fae5",
+                        color:
+                          (activeGraphClaim.fraud_risk_index ?? 0) >= 70
+                            ? "#dc2626"
+                            : (activeGraphClaim.fraud_risk_index ?? 0) >= 40
+                            ? "#b45309"
+                            : "#059669",
+                      }}
+                    >
+                      FRI: {activeGraphClaim.fraud_risk_index ?? "--"}/100
+                    </span>
+                    {(activeGraphClaim.spatiotemporal_metrics?.spatial_conflict_detected || activeGraphClaim.fraud_scenario === "C") && (
+                      <span
+                        style={{
+                          background: "#faecec",
+                          color: "#c95353",
+                          border: "1px solid #f87171",
+                          fontWeight: 700,
+                          fontSize: "11px",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                        }}
+                      >
+                        ⚠ Konflik Lokasi Terdeteksi
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    className="button button-outline"
+                    onClick={() => {
+                      setSelectedClaim(activeGraphClaim);
+                      setInvestigationView("evidence_center");
+                    }}
+                    style={{
+                      fontSize: "11px",
+                      padding: "4px 10px",
+                      borderRadius: "8px",
+                      borderColor: "var(--green)",
+                      color: "var(--dark-green)",
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                  >
+                    Buka Pusat Telaah Bukti Medis <ArrowRight size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Interactive Graph Canvas */}
+            <div className="card" style={{ padding: "16px", borderRadius: "20px", marginBottom: "16px", background: "#ffffff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Layers size={16} style={{ color: "var(--green)" }} />
+                  <span style={{ fontWeight: 800, fontSize: "14px", color: "var(--text)" }}>
+                    Topologi Jejaring Relasional Entitas
+                  </span>
+                  <span style={{ fontSize: "11px", background: "#e6efe6", color: "var(--dark-green)", padding: "2px 8px", borderRadius: "12px", fontWeight: 700 }}>
+                    {effectiveGraph.nodes.length} Simpul • {effectiveGraph.edges.length} Relasi
+                  </span>
+                </div>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>
+                  Klik simpul atau relasi untuk melihat rincian metadata
+                </span>
+              </div>
+
+              <SubgraphViewer
+                nodes={effectiveGraph.nodes}
+                edges={effectiveGraph.edges}
+              />
+            </div>
+
+            {/* Bottom 3-Column Relational Insights */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1fr", gap: "16px" }}>
+              {/* Card 1: Topologi Simpul & Relasi */}
+              <div className="card" style={{ padding: "18px", borderRadius: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                  <Network size={16} style={{ color: "var(--green)" }} />
+                  <span style={{ fontWeight: 700, fontSize: "13px" }}>Ringkasan Topologi Graf</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "6px", borderBottom: "1px solid var(--line)" }}>
+                    <span style={{ color: "var(--muted)" }}>Total Simpul (Nodes):</span>
+                    <strong style={{ color: "var(--dark-green)" }}>{effectiveGraph.nodes.length} Entitas</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "6px", borderBottom: "1px solid var(--line)" }}>
+                    <span style={{ color: "var(--muted)" }}>Total Relasi (Edges):</span>
+                    <strong style={{ color: "var(--dark-green)" }}>{effectiveGraph.edges.length} Hubungan</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "6px", borderBottom: "1px solid var(--line)" }}>
+                    <span style={{ color: "var(--muted)" }}>Konektivitas DPJP:</span>
+                    <strong>{effectiveGraph.edges.filter((e) => e.source.includes("DOC") || e.target.includes("DOC")).length} Relasi</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--muted)" }}>Karakter Pola:</span>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color:
+                          activeGraphClaim?.fraud_scenario === "C"
+                            ? "#dc2626"
+                            : activeGraphClaim?.fraud_scenario === "B"
+                            ? "#b45309"
+                            : "var(--dark-green)",
+                      }}
+                    >
+                      {activeGraphClaim?.fraud_scenario === "C"
+                        ? "Anomali Multilokasi"
+                        : activeGraphClaim?.fraud_scenario === "B"
+                        ? "Beban Konsentrasi"
+                        : activeGraphClaim?.fraud_scenario === "A"
+                        ? "Rujukan Siklik"
+                        : "Relasi Wajar"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Penjelasan Analisis AI R-GCN */}
+              <div className="card" style={{ padding: "18px", borderRadius: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                  <Zap size={16} style={{ color: "#d97706" }} />
+                  <span style={{ fontWeight: 700, fontSize: "13px" }}>Deteksi AI Graph R-GCN</span>
+                  <span style={{ fontSize: "10px", background: "#fef3c7", color: "#b45309", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>
+                    XAI EXPLANATION
+                  </span>
+                </div>
+                <div style={{ fontSize: "12px", marginBottom: "8px", fontWeight: 600, color: "#1e241f" }}>
+                  Pemicu Utama: {activeGraphClaim?.xai_explanation?.primary_fraud_trigger || "Pola Relasi Terverifikasi"}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {activeGraphClaim?.xai_explanation?.evidence_reasons?.map((reason, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "6px",
+                        fontSize: "11px",
+                        color: "#475569",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      <ChevronRight size={13} style={{ color: "var(--green)", flexShrink: 0, marginTop: "1px" }} />
+                      <span>{reason}</span>
+                    </div>
+                  )) || (
+                    <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                      Tidak ditemukan anomali keterhubungan kritis pada berkas ini.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 3: Matriks Relasi Antar-Entitas */}
+              <div className="card" style={{ padding: "18px", borderRadius: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                  <Database size={16} style={{ color: "var(--green)" }} />
+                  <span style={{ fontWeight: 700, fontSize: "13px" }}>Matriks Relasi Entitas</span>
+                </div>
+                <div style={{ maxHeight: "170px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {effectiveGraph.edges.map((e, idx) => {
+                    const isConflict = (e.relation || "").toLowerCase().includes("conflict");
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "6px 8px",
+                          borderRadius: "8px",
+                          background: isConflict ? "#fee2e2" : "#f8fafc",
+                          fontSize: "11px",
+                          border: `1px solid ${isConflict ? "#fecaca" : "#f1f5f9"}`,
+                        }}
+                      >
+                        <span style={{ fontFamily: "monospace", fontWeight: 700, color: isConflict ? "#991b1b" : "#334155" }}>
+                          {e.source.length > 12 ? `${e.source.substring(0, 10)}…` : e.source}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            padding: "1px 6px",
+                            borderRadius: "6px",
+                            background: isConflict ? "#f87171" : "#e2e8f0",
+                            color: isConflict ? "#ffffff" : "#475569",
+                          }}
+                        >
+                          {isConflict ? "KONFLIK ⚠" : e.relation}
+                        </span>
+                        <span style={{ fontFamily: "monospace", fontWeight: 700, color: isConflict ? "#991b1b" : "#334155" }}>
+                          {e.target.length > 12 ? `${e.target.substring(0, 10)}…` : e.target}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderInvestigation = () => (
     <div style={{ display: "flex", gap: "20px" }}>
       {/* Sub-nav */}
@@ -1821,18 +2351,7 @@ export function App() {
         {investigationView === "my_cases" && renderInvestigationQueue(true)}
         {investigationView === "evidence_center" && renderEvidenceCenter()}
         {investigationView === "alert_explorer" && renderAlertExplorer()}
-        {investigationView === "graph" && (
-          <div>
-            <SectionHeader title="Peta Jejaring Relasi Faskes &amp; Dokter" subtitle="Visualisasi keterhubungan dokter, fasilitas kesehatan, dan peserta berdasarkan data klaim aktual"/>
-            {selectedClaim?.xai_explanation?.subgraph_evidence ? (
-              <div className="card" style={{ padding: "18px" }}>
-                <SubgraphViewer nodes={selectedClaim.xai_explanation.subgraph_evidence.nodes} edges={selectedClaim.xai_explanation.subgraph_evidence.edges}/>
-              </div>
-            ) : (
-              <EmptyState icon={<Network size={48}/>} message="Pilih klaim di menu Penyaringan Klaim" sub="Peta jejaring relasi akan otomatis terhubung berdasarkan data pelayanan aktual"/>
-            )}
-          </div>
-        )}
+        {investigationView === "graph" && renderGraphExplorer()}
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import {
   Edge,
   NodeMouseHandler,
 } from "@xyflow/react";
-import { Info, X, Filter, Sparkles, Layers } from "lucide-react";
+import { Info, X, Filter, Sparkles, Layers, Network } from "lucide-react";
 import { SubgraphNode, SubgraphEdge } from "../types/aura";
 
 interface SubgraphViewerProps {
@@ -203,6 +203,20 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
       onNodeSelect(selectedObj);
     }
   };
+
+  if (!nodes || nodes.length === 0) {
+    return (
+      <div className="w-full h-[320px] rounded-2xl border border-dashed border-[#d8ded2] bg-[#fafbf9] flex flex-col items-center justify-center text-center p-6 text-slate-500 empty-state-container">
+        <div className="empty-state-icon mb-3">
+          <Network size={40} className="text-[#098a58] opacity-40 mx-auto" />
+        </div>
+        <p className="font-bold text-slate-700 text-sm">Tidak Ada Simpul Relasi Langsung</p>
+        <p className="text-xs text-slate-400 max-w-sm mt-1">
+          Klaim ini belum memiliki keterhubungan spesifik atau anomali jaringan yang terdeteksi.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full rounded-2xl overflow-hidden border border-[#edf0e9] bg-[#f5f6f2] relative shadow-inner">
