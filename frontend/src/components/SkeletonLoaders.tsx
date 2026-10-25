@@ -415,12 +415,15 @@ export const SkeletonEvidenceCenter: React.FC = () => (
         border: "1px solid var(--line)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", overflowX: "auto" }}>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-            <SkeletonBox width="24px" height="24px" borderRadius="50%" />
-            <SkeletonBox width="85px" height="12px" borderRadius="4px" />
-            {i < 5 && <span style={{ color: "#cbd5e1" }}>›</span>}
+      <div className="case-progression-grid">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "10px", borderRadius: "12px", border: "1px solid var(--line)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <SkeletonBox width="20px" height="20px" borderRadius="50%" />
+              <SkeletonBox width="28px" height="14px" borderRadius="10px" />
+            </div>
+            <SkeletonBox width="85%" height="12px" borderRadius="4px" />
+            <SkeletonBox width="60%" height="9px" borderRadius="4px" />
           </div>
         ))}
       </div>

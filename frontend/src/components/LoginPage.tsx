@@ -249,16 +249,10 @@ const GeometricBauhausArt: React.FC = () => {
 };
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl }) => {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [username, setUsername] = useState("verifier_aura");
   const [password, setPassword] = useState("verifier_password_2026");
-  const [firstName, setFirstName] = useState("Andi");
-  const [lastName, setLastName] = useState("Pratama");
   const [selectedRole, setSelectedRole] = useState("VERIFIKATOR");
-  const [selectedMonth, setSelectedMonth] = useState("January");
-  const [dobDay, setDobDay] = useState("15");
-  const [dobYear, setDobYear] = useState("1988");
-  const [countryRegion, setCountryRegion] = useState("Indonesia (Kantor Pusat BPJS Kesehatan)");
+  const [rememberMe, setRememberMe] = useState(true);
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -314,8 +308,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
     setUsername(acc.username);
     setPassword(acc.password);
     setSelectedRole(acc.role);
-    setFirstName(acc.fullName.split(" ")[0]);
-    setLastName(acc.fullName.split(" ").slice(1).join(" "));
     handleSubmit(undefined, acc.username, acc.password);
   };
 
@@ -325,8 +317,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
     if (matched) {
       setUsername(matched.username);
       setPassword(matched.password);
-      setFirstName(matched.fullName.split(" ")[0]);
-      setLastName(matched.fullName.split(" ").slice(1).join(" "));
     }
   };
 
@@ -447,11 +437,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
           {/* Right Column: Clean Minimalist Form                           */}
           {/* ------------------------------------------------------------- */}
           <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-            {/* Form Title & Switch Link */}
+            {/* Form Title & Subtitle */}
             <div>
               <h1
                 style={{
-                  fontSize: "32px",
+                  fontSize: "30px",
                   fontWeight: 800,
                   color: "#1E293B",
                   letterSpacing: "-0.03em",
@@ -459,58 +449,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                   lineHeight: 1.2,
                 }}
               >
-                {mode === "signin" ? "Masuk ke Akun" : "Create an account"}
+                Masuk ke Akun
               </h1>
               <p
                 style={{
-                  fontSize: "14px",
+                  fontSize: "13.5px",
                   color: "#64748B",
-                  marginTop: "8px",
+                  marginTop: "6px",
                   marginBottom: 0,
                   fontWeight: 500,
                 }}
               >
-                {mode === "signin" ? (
-                  <>
-                    Belum memiliki akses dinas?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("signup");
-                        setErrorMsg(null);
-                      }}
-                      style={{
-                        color: "#0284C7",
-                        fontWeight: 600,
-                        textDecoration: "none",
-                        padding: 0,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Daftar Petugas Baru
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("signin");
-                        setErrorMsg(null);
-                      }}
-                      style={{
-                        color: "#0284C7",
-                        fontWeight: 600,
-                        textDecoration: "none",
-                        padding: 0,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Sign in
-                    </button>
-                  </>
-                )}
+                Portal Masuk Petugas & Verifikator Resmi BPJS Kesehatan
               </p>
             </div>
 
@@ -556,7 +506,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
               </div>
             )}
 
-            {/* Form Fields */}
+            {/* Form Fields (Login Only) */}
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Field 1: Email / Username */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -567,13 +517,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                     color: "#64748B",
                   }}
                 >
-                  {mode === "signin" ? "Email address / NIP" : "Email address"}
+                  Email address / NIP Petugas
                 </label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={mode === "signin" ? "verifier_aura / nama@bpjs-kesehatan.go.id" : "nama.petugas@bpjs-kesehatan.go.id"}
+                  placeholder="verifier_aura / nama@bpjs-kesehatan.go.id"
                   required
                   style={{
                     width: "100%",
@@ -592,65 +542,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                 />
               </div>
 
-              {/* Field 2 (Signup Mode): First Name & Last Name */}
-              {mode === "signup" && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
-                      First name
-                    </label>
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="Andi"
-                      style={{
-                        width: "100%",
-                        padding: "8px 0",
-                        border: "none",
-                        borderBottom: "1.5px solid #E2E8F0",
-                        fontSize: "15px",
-                        color: "#1E293B",
-                        fontWeight: 500,
-                        outline: "none",
-                        backgroundColor: "transparent",
-                      }}
-                      onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
-                      onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
-                    />
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
-                      Last name
-                    </label>
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Pratama"
-                      style={{
-                        width: "100%",
-                        padding: "8px 0",
-                        border: "none",
-                        borderBottom: "1.5px solid #E2E8F0",
-                        fontSize: "15px",
-                        color: "#1E293B",
-                        fontWeight: 500,
-                        outline: "none",
-                        backgroundColor: "transparent",
-                      }}
-                      onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
-                      onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Field 3: Password with Eye Toggle */}
+              {/* Field 2: Password with Eye Toggle */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
-                  Password
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                    Password
+                  </label>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                    onClick={() => setErrorMsg("Untuk reset kredensial kedinasan, silakan hubungi Administrator IT Keamanan BPJS Kesehatan.")}
+                  >
+                    Lupa sandi?
+                  </span>
+                </div>
                 <div style={{ position: "relative", width: "100%" }}>
                   <input
                     type={showPassword ? "text" : "password"}
@@ -695,134 +604,35 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                 </div>
               </div>
 
-              {/* Field 4 (Signup Mode): Date of birth */}
-              {mode === "signup" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
-                      Date of birth
-                    </label>
-                    <Info size={14} style={{ color: "#65A30D" }} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: "16px" }}>
-                    <div style={{ position: "relative" }}>
-                      <select
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "8px 24px 8px 0",
-                          border: "none",
-                          borderBottom: "1.5px solid #E2E8F0",
-                          fontSize: "14px",
-                          color: "#1E293B",
-                          backgroundColor: "transparent",
-                          outline: "none",
-                          appearance: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", color: "#64748B", pointerEvents: "none" }} />
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={dobDay}
-                        onChange={(e) => setDobDay(e.target.value)}
-                        placeholder="Day"
-                        style={{
-                          width: "100%",
-                          padding: "8px 0",
-                          border: "none",
-                          borderBottom: "1.5px solid #E2E8F0",
-                          fontSize: "14px",
-                          color: "#1E293B",
-                          backgroundColor: "transparent",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={dobYear}
-                        onChange={(e) => setDobYear(e.target.value)}
-                        placeholder="Year"
-                        style={{
-                          width: "100%",
-                          padding: "8px 0",
-                          border: "none",
-                          borderBottom: "1.5px solid #E2E8F0",
-                          fontSize: "14px",
-                          color: "#1E293B",
-                          backgroundColor: "transparent",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Field 5: Country / Region (Styled as Unit Kerja / Peran Kedinasan) */}
+              {/* Field 3: Unit Kerja / Peran Kedinasan */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
-                  {mode === "signin" ? "Unit Kerja / Peran Kedinasan" : "Country/Region"}
+                  Unit Kerja / Peran Kedinasan
                 </label>
                 <div style={{ position: "relative" }}>
-                  {mode === "signin" ? (
-                    <select
-                      value={selectedRole}
-                      onChange={(e) => handleRoleDropdownChange(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "8px 24px 8px 0",
-                        border: "none",
-                        borderBottom: "1.5px solid #E2E8F0",
-                        fontSize: "14px",
-                        color: "#1E293B",
-                        fontWeight: 600,
-                        backgroundColor: "transparent",
-                        outline: "none",
-                        appearance: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {PRESET_ACCOUNTS.map((acc) => (
-                        <option key={acc.role} value={acc.role}>
-                          {acc.label} ({acc.fullName})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <select
-                      value={countryRegion}
-                      onChange={(e) => setCountryRegion(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "8px 24px 8px 0",
-                        border: "none",
-                        borderBottom: "1.5px solid #E2E8F0",
-                        fontSize: "14px",
-                        color: "#1E293B",
-                        fontWeight: 600,
-                        backgroundColor: "transparent",
-                        outline: "none",
-                        appearance: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <option value="Indonesia (Kantor Pusat BPJS Kesehatan)">Indonesia (Kantor Pusat BPJS Kesehatan)</option>
-                      <option value="Kedeputian Wilayah Jawa Barat">Kedeputian Wilayah Jawa Barat</option>
-                      <option value="Kedeputian Wilayah Jawa Tengah & DIY">Kedeputian Wilayah Jawa Tengah & DIY</option>
-                      <option value="Kedeputian Wilayah Jawa Timur">Kedeputian Wilayah Jawa Timur</option>
-                      <option value="Kedeputian Wilayah Sumatera Utara">Kedeputian Wilayah Sumatera Utara</option>
-                    </select>
-                  )}
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => handleRoleDropdownChange(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 24px 8px 0",
+                      border: "none",
+                      borderBottom: "1.5px solid #E2E8F0",
+                      fontSize: "14px",
+                      color: "#1E293B",
+                      fontWeight: 600,
+                      backgroundColor: "transparent",
+                      outline: "none",
+                      appearance: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {PRESET_ACCOUNTS.map((acc) => (
+                      <option key={acc.role} value={acc.role}>
+                        {acc.label} ({acc.fullName})
+                      </option>
+                    ))}
+                  </select>
                   <ChevronDown
                     size={15}
                     style={{
@@ -838,62 +648,77 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
               </div>
 
               {/* Quick Preset Selector for Healthkathon Judges */}
-              {mode === "signin" && (
-                <div style={{ marginTop: "4px" }}>
-                  <div
+              <div style={{ marginTop: "2px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <span
                     style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#64748B",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: "8px",
+                      gap: "5px",
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: "#64748B",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                      }}
-                    >
-                      <Sparkles size={12} style={{ color: "#65A30D" }} /> Akses Demo Juri (1-Klik):
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                    {PRESET_ACCOUNTS.map((acc) => {
-                      const isSelected = username === acc.username;
-                      return (
-                        <button
-                          key={acc.role}
-                          type="button"
-                          onClick={() => handleSelectPreset(acc)}
-                          style={{
-                            padding: "6px 12px",
-                            borderRadius: "9999px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            backgroundColor: isSelected ? "#F0FDF4" : "#F8FAFC",
-                            color: isSelected ? "#15803D" : "#475569",
-                            border: isSelected ? "1.5px solid #84CC16" : "1px solid #E2E8F0",
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "5px",
-                            transition: "all 0.15s ease",
-                          }}
-                        >
-                          {isSelected && <Check size={12} />}
-                          {acc.label.replace("Petugas ", "")}
-                        </button>
-                      );
-                    })}
-                  </div>
+                    <Sparkles size={12} style={{ color: "#65A30D" }} /> Akses Demo Juri (1-Klik):
+                  </span>
                 </div>
-              )}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {PRESET_ACCOUNTS.map((acc) => {
+                    const isSelected = username === acc.username;
+                    return (
+                      <button
+                        key={acc.role}
+                        type="button"
+                        onClick={() => handleSelectPreset(acc)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "9999px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          backgroundColor: isSelected ? "#F0FDF4" : "#F8FAFC",
+                          color: isSelected ? "#15803D" : "#475569",
+                          border: isSelected ? "1.5px solid #84CC16" : "1px solid #E2E8F0",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "5px",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {isSelected && <Check size={12} />}
+                        {acc.label.replace("Petugas ", "")}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Remember Me Checkbox */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ accentColor: "#65A30D", cursor: "pointer" }}
+                />
+                <label
+                  htmlFor="rememberMe"
+                  style={{ fontSize: "12.5px", color: "#64748B", cursor: "pointer", userSelect: "none" }}
+                >
+                  Ingat sesi verifikator pada browser ini
+                </label>
+              </div>
 
               {/* Disclaimer / Terms text */}
               <p
@@ -901,20 +726,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                   fontSize: "12px",
                   color: "#94A3B8",
                   lineHeight: 1.5,
-                  margin: "6px 0 0 0",
+                  margin: "4px 0 0 0",
                 }}
               >
-                By clicking {mode === "signin" ? "Sign in" : "Create account"}, I agree that:
-                <br />
-                I have read and accepted the{" "}
-                <span style={{ color: "#0284C7", cursor: "pointer", fontWeight: 500 }}>
-                  Terms of Use
-                </span>
-                . See our{" "}
-                <span style={{ color: "#0284C7", cursor: "pointer", fontWeight: 500 }}>
-                  Privacy Policy
-                </span>{" "}
-                for more details or to opt-out at any time (UU PDP No. 27/2022).
+                Dengan masuk ke sistem, Anda tunduk pada Kebijakan Keamanan Informasi BPJS Kesehatan dan UU Perlindungan Data Pribadi (UU PDP No. 27/2022). Akses dicatat dalam jejak audit digital.
               </p>
 
               {/* Submit Button (Pill Button bottom-right aligned matching design) */}
@@ -933,7 +748,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                     color: "#FFFFFF",
                     fontSize: "14px",
                     fontWeight: 700,
-                    padding: "12px 32px",
+                    padding: "12px 36px",
                     borderRadius: "9999px",
                     boxShadow: "0 8px 20px -4px rgba(101, 163, 13, 0.4)",
                     display: "inline-flex",
@@ -945,11 +760,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                   onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#4D7C0F")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#65A30D")}
                 >
-                  {loading
-                    ? "Memverifikasi..."
-                    : mode === "signin"
-                    ? "Sign in"
-                    : "Create account"}
+                  {loading ? "Memverifikasi..." : "Sign in"}
+                  <ArrowRight size={16} />
                 </button>
               </div>
             </form>

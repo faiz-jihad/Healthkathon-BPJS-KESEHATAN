@@ -1489,26 +1489,16 @@ export function App() {
         }
       />
 
-      {/* Workflow Stepper Pipeline */}
-      <div
-        className="card animate-fade-in"
-        style={{
-          padding: "16px 20px",
-          borderRadius: "20px",
-          background: "var(--surface)",
-          border: "1px solid var(--line)",
-          marginBottom: "18px",
-          boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
+      {/* Workflow Stepper Pipeline: 7-Stage BPJS Healthcare Workflow (Zero Cut-Off, Full Visibility) */}
+      <div className="card workflow-pipeline-card animate-fade-in">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
           <div>
             <div style={{ fontSize: "12px", fontWeight: 800, color: "var(--dark-green)", display: "flex", alignItems: "center", gap: "6px" }}>
               <GitBranch size={15} className="text-green" />
-              ALUR TAHAPAN PENANGANAN BERKAS (WORKFLOW STEPPER)
+              ALUR TAHAPAN PENANGANAN BERKAS (WORKFLOW PIPELINE)
             </div>
             <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>
-              Pilih tahapan untuk menyaring berkas antrean sesuai urutan siklus penelaahan klaim
+              Saring berkas antrean sesuai tahapan siklus penelaahan klaim BPJS Kesehatan
             </div>
           </div>
           <button
@@ -1516,124 +1506,62 @@ export function App() {
             onClick={() => setCaseStatusFilter("ALL")}
             className="button button-secondary"
             style={{
-              minHeight: "30px",
-              padding: "4px 12px",
+              minHeight: "32px",
+              padding: "4px 14px",
               fontSize: "11.5px",
-              borderRadius: "16px",
+              borderRadius: "14px",
               border: `1.5px solid ${caseStatusFilter === "ALL" ? "var(--green)" : "var(--line)"}`,
-              background: caseStatusFilter === "ALL" ? "#e6efe6" : "#ffffff",
+              background: caseStatusFilter === "ALL" ? "#eef7f2" : "#ffffff",
               color: caseStatusFilter === "ALL" ? "var(--dark-green)" : "#475569",
-              fontWeight: caseStatusFilter === "ALL" ? 800 : 500,
+              fontWeight: caseStatusFilter === "ALL" ? 800 : 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.15s ease",
             }}
           >
             <span>Semua Tahapan</span>
-            <strong style={{ marginLeft: "4px", padding: "1px 6px", borderRadius: "10px", background: caseStatusFilter === "ALL" ? "var(--green)" : "#f1f5f9", color: caseStatusFilter === "ALL" ? "#ffffff" : "#475569", fontSize: "10px" }}>
+            <strong style={{ padding: "1px 7px", borderRadius: "10px", background: caseStatusFilter === "ALL" ? "var(--green)" : "#f1f5f9", color: caseStatusFilter === "ALL" ? "#ffffff" : "#475569", fontSize: "10.5px" }}>
               {cases.length}
             </strong>
           </button>
         </div>
 
-        {/* Stepper Track */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            overflowX: "auto",
-            paddingBottom: "6px",
-            paddingTop: "2px",
-            scrollbarWidth: "thin",
-          }}
-        >
-          {WORKFLOW_STEPS.map((step, idx) => {
+        {/* Stepper Pipeline: 7-Column Responsive Grid (No Overflow, Zero Cut-Off) */}
+        <div className="workflow-pipeline-grid">
+          {WORKFLOW_STEPS.map((step) => {
             const count = Number(caseQueueSummary[step.key] ?? 0);
             const isSelected = caseStatusFilter === step.key;
             return (
-              <React.Fragment key={step.key}>
-                <button
-                  type="button"
-                  onClick={() => setCaseStatusFilter(isSelected ? "ALL" : step.key)}
-                  className="card-interactive"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "10px 14px",
-                    borderRadius: "16px",
-                    background: isSelected ? step.bg : "#ffffff",
-                    border: `2px solid ${isSelected ? step.color : "var(--line)"}`,
-                    boxShadow: isSelected
-                      ? `0 4px 12px ${step.color}25`
-                      : "0 1px 3px rgba(0,0,0,0.03)",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    textAlign: "left",
-                    transition: "all 0.18s cubic-bezier(0.16, 1, 0.3, 1)",
-                  }}
-                  title={`Klik untuk menyaring Tahap ${step.stepNumber}: ${step.label} (${count} berkas)`}
-                >
-                  {/* Step Number Circle */}
-                  <div
-                    style={{
-                      width: "24px",
-                      height: "24px",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "11px",
-                      fontWeight: 800,
-                      background: isSelected ? step.color : count > 0 ? step.bg : "#f1f5f9",
-                      color: isSelected ? "#ffffff" : step.color,
-                      border: `1.5px solid ${step.color}`,
-                      flexShrink: 0,
-                    }}
-                  >
+              <button
+                key={step.key}
+                type="button"
+                onClick={() => setCaseStatusFilter(isSelected ? "ALL" : step.key)}
+                className={`workflow-step-btn ${isSelected ? "is-active" : ""}`}
+                title={`Klik untuk menyaring Tahap ${step.stepNumber}: ${step.label} (${count} berkas)`}
+              >
+                {/* Top Row: Step Number & Count Badge */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <div className="workflow-step-num">
                     {step.stepNumber}
                   </div>
-
-                  {/* Label & Description */}
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 700, color: isSelected ? step.color : "#1e241f", whiteSpace: "nowrap" }}>
-                      <span style={{ color: step.color }}>{step.icon}</span>
-                      <span>{step.label}</span>
-                    </div>
-                    <div style={{ fontSize: "10px", color: "var(--muted)", whiteSpace: "nowrap", marginTop: "1px" }}>
-                      {step.description}
-                    </div>
-                  </div>
-
-                  {/* Count Badge */}
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 800,
-                      padding: "2px 8px",
-                      borderRadius: "10px",
-                      background: count > 0 ? (isSelected ? "#ffffff" : step.bg) : "#f1f5f9",
-                      color: count > 0 ? step.color : "#94a3b8",
-                      border: `1px solid ${count > 0 ? step.color : "#e2e8f0"}`,
-                      marginLeft: "4px",
-                      minWidth: "20px",
-                      textAlign: "center",
-                    }}
-                  >
+                  <div className={`workflow-step-badge ${count > 0 ? "has-count" : ""}`}>
                     {count}
                   </div>
-                </button>
+                </div>
 
-                {/* Connector Arrow */}
-                {idx < WORKFLOW_STEPS.length - 1 && (
-                  <ChevronRight
-                    size={16}
-                    style={{
-                      color: "var(--muted)",
-                      opacity: 0.5,
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-              </React.Fragment>
+                {/* Middle & Bottom: Title with Icon and Context Description */}
+                <div style={{ marginTop: "6px" }}>
+                  <div className="workflow-step-title" style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                    <span style={{ color: isSelected ? "var(--green)" : "#475569", flexShrink: 0 }}>{step.icon}</span>
+                    <span>{step.label}</span>
+                  </div>
+                  <div className="workflow-step-desc">
+                    {step.description}
+                  </div>
+                </div>
+              </button>
             );
           })}
         </div>
@@ -1715,50 +1643,64 @@ export function App() {
             <GitBranch size={13} className="text-green" />
             TAHAPAN PROSES BERKAS INI SAAT INI:
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
+          <div className="case-progression-grid">
             {WORKFLOW_STEPS.map((s, idx) => {
               const currentStatus = ec?.case_summary?.status || selectedCase.status;
               const currentIndex = WORKFLOW_STEPS.findIndex(st => st.key === currentStatus);
               const isPassed = idx < currentIndex;
               const isCurrent = s.key === currentStatus;
               return (
-                <React.Fragment key={s.key}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 10px",
-                      borderRadius: "12px",
-                      background: isCurrent ? s.bg : isPassed ? "#f0fdf4" : "#f8fafc",
-                      border: `1.5px solid ${isCurrent ? s.color : isPassed ? "#bbf7d0" : "#e2e8f0"}`,
-                      color: isCurrent ? s.color : isPassed ? "#166534" : "#94a3b8",
-                      fontSize: "11px",
-                      fontWeight: isCurrent ? 800 : 600,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span style={{
-                      width: "18px",
-                      height: "18px",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "10px",
-                      background: isCurrent ? s.color : isPassed ? "#16a34a" : "#cbd5e1",
-                      color: "#ffffff",
-                      fontWeight: 800,
-                    }}>
+                <div
+                  key={s.key}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    padding: "8px 10px",
+                    borderRadius: "12px",
+                    background: isCurrent ? "#ffffff" : isPassed ? "#f0fdf4" : "#f8fafc",
+                    border: `1.5px solid ${isCurrent ? "var(--green)" : isPassed ? "#bbf7d0" : "#e2e8f0"}`,
+                    boxShadow: isCurrent ? "0 4px 12px rgba(9, 138, 88, 0.10)" : "none",
+                    position: "relative",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "10px",
+                        background: isCurrent ? "var(--green)" : isPassed ? "#16a34a" : "#e2e8f0",
+                        color: isPassed || isCurrent ? "#ffffff" : "#64748b",
+                        fontWeight: 800,
+                      }}
+                    >
                       {isPassed ? "✓" : s.stepNumber}
                     </span>
-                    <span>{s.label}</span>
-                    {isCurrent && <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "6px", background: s.color, color: "#fff", fontWeight: 800 }}>POSISI BERKAS</span>}
+                    {isCurrent && (
+                      <span style={{ fontSize: "8.5px", padding: "1px 5px", borderRadius: "6px", background: "var(--green)", color: "#fff", fontWeight: 800 }}>
+                        AKTIF
+                      </span>
+                    )}
+                    {isPassed && (
+                      <span style={{ fontSize: "9px", color: "#16a34a", fontWeight: 700 }}>
+                        SELESAI
+                      </span>
+                    )}
                   </div>
-                  {idx < WORKFLOW_STEPS.length - 1 && (
-                    <ChevronRight size={14} style={{ color: isPassed ? "#16a34a" : "var(--muted)", opacity: 0.5, flexShrink: 0 }} />
-                  )}
-                </React.Fragment>
+                  <div style={{ marginTop: "4px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: isCurrent ? 800 : 700, color: isCurrent ? "#076641" : isPassed ? "#166534" : "#475569", lineHeight: 1.25 }}>
+                      {s.label}
+                    </div>
+                    <div style={{ fontSize: "9.5px", color: isCurrent ? "#098a58" : "var(--muted)", marginTop: "2px" }}>
+                      {s.description}
+                    </div>
+                  </div>
+                </div>
               );
             })}
           </div>
