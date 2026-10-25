@@ -47,9 +47,10 @@ export const ControlledFeedbackPanel: React.FC<ControlledFeedbackPanelProps> = (
   const vm = feedbackData?.summary?.verified_metrics;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+    <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
       {/* Top Info & Export Buttons */}
       <div
+        className="card-interactive"
         style={{
           padding: "12px 16px",
           borderRadius: "16px",
@@ -104,23 +105,23 @@ export const ControlledFeedbackPanel: React.FC<ControlledFeedbackPanelProps> = (
       {/* Summary Metrics */}
       {feedbackData && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-          <div style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface)" }}>
+          <div className="card-interactive" style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface)" }}>
             <small className="muted" style={{ fontSize: "10px", display: "block" }}>TOTAL REVIEW</small>
             <strong style={{ fontSize: "18px" }}>{feedbackData.summary.total_reviews}</strong>
           </div>
-          <div style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface)" }}>
+          <div className="card-interactive" style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface)" }}>
             <small className="muted" style={{ fontSize: "10px", display: "block" }}>SIAP RETRAINING (0/1)</small>
             <strong style={{ fontSize: "18px", color: "var(--dark-green)" }}>
               {feedbackData.summary.labeled_for_retraining_count}
             </strong>
           </div>
-          <div style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "#faecec" }}>
+          <div className="card-interactive" style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "#faecec" }}>
             <small style={{ fontSize: "10px", display: "block", color: "#a53e3e" }}>LABEL 1 (FRAUD)</small>
             <strong style={{ fontSize: "18px", color: "#c95353" }}>
               {feedbackData.summary.confirmed_fraud_label_1_count}
             </strong>
           </div>
-          <div style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "#e5f4ec" }}>
+          <div className="card-interactive" style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "#e5f4ec" }}>
             <small style={{ fontSize: "10px", display: "block", color: "var(--dark-green)" }}>LABEL 0 (SAH)</small>
             <strong style={{ fontSize: "18px", color: "var(--dark-green)" }}>
               {feedbackData.summary.legitimate_label_0_count}

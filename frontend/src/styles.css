@@ -111,6 +111,149 @@ textarea:focus {
   letter-spacing: 1.5px;
   color: var(--muted);
 }
+
+/* ============================================================
+   AURA-JKN: ORGANIC & FLUID ANIMATION SYSTEM (NON-STIFF)
+   ============================================================ */
+
+@keyframes smoothFadeIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.992);
+    filter: blur(1.5px);
+  }
+  60% {
+    opacity: 0.94;
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes smoothFadeInRight {
+  0% {
+    opacity: 0;
+    transform: translate3d(14px, 0, 0) scale(0.992);
+    filter: blur(1.5px);
+  }
+  60% {
+    opacity: 0.94;
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes gentleSlideDown {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.985);
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0px);
+  }
+}
+
+@keyframes popInSoft {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translate3d(0, 4px, 0);
+  }
+  70% {
+    transform: scale(1.008);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-in {
+  animation: smoothFadeIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.animate-fade-in-right {
+  animation: smoothFadeInRight 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.animate-slide-down {
+  animation: gentleSlideDown 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+.animate-pop-in {
+  animation: popInSoft 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+/* Stagger delay classes for organic rippling cascade */
+.stagger-1  { animation-delay: 25ms; }
+.stagger-2  { animation-delay: 50ms; }
+.stagger-3  { animation-delay: 75ms; }
+.stagger-4  { animation-delay: 100ms; }
+.stagger-5  { animation-delay: 125ms; }
+.stagger-6  { animation-delay: 150ms; }
+.stagger-7  { animation-delay: 175ms; }
+.stagger-8  { animation-delay: 200ms; }
+.stagger-9  { animation-delay: 225ms; }
+.stagger-10 { animation-delay: 250ms; }
+.stagger-11 { animation-delay: 275ms; }
+.stagger-12 { animation-delay: 300ms; }
+
+/* Interactive Hoverable Cards & Items (Smooth, Non-Stiff Feedback) */
+.card-interactive {
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  will-change: transform, box-shadow;
+}
+.card-interactive:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -6px rgba(9, 138, 88, 0.10), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+  border-color: #bfe0d0 !important;
+}
+.card-interactive:active {
+  transform: translateY(-0.5px) scale(0.996);
+  box-shadow: 0 4px 12px -2px rgba(9, 138, 88, 0.08);
+  transition-duration: 0.1s;
+}
+
+/* Micro-interaction on card child icons */
+.card-interactive:hover .metric-icon-animated {
+  transform: scale(1.14) rotate(4deg);
+  color: var(--green) !important;
+}
+
+/* Interactive List Items (e.g. Claim List & Case Queue) */
+.list-item-hover {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  will-change: transform, box-shadow;
+}
+.list-item-hover:hover {
+  transform: translateX(4px);
+  border-color: var(--green) !important;
+  box-shadow: 0 4px 14px -2px rgba(9, 138, 88, 0.08);
+}
+.list-item-hover:active {
+  transform: translateX(2px) scale(0.992);
+  transition-duration: 0.08s;
+}
+
+
 .topbar {
   height: 78px;
   background: #fff;
@@ -423,13 +566,21 @@ textarea:focus {
   font-weight: 600;
   line-height: 1.4;
   transition:
-    background 0.18s,
-    transform 0.18s,
-    border-color 0.18s;
+    background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   border: 1px solid transparent;
+  will-change: transform;
+}
+.button:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 14px rgba(9, 138, 88, 0.12);
 }
 .button:active {
-  transform: translateY(1px);
+  transform: translateY(0.5px) scale(0.985);
+  box-shadow: none;
+  transition-duration: 0.08s;
 }
 .button-primary {
   background: var(--green);

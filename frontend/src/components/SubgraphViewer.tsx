@@ -241,7 +241,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
 
         {/* Selected Node Inspection Card */}
         {selectedNodeObj && (
-          <div className="absolute top-3 right-3 bg-white border border-[#cbe3d7] rounded-xl p-3 shadow-lg max-w-[260px] z-10 text-xs animate-in fade-in slide-in-from-top-2">
+          <div className="absolute top-3 right-3 bg-white border border-[#cbe3d7] rounded-xl p-3 shadow-lg max-w-[260px] z-10 text-xs animate-pop-in card-interactive">
             <div className="flex items-center justify-between mb-1.5 border-b pb-1">
               <span className="font-bold text-[#076641] flex items-center gap-1">
                 <Sparkles size={12} />

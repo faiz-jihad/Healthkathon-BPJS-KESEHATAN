@@ -571,11 +571,11 @@ export function App() {
     </span>;
   };
 
-  const MetricCard = ({ title, value, subtitle, color, icon }: { title: string; value: string | number | null; subtitle?: string; color?: string; icon: React.ReactNode }) => (
-    <div className="card" style={{ padding: "18px" }}>
+  const MetricCard = ({ title, value, subtitle, color, icon, className = "" }: { title: string; value: string | number | null; subtitle?: string; color?: string; icon: React.ReactNode; className?: string }) => (
+    <div className={`card card-interactive animate-fade-in ${className}`} style={{ padding: "18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
         <span className="eyebrow" style={{ color: color || undefined }}>{title}</span>
-        <span style={{ color: color || "var(--green)", opacity: 0.8 }}>{icon}</span>
+        <span className="metric-icon-animated" style={{ color: color || "var(--green)", opacity: 0.85, transition: "transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), color 0.28s cubic-bezier(0.16, 1, 0.3, 1)", display: "inline-flex" }}>{icon}</span>
       </div>
       <div style={{ fontSize: "26px", fontWeight: 800, letterSpacing: "-1px", color: color || "inherit" }}>
         {value !== null && value !== undefined ? value : <span style={{ fontSize: "14px", color: "var(--muted)", fontWeight: 500 }}>Belum Tersedia</span>}
@@ -585,7 +585,7 @@ export function App() {
   );
 
   const SectionHeader = ({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+    <div className="animate-fade-in" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
       <div>
         <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h1>
         {subtitle && <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--muted)" }}>{subtitle}</p>}
@@ -644,18 +644,18 @@ export function App() {
 
       {/* KPI Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <MetricCard title="TOTAL KLAIM DATABASE" value={data?.summary.total_claims?.toLocaleString("id-ID") || "—"} subtitle={`Rata-rata FRI: ${data?.summary.avg_fri ?? "—"} • PostgreSQL Live`} icon={<Database size={18}/>}/>
-        <MetricCard title="RISIKO TINGGI (FRI ≥ 70)" value={data?.summary.high_risk_count?.toLocaleString("id-ID") || "—"} subtitle="Perlu telaah prioritas" color="#dc2626" icon={<ShieldAlert size={18}/>}/>
-        <MetricCard title="KASUS TERBUKA" value={perfData?.investigation?.open_cases ?? (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Antrean investigasi aktif" color="#d97706" icon={<ClipboardList size={18}/>}/>
-        <MetricCard title="SELESAI DIINVESTIGASI" value={perfData?.investigation?.throughput_all_time ?? "—"} subtitle="Total kasus resolved + closed" color="#059669" icon={<CheckCircle2 size={18}/>}/>
+        <MetricCard className="stagger-1" title="TOTAL KLAIM DATABASE" value={data?.summary.total_claims?.toLocaleString("id-ID") || "—"} subtitle={`Rata-rata FRI: ${data?.summary.avg_fri ?? "—"} • PostgreSQL Live`} icon={<Database size={18}/>}/>
+        <MetricCard className="stagger-2" title="RISIKO TINGGI (FRI ≥ 70)" value={data?.summary.high_risk_count?.toLocaleString("id-ID") || "—"} subtitle="Perlu telaah prioritas" color="#c95353" icon={<ShieldAlert size={18}/>}/>
+        <MetricCard className="stagger-3" title="KASUS TERBUKA" value={perfData?.investigation?.open_cases ?? (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Antrean investigasi aktif" color="#b45309" icon={<ClipboardList size={18}/>}/>
+        <MetricCard className="stagger-4" title="SELESAI DIINVESTIGASI" value={perfData?.investigation?.throughput_all_time ?? "—"} subtitle="Total kasus resolved + closed" color="#098a58" icon={<CheckCircle2 size={18}/>}/>
       </div>
 
       {/* Second row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <MetricCard title="TARIF KLAIM DITAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Pre-payment gate: REJECT_FOR_HUMAN_REVIEW" color="#076641" icon={<Scale size={18}/>}/>
-        <MetricCard title="MEDIAN WAKTU INVESTIGASI" value={perfData?.investigation?.median_investigation_hours ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dari review dimulai hingga selesai" icon={<Clock size={18}/>}/>
-        <MetricCard title="KELENGKAPAN BUKTI" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Kasus dengan minimal 1 catatan review" color="#0369a1" icon={<BookOpen size={18}/>}/>
-        <MetricCard title="VERSI MODEL AI" value={perfData?.model?.current_version || "1.0.0"} subtitle={`R-GCN PyTorch Geometric • Inferensi terakhir: ${formatDate(perfData?.model?.last_inference)}`} color="#1e3a5f" icon={<Zap size={18}/>}/>
+        <MetricCard className="stagger-5" title="TARIF KLAIM DITAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Pre-payment gate: REJECT_FOR_HUMAN_REVIEW" color="#076641" icon={<Scale size={18}/>}/>
+        <MetricCard className="stagger-6" title="MEDIAN WAKTU INVESTIGASI" value={perfData?.investigation?.median_investigation_hours ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dari review dimulai hingga selesai" icon={<Clock size={18}/>}/>
+        <MetricCard className="stagger-7" title="KELENGKAPAN BUKTI" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Kasus dengan minimal 1 catatan review" color="#0369a1" icon={<BookOpen size={18}/>}/>
+        <MetricCard className="stagger-8" title="VERSI MODEL AI" value={perfData?.model?.current_version || "1.0.0"} subtitle={`R-GCN PyTorch Geometric • Inferensi terakhir: ${formatDate(perfData?.model?.last_inference)}`} color="#1e3a5f" icon={<Zap size={18}/>}/>
       </div>
 
       {/* Data Source Badges */}
@@ -663,14 +663,14 @@ export function App() {
 
       {/* Case Queue Preview */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-        <div className="card" style={{ padding: "18px" }}>
+        <div className="card card-interactive animate-fade-in stagger-9" style={{ padding: "18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px" }}>
             <strong>Antrean Kasus</strong>
             <button className="button button-secondary" style={{ fontSize: "11px", padding: "4px 12px", minHeight: 0 }} onClick={() => { setActiveSection("investigation"); fetchCases(); }}>Lihat Semua →</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {Object.entries(STATUS_CONFIG).slice(0, 5).map(([status, cfg]) => (
-              <div key={status} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: "10px", background: "#f9fafb" }}>
+              <div key={status} className="list-item-hover" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: "10px", background: "#f9fafb" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
                   <span style={{ color: cfg.color }}>{cfg.icon}</span>{cfg.label}
                 </div>
@@ -681,7 +681,7 @@ export function App() {
         </div>
 
         {/* System Health */}
-        <div className="card" style={{ padding: "18px" }}>
+        <div className="card card-interactive animate-fade-in stagger-10" style={{ padding: "18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px" }}>
             <strong>Status Layanan</strong>
             <button className="button button-secondary" style={{ fontSize: "11px", padding: "4px 12px", minHeight: 0 }} onClick={fetchHealth}><RefreshCw size={12}/></button>
@@ -693,7 +693,7 @@ export function App() {
                 { name: "AI Service (R-GCN FastAPI)", status: isAiConnected ? "OK" : "STANDBY" },
                 { name: "Backend API Gateway", status: "OK" },
               ].map(svc => (
-                <div key={svc.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: "10px", background: "#f9fafb" }}>
+                <div key={svc.name} className="list-item-hover" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: "10px", background: "#f9fafb" }}>
                   <span style={{ fontSize: "12px" }}>{svc.name}</span>
                   <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px", background: svc.status === "OK" ? "#d1fae5" : svc.status === "STANDBY" ? "#fef3c7" : "#fee2e2", color: svc.status === "OK" ? "#059669" : svc.status === "STANDBY" ? "#d97706" : "#dc2626" }}>{svc.status}</span>
                 </div>
@@ -770,8 +770,8 @@ export function App() {
         />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {cases.map(c => (
-            <div key={c.id} className="card" style={{ padding: "16px 18px", cursor: "pointer", border: selectedCase?.id === c.id ? "2px solid var(--green)" : "1px solid var(--line)" }}
+          {cases.map((c, idx) => (
+            <div key={c.id} className={`card card-interactive list-item-hover animate-fade-in stagger-${(idx % 6) + 1}`} style={{ padding: "16px 18px", cursor: "pointer", border: selectedCase?.id === c.id ? "2px solid var(--green)" : "1px solid var(--line)" }}
               onClick={() => { setSelectedCase(c); setInvestigationView("evidence_center"); }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1 }}>
@@ -824,9 +824,9 @@ export function App() {
         </div>
 
         {caseDetailLoading ? <LoadingSpinner/> : ec ? (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div key={selectedCase.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             {/* Ringkasan Kasus */}
-            <div className="card" style={{ padding: "18px" }}>
+            <div className="card card-interactive animate-fade-in stagger-1" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                 <Hash size={16} style={{ color: "var(--green)" }}/><strong>Ringkasan Kasus</strong>
               </div>
@@ -848,7 +848,7 @@ export function App() {
             </div>
 
             {/* Fakta Tercatat */}
-            <div className="card" style={{ padding: "18px" }}>
+            <div className="card card-interactive animate-fade-in stagger-2" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                 <Database size={16} style={{ color: "#0284c7" }}/><strong>Fakta Tercatat</strong>
                 <span style={{ fontSize: "10px", background: "#e0f2fe", color: "#0284c7", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>OBSERVED FACT</span>
@@ -865,7 +865,7 @@ export function App() {
             </div>
 
             {/* Pola Terdeteksi */}
-            <div className="card" style={{ padding: "18px" }}>
+            <div className="card card-interactive animate-fade-in stagger-3" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                 <AlertCircle size={16} style={{ color: "#d97706" }}/><strong>Pola Terdeteksi</strong>
                 <span style={{ fontSize: "10px", background: "#fef3c7", color: "#d97706", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>DETECTED PATTERN</span>
@@ -900,7 +900,7 @@ export function App() {
             </div>
 
             {/* Output Model AI */}
-            <div className="card" style={{ padding: "18px" }}>
+            <div className="card card-interactive animate-fade-in stagger-4" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                 <Zap size={16} style={{ color: "var(--green)" }}/><strong>Output Model AI</strong>
                 <span style={{ fontSize: "10px", background: "#e6efe6", color: "var(--dark-green)", padding: "2px 8px", borderRadius: "20px", fontWeight: 700 }}>AI OUTPUT</span>
@@ -925,7 +925,7 @@ export function App() {
             </div>
 
             {/* Temuan Petugas */}
-            <div className="card" style={{ padding: "18px" }}>
+            <div className="card card-interactive animate-fade-in stagger-5" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                 <UserCheck size={16} style={{ color: "#059669" }}/><strong>Temuan Petugas</strong>
                 <span style={{ fontSize: "10px", background: "#d1fae5", color: "#059669", padding: "2px 6px", borderRadius: "8px", fontWeight: 700 }}>INVESTIGATOR FINDING</span>
@@ -947,7 +947,7 @@ export function App() {
             </div>
 
             {/* Tindakan Tersedia */}
-            <div className="card" style={{ padding: "18px" }}>
+            <div className="card card-interactive animate-fade-in stagger-6" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                 <Send size={16} style={{ color: "var(--green)" }}/><strong>Tindakan Tersedia</strong>
               </div>
@@ -1166,8 +1166,9 @@ export function App() {
             <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, marginBottom: "10px", padding: "0 4px" }}>DAFTAR ALERT — {data?.claims.length ?? 0} RECORD</div>
             {(!data?.claims || data.claims.length === 0) ? (
               <EmptyState icon={<Inbox size={32}/>} message="Tidak ada klaim" sub="Coba ubah filter"/>
-            ) : data.claims.map(c => (
+            ) : data.claims.map((c, idx) => (
               <button key={c.claim_id} onClick={() => setSelectedClaim(c)}
+                className={`list-item-hover animate-fade-in stagger-${(idx % 8) + 1}`}
                 style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: "12px", marginBottom: "6px", border: `1px solid ${selectedClaim?.claim_id === c.claim_id ? "var(--green)" : "var(--line)"}`, background: selectedClaim?.claim_id === c.claim_id ? "#e6efe6" : "#fff", cursor: "pointer" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                   <span style={{ fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>{c.claim_id.substring(0, 18)}…</span>
@@ -1194,8 +1195,8 @@ export function App() {
 
           {/* Claim Detail */}
           {selectedClaim ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              <div className="card" style={{ padding: "18px" }}>
+            <div key={selectedClaim.claim_id} className="animate-fade-in-right" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div className="card card-interactive animate-fade-in stagger-1" style={{ padding: "18px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
                   <div>
                     <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 800, fontFamily: "monospace" }}>{selectedClaim.claim_id}</h2>
@@ -1224,7 +1225,7 @@ export function App() {
 
               {/* XAI */}
               {selectedClaim.xai_explanation && (
-                <div className="card" style={{ padding: "18px" }}>
+                <div className="card card-interactive animate-fade-in stagger-2" style={{ padding: "18px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
                     <Zap size={16} style={{ color: "var(--green)" }}/><strong>Output Model AI</strong>
                     <span style={{ fontSize: "10px", background: "#e6efe6", color: "var(--dark-green)", padding: "2px 8px", borderRadius: "20px", fontWeight: 700 }}>AI OUTPUT — Bukan pembuktian fraud</span>
@@ -1247,7 +1248,7 @@ export function App() {
 
               {/* Review Panel */}
               {hasPermission(currentUser.role, ["start_review", "record_decision", "investigate"]) && (
-                <div className="card" style={{ padding: "18px" }}>
+                <div className="card card-interactive animate-fade-in stagger-3" style={{ padding: "18px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                     <Send size={16} style={{ color: "var(--green)" }}/><strong>Catat Review Klaim</strong>
                   </div>
@@ -1295,7 +1296,7 @@ export function App() {
           ))}
         </div>
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div key={investigationView} className="animate-fade-in" style={{ flex: 1, minWidth: 0 }}>
         {investigationView === "queue" && renderInvestigationQueue(false)}
         {investigationView === "my_cases" && renderInvestigationQueue(true)}
         {investigationView === "evidence_center" && renderEvidenceCenter()}
@@ -1400,7 +1401,7 @@ export function App() {
           ))}
         </div>
       </div>
-      <div style={{ flex: 1 }}>
+      <div key={dataView} className="animate-fade-in" style={{ flex: 1 }}>
         {dataView === "ingestion" && renderDataIngestion()}
         {dataView === "quality" && (
           <div>
@@ -1489,7 +1490,7 @@ export function App() {
           ))}
         </div>
       </div>
-      <div style={{ flex: 1 }}>
+      <div key={reportsView} className="animate-fade-in" style={{ flex: 1 }}>
         {reportsView === "performance" && renderPerformanceDashboard()}
         {reportsView === "outcomes" && (
           <div>
@@ -1619,7 +1620,7 @@ export function App() {
               ))}
             </div>
           </div>
-          <div style={{ flex: 1 }}>
+          <div key={adminView} className="animate-fade-in" style={{ flex: 1 }}>
             {adminView === "users" && (
               <div>
                 <SectionHeader title="Kelola Pengguna & RBAC" subtitle="Administrator tidak memiliki hak mengubah hasil investigasi atau menetapkan fraud"/>
@@ -1798,7 +1799,7 @@ export function App() {
               <UserCheck size={14} style={{ color: rCfg.color }}/><span>{rCfg.label}</span><ChevronDown size={13}/>
             </button>
             {roleMenuOpen && (
-              <div className="card" style={{ position: "absolute", right: 0, top: "44px", zIndex: 50, padding: "8px", borderRadius: "16px", width: "240px", boxShadow: "0 10px 25px rgba(0,0,0,0.12)" }}>
+              <div className="card animate-slide-down" style={{ position: "absolute", right: 0, top: "44px", zIndex: 50, padding: "8px", borderRadius: "16px", width: "240px", boxShadow: "0 10px 25px rgba(0,0,0,0.12)" }}>
                 <div style={{ padding: "6px 10px", fontSize: "10px", color: "var(--muted)", fontWeight: 700 }}>GANTI PERAN RBAC:</div>
                 {(["ADMINISTRATOR","VERIFIKATOR","INVESTIGATOR","SUPERVISOR","DATA_ANALYST"] as const).map(role => {
                   const cfg = ROLE_CONFIG[role];
@@ -1849,18 +1850,20 @@ export function App() {
       <main id="main-content" className="main-content">
         {/* Global Review Banner */}
         {reviewBanner && activeSection !== "investigation" && (
-          <div style={{ padding: "12px 16px", borderRadius: "12px", marginBottom: "16px", background: reviewBanner.success ? "#d1fae5" : "#fee2e2", color: reviewBanner.success ? "#059669" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="animate-slide-down" style={{ padding: "12px 16px", borderRadius: "12px", marginBottom: "16px", background: reviewBanner.success ? "#d1fae5" : "#fee2e2", color: reviewBanner.success ? "#059669" : "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: "13px", fontWeight: 600 }}>{reviewBanner.message}</span>
             <button onClick={() => setReviewBanner(null)} className="icon-button"><X size={14}/></button>
           </div>
         )}
 
         {/* Section Router */}
-        {activeSection === "overview" && renderOverview()}
-        {activeSection === "investigation" && renderInvestigation()}
-        {activeSection === "data_intelligence" && renderDataIntelligence()}
-        {activeSection === "reports" && renderReports()}
-        {activeSection === "administration" && renderAdministration()}
+        <div key={activeSection} className="animate-fade-in">
+          {activeSection === "overview" && renderOverview()}
+          {activeSection === "investigation" && renderInvestigation()}
+          {activeSection === "data_intelligence" && renderDataIntelligence()}
+          {activeSection === "reports" && renderReports()}
+          {activeSection === "administration" && renderAdministration()}
+        </div>
       </main>
 
       {/* SIMULATOR MODAL */}

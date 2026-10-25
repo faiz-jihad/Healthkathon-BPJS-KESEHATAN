@@ -189,11 +189,13 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
   return (
     <div
+      className="animate-fade-in"
       style={{
         position: "fixed",
         inset: 0,
         background: "rgba(30, 36, 31, 0.45)",
-        backdropFilter: "blur(3px)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -202,7 +204,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
       }}
     >
       <div
-        className="card"
+        className="card animate-pop-in"
         style={{
           maxWidth: "820px",
           width: "100%",
@@ -211,6 +213,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
           display: "flex",
           flexDirection: "column",
           borderRadius: "28px",
+          boxShadow: "0 24px 60px -12px rgba(0,0,0,0.25)",
         }}
       >
         {/* Header */}
