@@ -70,12 +70,12 @@ fi
 # 7. Periksa & Bebaskan Ruang Disk Sebelum Build
 DISK_AVAIL_MB=$(df -m / 2>/dev/null | awk 'NR==2 {print $4}' || echo "5000")
 echo "💾 Ruang disk tersedia pada partisi root: ${DISK_AVAIL_MB} MB"
-if [ "$DISK_AVAIL_MB" -lt 2500 ]; then
-    echo "⚠️ Ruang disk terbatas (<2.5 GB). Membersihkan cache Docker lama & berkas /tmp..."
+if [ "$DISK_AVAIL_MB" -lt 6000 ]; then
+    echo "⚠️ Ruang disk terbatas (<6.0 GB). Membersihkan cache Docker builder, dangling images, dan berkas sementara..."
     $DOCKER_CMD builder prune -af 2>/dev/null || true
     $DOCKER_CMD system prune -f 2>/dev/null || true
-    sudo rm -rf /tmp/* 2>/dev/null || true
     sudo apt-get clean 2>/dev/null || true
+    sudo rm -rf /tmp/* /var/tmp/* 2>/dev/null || true
 fi
 
 # 8. Build & Start Docker Compose Services
