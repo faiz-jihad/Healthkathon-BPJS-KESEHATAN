@@ -199,7 +199,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "24px",
+        padding: "16px 12px",
         zIndex: 100,
       }}
     >
@@ -208,11 +208,11 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
         style={{
           maxWidth: "820px",
           width: "100%",
-          maxHeight: "88vh",
-          padding: "24px",
+          maxHeight: "92vh",
+          padding: "20px",
           display: "flex",
           flexDirection: "column",
-          borderRadius: "28px",
+          borderRadius: "24px",
           boxShadow: "0 24px 60px -12px rgba(0,0,0,0.25)",
         }}
       >
@@ -311,7 +311,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
         <div style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px" }}>
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
                   Nomor Berkas Klaim:
@@ -530,7 +530,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", fontSize: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px", fontSize: "12px" }}>
                 <div style={{ background: "#ffffff", padding: "10px 12px", borderRadius: "12px", border: "1px solid var(--line)" }}>
                   <small className="muted" style={{ display: "block" }}>Indeks Risiko Anomali (FRI)</small>
                   <strong style={{ fontSize: "15px" }}>

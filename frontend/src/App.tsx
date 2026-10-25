@@ -1355,7 +1355,7 @@ export function App() {
         </div>
 
         {caseDetailLoading ? <LoadingSpinner/> : ec ? (
-          <div key={selectedCase.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div key={selectedCase.id} className="grid-responsive-2">
             {/* Ringkasan Kasus */}
             <div className="card card-interactive animate-fade-in stagger-1" style={{ padding: "18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
@@ -1734,7 +1734,7 @@ export function App() {
       )}
 
       {loading ? <LoadingSpinner/> : (
-        <div style={{ display: "grid", gridTemplateColumns: "350px 1fr", gap: "16px", alignItems: "start" }}>
+        <div className="explorer-layout-grid">
           {/* Claim List */}
           <div className="card" style={{ padding: "14px", maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
             <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, marginBottom: "10px", padding: "0 4px" }}>DAFTAR PENYARINGAN KLAIM — {data?.claims.length ?? 0} BERKAS</div>
@@ -2193,7 +2193,7 @@ export function App() {
             </div>
 
             {/* Bottom 3-Column Relational Insights */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1fr", gap: "16px" }}>
+            <div className="graph-insights-grid">
               {/* Card 1: Topologi Simpul & Relasi */}
               <div className="card" style={{ padding: "18px", borderRadius: "18px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
@@ -2328,10 +2328,10 @@ export function App() {
   };
 
   const renderInvestigation = () => (
-    <div style={{ display: "flex", gap: "20px" }}>
+    <div className="section-with-subnav">
       {/* Sub-nav */}
-      <div style={{ width: "200px", flexShrink: 0 }}>
-        <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div className="subnav-container">
+        <div className="card subnav-card">
           {([
             ["queue", "Antrean Berkas Kasus", <ClipboardList size={16}/>],
             ["my_cases", "Tugas Berkas Saya", <UserCheck size={16}/>],
@@ -2365,7 +2365,7 @@ export function App() {
       <SectionHeader title="Riwayat Penerimaan Berkas Klaim" subtitle="Pencatatan resmi proses penerimaan dan validasi berkas klaim faskes. Semua metrik bersumber dari pangkalan data aktual." action={<button className="button button-secondary" onClick={fetchIngestion} disabled={ingestionLoading}><RefreshCw size={14} className={ingestionLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
       {ingestionLoading ? <LoadingSpinner/> : ingestionData ? (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
             <MetricCard title="TOTAL BERKAS KLAIM" value={ingestionData.database_summary?.total_claims_in_db?.toLocaleString("id-ID")} subtitle="Berkas klaim tersimpan resmi" icon={<Database size={18}/>}/>
             <MetricCard title="TOTAL PESERTA TERLAYANI" value={ingestionData.database_summary?.total_patients_in_db?.toLocaleString("id-ID")} subtitle="Identitas terproteksi UU PDP" icon={<User size={18}/>}/>
             <MetricCard title="DOKTER PENANGGUNG JAWAB (DPJP)" value={ingestionData.database_summary?.total_doctors_in_db?.toLocaleString("id-ID")} subtitle="Profil dokter terdaftar" icon={<Stethoscope size={18}/>}/>
@@ -2381,7 +2381,7 @@ export function App() {
             {ingestionData.batches?.length === 0 ? (
               <EmptyState icon={<Database size={32}/>} message="Belum ada riwayat penerimaan berkas tercatat" sub="Data akan muncul otomatis setelah berkas klaim diimpor"/>
             ) : (
-              <div style={{ overflowX: "auto" }}>
+              <div className="table-responsive" style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                   <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
                     {["ID Gelombang", "Sumber Berkas", "Jenis Pelayanan", "Baris Masuk", "Format Sesuai", "Format Ditolak", "Klaim Ganda", "Status Proses", "Waktu Terima", "Petugas Pengunggah"].map(h => (
@@ -2418,7 +2418,7 @@ export function App() {
   const renderModelEval = () => (
     <div>
       <SectionHeader title="Akurasi Sistem Skrining &amp; Umpan Balik Verifikator" subtitle="Status model deteksi anomali relasi heterogen &amp; ekspor data pembelajaran dari hasil telaah resmi verifikator"/>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px", marginBottom: "20px" }}>
         <MetricCard title="VERSI MODEL AKTIF" value={perfData?.model?.current_version ? `v${perfData.model.current_version}` : "v1.0.0"} subtitle={`Terakhir diperbarui: ${formatDate(perfData?.model?.last_inference)}`} icon={<Zap size={18}/>}/>
         <MetricCard title="CAKUPAN PENAPISAN KLAIM" value={perfData?.data_quality?.assessment_coverage_pct !== undefined ? `${perfData.data_quality.assessment_coverage_pct}%` : null} subtitle="Persentase berkas klaim yang telah diskrining oleh sistem" color="#0284c7" icon={<Target size={18}/>}/>
       </div>
@@ -2429,9 +2429,9 @@ export function App() {
   );
 
   const renderDataIntelligence = () => (
-    <div style={{ display: "flex", gap: "20px" }}>
-      <div style={{ width: "200px", flexShrink: 0 }}>
-        <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
+    <div className="section-with-subnav">
+      <div className="subnav-container">
+        <div className="card subnav-card">
           {([["ingestion", "Penerimaan Berkas", <Database size={16}/>], ["quality", "Validasi Mutu Berkas", <CheckSquare size={16}/>], ["alert_explorer", "Penyaringan Klaim", <AlertCircle size={16}/>], ["model_eval", "Akurasi Skrining", <Zap size={16}/>]] as const).map(([v, l, ic]) => (
             <button key={v} onClick={() => setDataView(v as DataView)}
               style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: dataView === v ? "#e6efe6" : "transparent", color: dataView === v ? "var(--dark-green)" : "#475569", fontWeight: dataView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
@@ -2446,7 +2446,7 @@ export function App() {
           <div>
             <SectionHeader title="Validasi Mutu Berkas Klaim" subtitle="Tingkat kelengkapan, kepatuhan format, dan sebaran tingkat risiko klaim pelayanan"/>
             {perfLoading ? <LoadingSpinner/> : perfData ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
                 <MetricCard title="TOTAL SELURUH KLAIM" value={perfData.data_quality?.total_claims?.toLocaleString("id-ID")} icon={<Database size={18}/>}/>
                 <MetricCard title="SELESAI DISKRINING" value={perfData.data_quality?.assessed_claims?.toLocaleString("id-ID")} subtitle={`Cakupan: ${perfData.data_quality?.assessment_coverage_pct}%`} color="#059669" icon={<CheckCircle2 size={18}/>}/>
                 <MetricCard title="MENUNGGU DISKRINING" value={perfData.data_quality?.not_assessed?.toLocaleString("id-ID")} color="#d97706" icon={<Hourglass size={18}/>}/>
@@ -2496,7 +2496,7 @@ export function App() {
               <strong style={{ fontSize: "13px" }}>Sebaran Tingkat Urgensi Berkas Pemeriksaan</strong>
               <span style={{ fontSize: "11px", color: "var(--muted)" }}>Prioritas tindak lanjut berkas klaim</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginTop: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginTop: "12px" }}>
               {Object.entries(perfData.investigation?.priority_distribution || {}).map(([p, count]) => {
                 const totalPriority = Object.values(perfData.investigation?.priority_distribution || {}).reduce((a: number, b: any) => a + Number(b || 0), 0) || 1;
                 const pct = Math.round((Number(count || 0) / totalPriority) * 100);
@@ -2532,9 +2532,9 @@ export function App() {
   );
 
   const renderReports = () => (
-    <div style={{ display: "flex", gap: "20px" }}>
-      <div style={{ width: "200px", flexShrink: 0 }}>
-        <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
+    <div className="section-with-subnav">
+      <div className="subnav-container">
+        <div className="card subnav-card">
           {([["performance", "Kinerja Operasional", <BarChart3 size={16}/>], ["outcomes", "Hasil Putusan Berkas", <Award size={16}/>], ["model", "Akurasi Skrining", <Zap size={16}/>], ["audit", "Buku Log Audit", <History size={16}/>]] as const).map(([v, l, ic]) => (
             <button key={v} onClick={() => setReportsView(v as ReportsView)}
               style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: reportsView === v ? "#e6efe6" : "transparent", color: reportsView === v ? "var(--dark-green)" : "#475569", fontWeight: reportsView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
@@ -2661,7 +2661,7 @@ export function App() {
   // ============================================================
 
   const renderAdministration = () => (
-    <div style={{ display: "flex", gap: "20px" }}>
+    <div className="section-with-subnav" style={{ width: "100%" }}>
       {currentUser.role !== "ADMINISTRATOR" && (
         <div className="card" style={{ padding: "24px", textAlign: "center", width: "100%" }}>
           <Lock size={32} style={{ color: "var(--muted)", marginBottom: "12px" }}/>
@@ -2671,8 +2671,8 @@ export function App() {
       )}
       {currentUser.role === "ADMINISTRATOR" && (
         <>
-          <div style={{ width: "200px", flexShrink: 0 }}>
-            <div className="card" style={{ padding: "8px", borderRadius: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div className="subnav-container">
+            <div className="card subnav-card">
               {([["users", "Kelola Akun Petugas", <Users size={16}/>], ["health", "Kondisi Infrastruktur", <Activity size={16}/>], ["audit_trail", "Buku Log Audit", <History size={16}/>]] as const).map(([v, l, ic]) => (
                 <button key={v} onClick={() => setAdminView(v as AdminView)}
                   style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: adminView === v ? "#e6efe6" : "transparent", color: adminView === v ? "var(--dark-green)" : "#475569", fontWeight: adminView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
@@ -2710,7 +2710,7 @@ export function App() {
                   </div>
                   <button type="submit" className="button button-primary" style={{ marginTop: "12px" }}>Daftarkan Akun Petugas</button>
                 </form>
-                <div className="card" style={{ padding: "0", overflow: "hidden" }}>
+                <div className="card table-responsive" style={{ padding: "0", overflow: "hidden" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                     <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
                       {["Nama Pengguna", "Nama Lengkap", "Tupoksi / Peran", "Status Akun", "Tanggal Terdaftar", "Tindakan"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
@@ -2738,7 +2738,7 @@ export function App() {
               <div>
                 <SectionHeader title="Kondisi Infrastruktur &amp; Pangkalan Data" subtitle="Status kesiapan server aplikasi dan pangkalan data resmi BPJS" action={<button className="button button-secondary" onClick={fetchHealth}><RefreshCw size={14}/>Periksa Kondisi Sistem</button>}/>
                 {healthStatus ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
                     {[
                       { name: "Pangkalan Data Resmi BPJS (PostgreSQL)", connected: isDbConnected, detail: healthStatus.database },
                       { name: "Layanan Skrining Cerdas Relasi (FastAPI R-GCN)", connected: isAiConnected, detail: healthStatus.ai_engine || healthStatus.ai_service },
@@ -2787,7 +2787,7 @@ export function App() {
                     </div>
                   }/>
                 {auditLoading ? <LoadingSpinner/> : (
-                  <div className="card" style={{ padding: "0", overflow: "hidden" }}>
+                  <div className="card table-responsive" style={{ padding: "0", overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                       <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
                         {["Waktu Aktivitas", "Nama Petugas", "Tupoksi / Peran", "Jenis Tindakan", "Nomor Berkas / Target", "Keterangan Lengkap"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
@@ -2938,6 +2938,35 @@ export function App() {
           fetchCases();
         }}
       />
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav className="mobile-bottom-nav" aria-label="Navigasi Bawah Seluler">
+        {NAV_ITEMS.filter(n => n.roles.includes("all") || n.roles.includes(currentUser.role)).map(n => (
+          <button
+            key={n.key}
+            onClick={() => {
+              setActiveSection(n.key);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className={`mobile-bottom-nav-item ${activeSection === n.key ? "active" : ""}`}
+            aria-label={n.label}
+          >
+            <div className="mobile-nav-icon">{n.icon}</div>
+            <span className="mobile-nav-label">
+              {n.key === "overview" ? "Beranda" : n.key === "investigation" ? "Pemeriksaan" : n.key === "data_intelligence" ? "Pusat Data" : n.key === "reports" ? "Laporan" : "Admin"}
+            </span>
+          </button>
+        ))}
+        <button
+          onClick={() => setShowSimulatorModal(true)}
+          className="mobile-bottom-nav-item"
+          title="Simulasi Pengajuan Klaim"
+          aria-label="Simulasi Pengajuan Klaim"
+        >
+          <div className="mobile-nav-icon" style={{ color: "var(--green)" }}><PlusCircle size={20} /></div>
+          <span className="mobile-nav-label">Simulasi</span>
+        </button>
+      </nav>
     </>
   );
 }

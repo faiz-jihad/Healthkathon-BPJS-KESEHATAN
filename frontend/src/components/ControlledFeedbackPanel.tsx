@@ -104,7 +104,7 @@ export const ControlledFeedbackPanel: React.FC<ControlledFeedbackPanelProps> = (
 
       {/* Summary Metrics */}
       {feedbackData && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
           <div className="card-interactive" style={{ padding: "10px 14px", borderRadius: "14px", border: "1px solid var(--line)", background: "var(--surface)" }}>
             <small className="muted" style={{ fontSize: "10px", display: "block" }}>TOTAL TELAAH PETUGAS</small>
             <strong style={{ fontSize: "18px" }}>{feedbackData.summary.total_reviews}</strong>
@@ -144,7 +144,7 @@ export const ControlledFeedbackPanel: React.FC<ControlledFeedbackPanelProps> = (
             <Target size={14} style={{ color: "var(--green)" }} />
             EVALUASI KESESUAIAN PENAPISAN DENGAN KEPUTUSAN VERIFIKATOR ({vm.evaluated_reviews_count} Berkas Tervalidasi)
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.3fr", gap: "10px", fontSize: "11px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px", fontSize: "11px" }}>
             <div style={{ padding: "10px 12px", borderRadius: "12px", background: "#fff", border: "1px solid var(--line)" }}>
               <span style={{ color: "var(--muted)", display: "block", fontSize: "10px", marginBottom: "4px" }}>Presisi Penapisan (Kesesuaian Fraud)</span>
               <strong style={{ fontSize: "18px", color: "#0284c7" }}>
@@ -223,6 +223,7 @@ export const ControlledFeedbackPanel: React.FC<ControlledFeedbackPanelProps> = (
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                flexWrap: "wrap",
                 gap: "12px",
               }}
             >
