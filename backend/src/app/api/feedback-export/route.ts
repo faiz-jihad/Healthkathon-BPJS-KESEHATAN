@@ -1,5 +1,5 @@
 import { prisma } from "../../../lib/prisma";
-import { getAuthenticatedUser } from "../../../lib/auth";
+import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +34,35 @@ export interface FeedbackExportRecord {
 // Supports ?format=json (default) and ?format=csv
 // ==============================================================================
 export async function GET(request: Request) {
+  // P1 Security Fix: Require authenticated caller and export permission
+  const caller = getAuthenticatedUser(request);
+  if (!caller) {
+    return Response.json(
+      {
+        status: "UNAUTHENTICATED",
+        error: "Akses ditolak. Sesi otorisasi atau token Bearer yang valid wajib disertakan.",
+      },
+      { status: 401 }
+    );
+  }
+
+  const canExport =
+    hasPermission(caller.role, PERMISSIONS.EXPORT_REPORTS) ||
+    hasPermission(caller.role, PERMISSIONS.VIEW_DATA_QUALITY) ||
+    hasPermission(caller.role, PERMISSIONS.RECORD_REVIEW_DECISION);
+  if (!canExport) {
+    return Response.json(
+      {
+        status: "UNAUTHORIZED_ROLE",
+        error: `Role '${caller.role}' tidak memiliki kewenangan mengakses atau mengekspor data feedback model.`,
+      },
+      { status: 403 }
+    );
+  }
+
   const url = new URL(request.url);
   const format = (url.searchParams.get("format") || "json").toLowerCase();
   const onlyLabeled = url.searchParams.get("only_labeled") === "true";
-
-  // Optional token inspection for audit context
-  const caller = getAuthenticatedUser(request);
 
   try {
     const whereClause: any = {};

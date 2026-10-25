@@ -61,9 +61,19 @@ export interface TokenPayload extends AuthUserPrincipal {
 }
 
 // Server Secret for signing tokens. In production, load from AUTH_SECRET env var.
-const AUTH_SECRET =
-  process.env.AUTH_SECRET ||
-  "aura-jkn-secure-hmac-secret-healthkathon-2026-bpjs";
+const DEFAULT_DEV_SECRET = "aura-jkn-secure-hmac-secret-healthkathon-2026-bpjs";
+
+export function getAuthSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    if (!secret || secret.trim() === "" || secret === DEFAULT_DEV_SECRET) {
+      throw new Error(
+        "CRITICAL SECURITY CONFIGURATION ERROR: AUTH_SECRET must be explicitly set to a secure, unique secret in production environment. Application halted."
+      );
+    }
+  }
+  return secret || DEFAULT_DEV_SECRET;
+}
 
 /**
  * Hash password using PBKDF2 with SHA-512 and random salt
@@ -107,6 +117,7 @@ export function signAuthToken(
   user: AuthUserPrincipal,
   expiresInSeconds = 86400
 ): string {
+  const secret = getAuthSecret();
   const header = { alg: "HS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const payload: TokenPayload = {
@@ -123,7 +134,7 @@ export function signAuthToken(
   );
   const signatureInput = `${encodedHeader}.${encodedPayload}`;
 
-  const hmac = crypto.createHmac("sha256", AUTH_SECRET);
+  const hmac = crypto.createHmac("sha256", secret);
   hmac.update(signatureInput);
   const signature = hmac.digest("base64url");
 
@@ -141,7 +152,8 @@ export function verifyAuthToken(token: string): TokenPayload | null {
     const [encodedHeader, encodedPayload, signature] = parts;
     const signatureInput = `${encodedHeader}.${encodedPayload}`;
 
-    const hmac = crypto.createHmac("sha256", AUTH_SECRET);
+    const secret = getAuthSecret();
+    const hmac = crypto.createHmac("sha256", secret);
     hmac.update(signatureInput);
     const expectedSignature = hmac.digest("base64url");
 
@@ -183,8 +195,8 @@ export function verifyAuthToken(token: string): TokenPayload | null {
 }
 
 /**
- * Extract authenticated user principal from Request Authorization header
- * Supports Bearer token as primary, with x-reviewer-role / x-demo-role fallback for seamless client transitions
+ * Extract authenticated user principal exclusively from verified Authorization Bearer Token
+ * Rejects spoofable headers (x-reviewer-role, x-demo-role) in production.
  */
 export function getAuthenticatedUser(
   request: Request
@@ -203,17 +215,23 @@ export function getAuthenticatedUser(
     }
   }
 
-  // Graceful fallback to client session headers ONLY if the role is a known valid role
-  const headerRole = request.headers.get("x-reviewer-role") || request.headers.get("x-demo-role");
-  if (headerRole && isKnownRole(headerRole)) {
-    const normalized = normalizeRole(headerRole);
-    const headerName = request.headers.get("x-reviewer-name") || "Petugas BPJS Kesehatan";
-    return {
-      id: "usr_session_" + normalized.toLowerCase(),
-      username: normalized.toLowerCase() + "_aura",
-      fullName: headerName,
-      role: normalized,
-    };
+  // Strictly reject spoofable headers in production environment.
+  // Only permitted in isolated non-production testing when explicitly enabled.
+  const isProd = process.env.NODE_ENV === "production";
+  const allowHeaderAuth = process.env.ALLOW_HEADER_AUTH === "true";
+
+  if (!isProd && allowHeaderAuth) {
+    const headerRole = request.headers.get("x-reviewer-role") || request.headers.get("x-demo-role");
+    if (headerRole && isKnownRole(headerRole)) {
+      const normalized = normalizeRole(headerRole);
+      const headerName = request.headers.get("x-reviewer-name") || "Petugas BPJS Kesehatan (Dev Header)";
+      return {
+        id: "usr_session_" + normalized.toLowerCase(),
+        username: normalized.toLowerCase() + "_aura",
+        fullName: headerName,
+        role: normalized,
+      };
+    }
   }
 
   return null;

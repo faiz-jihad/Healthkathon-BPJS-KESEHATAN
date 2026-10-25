@@ -74,31 +74,20 @@ export async function POST(
   }
 
   // 3. Server-Side RBAC & Identity Verification
-  // Derives reviewer identity from verified server-side token principal if available
+  // Derives reviewer identity EXCLUSIVELY from verified server-side token principal (Zero Spoofing Policy)
   const caller = getAuthenticatedUser(request);
-  let reviewerRole: string;
-  let reviewerName: string;
-
-  if (caller) {
-    reviewerRole = caller.role;
-    reviewerName = caller.fullName;
-  } else {
-    // If no valid Bearer token, check client headers for role
-    const headerRole = request.headers.get("x-reviewer-role");
-    const headerName = request.headers.get("x-reviewer-name");
-    reviewerRole = headerRole || body.reviewer_role;
-    reviewerName = headerName || body.reviewer_name || "Verifikator Pra-Pembayaran BPJS";
-
-    if (!reviewerRole) {
-      return Response.json(
-        {
-          status: "UNAUTHENTICATED",
-          error: "Akses ditolak. Sesi otorisasi atau token Bearer tidak disertakan.",
-        },
-        { status: 401 }
-      );
-    }
+  if (!caller) {
+    return Response.json(
+      {
+        status: "UNAUTHENTICATED",
+        error: "Akses ditolak. Sesi otorisasi atau token Bearer yang valid wajib disertakan.",
+      },
+      { status: 401 }
+    );
   }
+
+  const reviewerRole = caller.role;
+  const reviewerName = caller.fullName;
 
   // Enforce Role Restriction: Only Claim Verifier is authorized
   if (FORBIDDEN_ROLES_WITH_REASONS[reviewerRole]) {

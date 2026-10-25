@@ -145,7 +145,10 @@ async function runMasterVerification() {
   // Test 6: Malformed Claim Submission Validation
   const malformedClaimReq = new Request("http://localhost:3001/api/claims", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${verifierToken}`,
+    },
     body: JSON.stringify({
       claim_id: "",
       patient_id: "",
@@ -165,6 +168,18 @@ async function runMasterVerification() {
       malformedClaimJson.status === "VALIDATION_ERROR" &&
       malformedClaimJson.details.length >= 4,
     "Reject malformed claim input with HTTP 400 and itemized validation errors"
+  );
+
+  // Test 6b: Unauthenticated Claim Submission Rejection
+  const unauthClaimReq = new Request("http://localhost:3001/api/claims", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ claim_id: "CLM_UNAUTH" }),
+  });
+  const unauthClaimRes = await postClaim(unauthClaimReq);
+  assert(
+    unauthClaimRes.status === 401,
+    "Reject unauthenticated POST /api/claims with HTTP 401 UNAUTHENTICATED"
   );
 
   // Test 7: Review Decision Validation
@@ -306,7 +321,9 @@ async function runMasterVerification() {
   console.log("\n--- SECTION 4: Zero Mock Data & Honest Persistence Handling ---");
 
   // Test 15: GET /api/claims Honest Database Connection
-  const claimsReq = new Request("http://localhost:3001/api/claims");
+  const claimsReq = new Request("http://localhost:3001/api/claims", {
+    headers: { Authorization: `Bearer ${verifierToken}` },
+  });
   const claimsRes = await getClaims(claimsReq);
   const claimsJson = await claimsRes.json();
   if (claimsRes.status === 200) {
@@ -323,14 +340,34 @@ async function runMasterVerification() {
     );
   }
 
+  // Test 15b: GET /api/claims Unauthenticated Rejection
+  const unauthClaimsReq = new Request("http://localhost:3001/api/claims");
+  const unauthClaimsRes = await getClaims(unauthClaimsReq);
+  assert(
+    unauthClaimsRes.status === 401,
+    "Reject unauthenticated GET /api/claims with HTTP 401 UNAUTHENTICATED"
+  );
+
   // Test 16: GET /api/claims/[claimId] Honest 404 / 503
-  const claimDetailReq = new Request("http://localhost:3001/api/claims/UNKNOWN_999");
+  const claimDetailReq = new Request("http://localhost:3001/api/claims/UNKNOWN_999", {
+    headers: { Authorization: `Bearer ${verifierToken}` },
+  });
   const claimDetailRes = await getClaimDetail(claimDetailReq, {
     params: { claimId: "UNKNOWN_999" },
   });
   assert(
     claimDetailRes.status === 404 || claimDetailRes.status === 503,
     "GET /api/claims/[id] returns honest 404 NOT_FOUND or 503 DATA_SOURCE_UNAVAILABLE (no fake claim detail)"
+  );
+
+  // Test 16b: GET /api/claims/[claimId] Unauthenticated Rejection
+  const unauthClaimDetailReq = new Request("http://localhost:3001/api/claims/UNKNOWN_999");
+  const unauthClaimDetailRes = await getClaimDetail(unauthClaimDetailReq, {
+    params: { claimId: "UNKNOWN_999" },
+  });
+  assert(
+    unauthClaimDetailRes.status === 401,
+    "Reject unauthenticated GET /api/claims/[id] with HTTP 401 UNAUTHENTICATED"
   );
 
   // Test 17: Review Persistence Failure Handling (Honest Status)

@@ -9,6 +9,21 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   try {
+    const isProd = process.env.NODE_ENV === "production";
+    const demoAllowed = process.env.ENABLE_DEMO_AUTH === "true";
+
+    // P0 Security Fix: Block unauthenticated privileged token issuance in production
+    if (isProd && !demoAllowed) {
+      return Response.json(
+        {
+          status: "FORBIDDEN",
+          error:
+            "Endpoint penerbitan demo token tidak diizinkan pada lingkungan produksi (P0 Security Policy). Gunakan /api/auth/login dengan kredensial resmi BPJS.",
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const rawRole = (body.role || "").toUpperCase();
 

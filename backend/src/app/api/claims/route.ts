@@ -1,4 +1,5 @@
 import { prisma } from "../../../lib/prisma";
+import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../lib/auth";
 
 export interface ClaimApiRecord {
   claim_id: string;
@@ -98,6 +99,31 @@ export interface ClaimApiRecord {
 // If database is unavailable, returns 503 DATA_SOURCE_UNAVAILABLE.
 // ==============================================================================
 export async function GET(request: Request) {
+  // P0 Security Fix: Enforce authentication and authorization
+  const user = getAuthenticatedUser(request);
+  if (!user) {
+    return Response.json(
+      {
+        status: "UNAUTHENTICATED",
+        error: "Akses ditolak. Sesi otorisasi atau token Bearer yang valid wajib disertakan.",
+      },
+      { status: 401 }
+    );
+  }
+
+  const canView =
+    hasPermission(user.role, PERMISSIONS.VIEW_CLAIMS) ||
+    hasPermission(user.role, PERMISSIONS.VIEW_CLAIMS_READONLY);
+  if (!canView) {
+    return Response.json(
+      {
+        status: "UNAUTHORIZED_ROLE",
+        error: `Role '${user.role}' tidak memiliki kewenangan melihat data klaim BPJS.`,
+      },
+      { status: 403 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const riskFilter = searchParams.get("risk_level"); // HIGH | MEDIUM | LOW | UNASSESSED | ALL
   const scenarioFilter = searchParams.get("scenario"); // A | B | C | NORMAL | ALL
@@ -425,6 +451,31 @@ export async function GET(request: Request) {
 // Persists atomically to PostgreSQL; NEVER falls back to in-memory silently.
 // ==============================================================================
 export async function POST(request: Request) {
+  // P0 Security Fix: Enforce authentication and authorization for claim ingestion/simulation
+  const user = getAuthenticatedUser(request);
+  if (!user) {
+    return Response.json(
+      {
+        status: "UNAUTHENTICATED",
+        error: "Akses ditolak. Sesi otorisasi atau token Bearer yang valid wajib disertakan.",
+      },
+      { status: 401 }
+    );
+  }
+
+  const canIngest =
+    hasPermission(user.role, PERMISSIONS.TRIGGER_INGESTION) ||
+    hasPermission(user.role, PERMISSIONS.START_REVIEW);
+  if (!canIngest) {
+    return Response.json(
+      {
+        status: "UNAUTHORIZED_ROLE",
+        error: `Role '${user.role}' tidak memiliki kewenangan intake data atau simulasi klaim baru.`,
+      },
+      { status: 403 }
+    );
+  }
+
   let body: any;
   try {
     body = await request.json();

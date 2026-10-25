@@ -1,15 +1,15 @@
 /**
- * AURA-JKN: Automated Zero Mock Policy Verification Test Suite
- * ============================================================
+ * AURA-JKN: Automated Zero Mock Policy & Security Verification Test Suite
+ * ======================================================================
  * Tests and verifies all required business workflow cases:
  * 1. Database unavailable -> 503 DATA_SOURCE_UNAVAILABLE (Zero fake data)
- * 2. Database empty -> honest empty array (No mock store injection)
+ * 2. Database empty / records -> honest array from live PostgreSQL (No mock store injection)
  * 3. Invalid claim input -> 400 VALIDATION_ERROR (No fabricated attributes)
  * 4. AI service unavailable -> ANALYSIS_UNAVAILABLE (No 0.86 fallback, no fake subgraphs)
  * 5. Unknown claim ID -> 404 NOT_FOUND
  * 6. Review validation & unauthorized role rejection -> 403 UNAUTHORIZED_ROLE
- * 7. Successful review persistence -> REVIEW_SAVED with atomic audit log
- * 8. Failed review persistence -> 500 REVIEW_SAVE_FAILED (No false success confirmation)
+ * 7. Unauthenticated request rejection -> 401 UNAUTHENTICATED
+ * 8. Review decision & minimum notes length enforcement
  * 9. Controlled Feedback Export (/api/feedback-export) -> PostgreSQL live or 503 unavailable
  */
 
@@ -17,6 +17,7 @@ import { GET as getClaims, POST as postClaim } from "./src/app/api/claims/route"
 import { GET as getClaimDetail } from "./src/app/api/claims/[claimId]/route";
 import { POST as postReview } from "./src/app/api/claims/[claimId]/review/route";
 import { GET as getFeedbackExport } from "./src/app/api/feedback-export/route";
+import { signAuthToken } from "./src/lib/auth";
 
 async function runTestSuite() {
   console.log("=================================================================");
@@ -37,11 +38,36 @@ async function runTestSuite() {
     }
   }
 
+  // Generate cryptographic tokens for testing
+  const verifierToken = signAuthToken({
+    id: "usr_v_mock",
+    username: "verifier_mock",
+    fullName: "Verifikator Mock BPJS",
+    role: "VERIFIKATOR",
+  });
+
+  const adminToken = signAuthToken({
+    id: "usr_adm_mock",
+    username: "admin_mock",
+    fullName: "Admin Mock BPJS",
+    role: "ADMINISTRATOR",
+  });
+
+  const analystToken = signAuthToken({
+    id: "usr_an_mock",
+    username: "analyst_mock",
+    fullName: "Data Analyst Mock BPJS",
+    role: "DATA_ANALYST",
+  });
+
   // --- Test 1: Invalid Claim Input Validation ---
   console.log("[Test 1] Validating input rejection on malformed claim payload...");
   const invalidReq = new Request("http://localhost:3001/api/claims", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${verifierToken}`,
+    },
     body: JSON.stringify({
       claim_id: "", // Empty ID
       patient_id: "pat_123",
@@ -74,7 +100,7 @@ async function runTestSuite() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-reviewer-role": "ANONYMOUS_HACKER",
+      Authorization: `Bearer ${adminToken}`, // Administrator cannot submit clinical reviews
     },
     body: JSON.stringify({
       decision: "RELEASE",
@@ -96,7 +122,7 @@ async function runTestSuite() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-reviewer-role": "VERIFIKATOR_BPJS",
+      Authorization: `Bearer ${verifierToken}`,
     },
     body: JSON.stringify({
       decision: "AUTO_PAY_HACK", // Invalid decision
@@ -118,7 +144,7 @@ async function runTestSuite() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-reviewer-role": "VERIFIKATOR_BPJS",
+      Authorization: `Bearer ${verifierToken}`,
     },
     body: JSON.stringify({
       decision: "RELEASE",
@@ -136,7 +162,9 @@ async function runTestSuite() {
 
   // --- Test 5: Database Querying / Zero Mock Fallback Check ---
   console.log("\n[Test 5] Validating GET /api/claims honest status (PostgreSQL live or 503 unavailable)...");
-  const getReq = new Request("http://localhost:3001/api/claims?sort_by=fri_desc&review_status=ALL");
+  const getReq = new Request("http://localhost:3001/api/claims?sort_by=fri_desc&review_status=ALL", {
+    headers: { Authorization: `Bearer ${verifierToken}` },
+  });
   const getRes = await getClaims(getReq);
   const getJson = await getRes.json();
 
@@ -162,7 +190,9 @@ async function runTestSuite() {
 
   // --- Test 6: Unknown Claim ID Check ---
   console.log("\n[Test 6] Validating GET /api/claims/[claimId] for non-existent claim...");
-  const detailReq = new Request("http://localhost:3001/api/claims/CLM_TOTALLY_NONEXISTENT_99999");
+  const detailReq = new Request("http://localhost:3001/api/claims/CLM_TOTALLY_NONEXISTENT_99999", {
+    headers: { Authorization: `Bearer ${verifierToken}` },
+  });
   const detailRes = await getClaimDetail(detailReq, { params: { claimId: "CLM_TOTALLY_NONEXISTENT_99999" } });
   const detailJson = await detailRes.json();
 
@@ -182,7 +212,9 @@ async function runTestSuite() {
 
   // --- Test 7: Controlled Feedback Export (/api/feedback-export) ---
   console.log("\n[Test 7] Validating GET /api/feedback-export honest status...");
-  const fbReq = new Request("http://localhost:3001/api/feedback-export");
+  const fbReq = new Request("http://localhost:3001/api/feedback-export", {
+    headers: { Authorization: `Bearer ${analystToken}` },
+  });
   const fbRes = await getFeedbackExport(fbReq);
   const fbJson = await fbRes.json();
 

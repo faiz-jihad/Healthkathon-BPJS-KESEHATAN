@@ -16,7 +16,8 @@
     "db:seed": "node node_modules/tsx/dist/cli.mjs prisma/seed.ts",
     "db:studio": "prisma studio",
     "test:policy": "node node_modules/tsx/dist/cli.mjs test_zero_mock_policy.ts",
-    "test:master": "node node_modules/tsx/dist/cli.mjs test_master_verification.ts"
+    "test:master": "node node_modules/tsx/dist/cli.mjs test_master_verification.ts",
+    "test:acceptance": "node node_modules/tsx/dist/cli.mjs test_final_acceptance.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

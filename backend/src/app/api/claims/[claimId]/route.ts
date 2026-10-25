@@ -1,4 +1,5 @@
 import { prisma } from "../../../../lib/prisma";
+import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../../lib/auth";
 import { ClaimApiRecord } from "../route";
 
 // ==============================================================================
@@ -7,9 +8,33 @@ import { ClaimApiRecord } from "../route";
 // Rejects fabricated/mock entity lookups.
 // ==============================================================================
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { claimId: string } }
 ) {
+  // P0 Security Fix: Enforce authentication and authorization
+  const user = getAuthenticatedUser(request);
+  if (!user) {
+    return Response.json(
+      {
+        status: "UNAUTHENTICATED",
+        error: "Akses ditolak. Sesi otorisasi atau token Bearer yang valid wajib disertakan.",
+      },
+      { status: 401 }
+    );
+  }
+
+  const canView =
+    hasPermission(user.role, PERMISSIONS.VIEW_CLAIMS) ||
+    hasPermission(user.role, PERMISSIONS.VIEW_CLAIMS_READONLY);
+  if (!canView) {
+    return Response.json(
+      {
+        status: "UNAUTHORIZED_ROLE",
+        error: `Role '${user.role}' tidak memiliki kewenangan melihat data klaim ini.`,
+      },
+      { status: 403 }
+    );
+  }
   const { claimId } = params;
 
   if (!claimId || !claimId.trim()) {

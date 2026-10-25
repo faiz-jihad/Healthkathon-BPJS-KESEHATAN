@@ -127,15 +127,26 @@ function hasPermission(role: string, perms: string[]): boolean {
   return perms.some(p => rolePerms.includes(p));
 }
 
+const DEFAULT_ACCOUNTS: Record<AppRole, { username: string; defaultPassword: string; label: string }> = {
+  ADMINISTRATOR: { username: "admin_aura", defaultPassword: "admin_password_2026", label: "Administrator Sistem" },
+  VERIFIKATOR:   { username: "verifier_aura", defaultPassword: "verifier_password_2026", label: "Verifikator Pra-Pembayaran" },
+  INVESTIGATOR:  { username: "investigator_aura", defaultPassword: "investigator_password_2026", label: "Investigator Anomali Klaim" },
+  SUPERVISOR:    { username: "supervisor_aura", defaultPassword: "supervisor_password_2026", label: "Supervisor Tim Investigasi" },
+  DATA_ANALYST:  { username: "analyst_aura", defaultPassword: "analyst_password_2026", label: "Data & AI Analyst" },
+};
+
 // ============================================================
 // MAIN APP
 // ============================================================
 
 export function App() {
-  // Auth state
+  // Auth state — P0 Security: Must have verified cryptographic token
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
-    id: "usr_verifier_001", username: "verifier_aura",
-    fullName: "Verifikator Pra-Pembayaran BPJS", role: "VERIFIKATOR", token: "",
+    id: "authenticating",
+    username: "authenticating",
+    fullName: "Memverifikasi sesi BPJS...",
+    role: "VERIFIKATOR",
+    token: "",
   });
 
   // Navigation state
@@ -216,30 +227,77 @@ export function App() {
   const authHeaders = useCallback(() => ({
     "Content-Type": "application/json",
     ...(currentUser.token ? { Authorization: `Bearer ${currentUser.token}` } : {}),
-    "x-reviewer-role": currentUser.role,
-    "x-reviewer-name": currentUser.fullName,
-    "x-demo-role": currentUser.role,
-  }), [currentUser.token, currentUser.role, currentUser.fullName]);
+  }), [currentUser.token]);
 
   // ============================================================
   // API FUNCTIONS
   // ============================================================
 
   const switchRole = async (targetRole: AppRole) => {
+    const creds = DEFAULT_ACCOUNTS[targetRole];
+    let authenticated = false;
+
+    // 1. Primary: Attempt authoritative login via /api/auth/login using seeded credentials
     try {
-      const res = await fetch(`${BACKEND_URL}/api/auth/demo-token`, {
+      const loginRes = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: targetRole }),
+        body: JSON.stringify({
+          username: creds.username,
+          password: creds.defaultPassword,
+        }),
       });
-      if (res.ok) {
-        const json = await res.json();
-        setCurrentUser({ id: json.user.id, username: json.user.username, fullName: json.user.fullName, role: json.user.role, token: json.token });
+      if (loginRes.ok) {
+        const json = await loginRes.json();
+        setCurrentUser({
+          id: json.user.id,
+          username: json.user.username,
+          fullName: json.user.fullName,
+          role: json.user.role,
+          token: json.token,
+        });
+        sessionStorage.setItem("aura_token", json.token);
+        authenticated = true;
       }
     } catch {
-      const cfg = ROLE_CONFIG[targetRole];
-      setCurrentUser(prev => ({ ...prev, role: targetRole, fullName: cfg?.label || targetRole }));
+      // Login route failed, proceed to demo-token fallback
     }
+
+    // 2. Secondary: Fallback to demo-token if enabled in non-production
+    if (!authenticated) {
+      try {
+        const demoRes = await fetch(`${BACKEND_URL}/api/auth/demo-token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: targetRole }),
+        });
+        if (demoRes.ok) {
+          const json = await demoRes.json();
+          setCurrentUser({
+            id: json.user.id,
+            username: json.user.username,
+            fullName: json.user.fullName,
+            role: json.user.role,
+            token: json.token,
+          });
+          sessionStorage.setItem("aura_token", json.token);
+          authenticated = true;
+        }
+      } catch {
+        // Fallback failed
+      }
+    }
+
+    if (!authenticated) {
+      setCurrentUser({
+        id: "unauthenticated",
+        username: "unauthenticated",
+        fullName: "Sesi Tidak Terautentikasi (Login Diperlukan)",
+        role: targetRole,
+        token: "",
+      });
+    }
+
     setRoleMenuOpen(false);
   };
 
@@ -522,7 +580,31 @@ export function App() {
   // EFFECTS
   // ============================================================
 
-  useEffect(() => { switchRole("VERIFIKATOR"); }, []);
+  useEffect(() => {
+    const savedToken = sessionStorage.getItem("aura_token");
+    if (savedToken) {
+      fetch(`${BACKEND_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${savedToken}` },
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(json => {
+          if (json?.user) {
+            setCurrentUser({
+              id: json.user.id,
+              username: json.user.username,
+              fullName: json.user.fullName,
+              role: json.user.role,
+              token: savedToken,
+            });
+          } else {
+            switchRole("VERIFIKATOR");
+          }
+        })
+        .catch(() => switchRole("VERIFIKATOR"));
+    } else {
+      switchRole("VERIFIKATOR");
+    }
+  }, []);
   useEffect(() => { fetchClaims(); }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, currentUser.token]);
   useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, investigationView, caseStatusFilter, casePriorityFilter, caseSortBy, currentUser.token]);
   useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); fetchCases(); } }, [activeSection, currentUser.token]);
