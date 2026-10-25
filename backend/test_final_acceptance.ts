@@ -400,9 +400,10 @@ async function runAcceptanceSuite() {
   );
   assert(
     persistedClaim?.riskAssessment?.assessmentStatus === "COMPLETED" ||
+      persistedClaim?.riskAssessment?.assessmentStatus === "NOT_ANALYZED" ||
       persistedClaim?.riskAssessment?.assessmentStatus === "UNAVAILABLE" ||
       persistedClaim?.riskAssessment?.assessmentStatus === "FAILED",
-    "Stage C: Assessment status is honest (COMPLETED or UNAVAILABLE, never fake 0.86 fallback)"
+    "Stage C: Assessment status is honest (COMPLETED, NOT_ANALYZED, or UNAVAILABLE, never fake 0.86 fallback)"
   );
 
   // --- Stage E: Investigation Queue Visibility & Search ---

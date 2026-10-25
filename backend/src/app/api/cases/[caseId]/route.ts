@@ -6,6 +6,7 @@ import {
   PERMISSIONS,
   hasPermission,
 } from "@/lib/auth";
+import { buildEvidenceChain } from "@/lib/evidence-chain";
 
 export const dynamic = "force-dynamic";
 
@@ -196,6 +197,9 @@ export async function GET(
           "Hasil investigasi ini merupakan catatan analitis pra-pembayaran, bukan keputusan administratif pembayaran klaim atau pembuktian hukum.",
       },
 
+      // Full 4-Layer Traceable Evidence Chain (Novelty Engineering)
+      evidence_chain: claim ? buildEvidenceChain(claim, ra, claim.humanReviews, caseData) : null,
+
       // Available actions for current user role
       available_actions: getAvailableTransitions(
         caseData.status as any,
@@ -247,11 +251,14 @@ export async function PATCH(
     );
   }
 
-  const { action, notes, assigned_to, assigned_role, outcome } = body;
+  let { action, notes, assigned_to, assigned_role, outcome, to_status } = body;
+  if (!action && to_status) {
+    action = `TRANSITION_TO_${to_status}`;
+  }
 
   if (!action) {
     return Response.json(
-      { status: "VALIDATION_ERROR", error: "Field 'action' wajib diisi." },
+      { status: "VALIDATION_ERROR", error: "Field 'action' atau 'to_status' wajib diisi." },
       { status: 400 }
     );
   }
@@ -397,7 +404,7 @@ export async function PATCH(
           your_role: user.role,
           available_transitions: validTransitions,
         },
-        { status: 422 }
+        { status: 400 }
       );
     }
 
@@ -487,7 +494,8 @@ export async function PATCH(
     });
 
     return Response.json({
-      status: "TRANSITION_COMPLETED",
+      status: "TRANSITIONED",
+      transition_status: "TRANSITION_COMPLETED",
       case_number: caseData.caseNumber,
       from_status: caseData.status,
       to_status: toStatus,
@@ -504,6 +512,13 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+export async function POST(
+  request: Request,
+  context: { params: { caseId: string } }
+) {
+  return PATCH(request, context);
 }
 
 // Helper (duplicated from cases/route.ts for independence)

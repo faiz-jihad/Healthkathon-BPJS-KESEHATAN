@@ -344,14 +344,19 @@ class SpatiotemporalRiskAnalyzer:
             )
 
         # --- 2. Doctor Spatial Impossible Movement Check ---
-        if current_fac:
+        # Safeguard: Validate that both current and past facility coordinates are non-zero to avoid Null Island false conflicts
+        has_valid_current_coords = current_fac and not (abs(current_lat) < 0.001 and abs(current_lon) < 0.001)
+        if has_valid_current_coords:
             for past_claim in daily_claims:
                 if str(past_claim.get("claim_id")) == str(claim_id):
                     continue
                 other_fac_id = str(past_claim.get("facility_id"))
                 if other_fac_id != facility_id:
                     other_fac = self.registry.facility_map.get(other_fac_id)
-                    if other_fac:
+                    has_valid_other_coords = other_fac and not (
+                        abs(other_fac.get("latitude", 0.0)) < 0.001 and abs(other_fac.get("longitude", 0.0)) < 0.001
+                    )
+                    if has_valid_other_coords:
                         lat_diff = abs(current_lat - other_fac["latitude"])
                         lon_diff = abs(current_lon - other_fac["longitude"])
                         dist_km = calculate_haversine_distance(

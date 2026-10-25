@@ -6,6 +6,7 @@ import {
   PERMISSIONS,
   hasPermission,
 } from "@/lib/auth";
+import { buildEvidenceChain } from "@/lib/evidence-chain";
 
 export const dynamic = "force-dynamic";
 
@@ -237,11 +238,12 @@ export async function GET(request: Request) {
       const slaBreached =
         c.slaDeadline ? now > new Date(c.slaDeadline) : null;
 
-      // Priority reasoning
+      // Priority reasoning & Evidence Chain Triage
       const ra = c.claim?.riskAssessment;
-      const priorityReasons: string[] = [];
-      if (ra?.riskLevel === "HIGH") priorityReasons.push("Risiko AI: HIGH");
-      if (ra?.spatialConflictDetected)
+      const chain = c.claim ? buildEvidenceChain(c.claim, ra, c.claim.humanReviews, c) : null;
+      const priorityReasons: string[] = chain?.triage_profile.priority_reasons || [];
+      if (ra?.riskLevel === "HIGH" && !priorityReasons.includes("Risiko AI: HIGH")) priorityReasons.push("Risiko AI: HIGH");
+      if (ra?.spatialConflictDetected && !priorityReasons.includes("Konflik spasiotemporal terdeteksi"))
         priorityReasons.push("Konflik spasiotemporal terdeteksi");
       if (slaBreached) priorityReasons.push("SLA terlampaui");
       if (waitHours && waitHours > 48)
@@ -255,8 +257,11 @@ export async function GET(request: Request) {
         case_number: c.caseNumber,
         claim_id: c.claimId,
         status: c.status,
+        triage_category: chain?.triage_profile.triage_category || "NOT_ANALYZED",
+        evidence_completeness_pct: chain?.traceability_metrics.evidence_completeness_pct || 50,
+        unexplained_alert: chain?.traceability_metrics.unexplained_alert || false,
         priority: c.priority,
-        priority_score: c.priorityScore,
+        priority_score: chain?.triage_profile.priority_score || c.priorityScore,
         priority_reasons: priorityReasons,
         assigned_to: c.assignedTo,
         assigned_role: c.assignedRole,

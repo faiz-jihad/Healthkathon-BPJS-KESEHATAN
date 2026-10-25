@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { RefreshCw, Download, CheckCircle2, AlertTriangle, Database, Target } from "lucide-react";
 import { FeedbackExportResponse } from "../types/aura";
+import { SkeletonBox } from "./SkeletonLoaders";
 
 interface ControlledFeedbackPanelProps {
   backendUrl: string;
@@ -197,9 +198,29 @@ export const ControlledFeedbackPanel: React.FC<ControlledFeedbackPanelProps> = (
 
       {/* Records List */}
       {loading ? (
-        <div style={{ padding: "36px", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
-          <RefreshCw size={20} className="animate-spin text-green" style={{ margin: "0 auto 8px" }} />
-          Memuat data hasil telaah verifikator dari pangkalan data resmi...
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="card skeleton-card"
+              style={{
+                padding: "12px 16px",
+                borderRadius: "14px",
+                background: "#ffffff",
+                border: "1px solid var(--line)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                <SkeletonBox width="140px" height="12px" borderRadius="3px" />
+                <SkeletonBox width="80px" height="18px" borderRadius="10px" />
+              </div>
+              <SkeletonBox width="85%" height="11px" borderRadius="3px" style={{ marginBottom: "6px" }} />
+              <div style={{ display: "flex", gap: "14px" }}>
+                <SkeletonBox width="110px" height="10px" borderRadius="3px" />
+                <SkeletonBox width="90px" height="10px" borderRadius="3px" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div style={{ padding: "16px", background: "#faecec", color: "#a53e3e", borderRadius: "14px", fontSize: "12px" }}>

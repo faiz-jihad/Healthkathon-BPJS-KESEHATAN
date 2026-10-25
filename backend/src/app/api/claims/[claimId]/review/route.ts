@@ -49,7 +49,7 @@ export async function POST(
     );
   }
 
-  const { decision, notes } = body;
+  const { decision, notes, override_reason, evidence_inspected } = body;
 
   // 1. Validate Decision Enum
   if (!decision || !["RELEASE", "CLARIFY", "ESCALATE_AUDIT"].includes(decision)) {
@@ -138,18 +138,26 @@ export async function POST(
   const feedbackLabel =
     decision === "ESCALATE_AUDIT" ? 1 : decision === "RELEASE" ? 0 : null;
 
-  // 5. Execute Atomic Database Transaction (HumanReview + AuditLog)
+  // 5. Execute Atomic Database Transaction (HumanReview + CaseSync + AuditLog)
   try {
     const result = await prisma.$transaction(async (tx: any) => {
+      const fullNotes = override_reason
+        ? `${notes.trim()} [Override Rationale: ${override_reason.trim()}]`
+        : notes.trim();
+
       const review = await tx.humanReview.create({
         data: {
           claimId: claimId.trim(),
           reviewerName,
           reviewerRole,
           decision,
-          notes: notes.trim(),
+          notes: fullNotes,
           feedbackLabel,
         },
+      });
+
+      const targetCase = await tx.caseInvestigation.findFirst({
+        where: { claimId: claimId.trim() },
       });
 
       const audit = await tx.auditLog.create({
@@ -161,8 +169,14 @@ export async function POST(
           metadata: {
             decision,
             notes: notes.trim(),
+            override_reason: override_reason || null,
+            evidence_inspected: Array.isArray(evidence_inspected)
+              ? evidence_inspected
+              : ["OBSERVED_FACTS", "RELATIONAL_SUBGRAPH", "SPATIOTEMPORAL_CONTEXT"],
+            validation_status: "OPERATIONAL_REVIEW",
             feedbackLabel,
             reviewId: review.id,
+            caseId: targetCase?.id || null,
           },
         },
       });

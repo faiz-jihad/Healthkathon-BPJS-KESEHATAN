@@ -57,6 +57,14 @@ export interface ClaimRecord {
       edges: SubgraphEdge[];
     };
   };
+  triage_category?:
+    | "HIGH_RISK_REVIEW"
+    | "NEEDS_CLARIFICATION"
+    | "INSUFFICIENT_EVIDENCE"
+    | "NOT_ANALYZED"
+    | "ANALYSIS_FAILED"
+    | "REVIEWED";
+  evidence_chain?: any;
   structured_evidence?: {
     observed_facts: {
       service_date: string;
@@ -163,3 +171,19 @@ export interface FeedbackExportResponse {
   };
   records: FeedbackExportItem[];
 }
+
+export interface AppNotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: "critical" | "warning" | "info" | "success";
+  category: "claim" | "case" | "system" | "data_quality" | "audit";
+  targetRoles: string[];
+  timestamp: string;
+  actionSection: "overview" | "investigation" | "data_intelligence" | "reports" | "administration";
+  actionSubView?: string;
+  targetId?: string;
+  badge?: string;
+  isRead?: boolean;
+}
+

@@ -9,12 +9,31 @@ import {
   ChevronDown, CircleCheck, PlusCircle, BarChart3, TrendingUp,
   Inbox, ClipboardList, FolderOpen, GitBranch, Settings,
   AlertCircle, CheckSquare, Hourglass, ArrowRight, Zap,
-  BookOpen, Target, Award, Download
+  BookOpen, Target, Award, Download, Monitor, LogOut, Wifi, WifiOff
 } from "lucide-react";
-import { ClaimRecord, ClaimsListResponse, SubgraphNode, SubgraphEdge } from "./types/aura";
+import { ClaimRecord, ClaimsListResponse, SubgraphNode, SubgraphEdge, AppNotificationItem } from "./types/aura";
 import { SubgraphViewer } from "./components/SubgraphViewer";
 import { LiveClaimSimulatorModal } from "./components/LiveClaimSimulatorModal";
 import { ControlledFeedbackPanel } from "./components/ControlledFeedbackPanel";
+import { DesktopInstallModal } from "./components/DesktopInstallModal";
+import { NotificationCenter } from "./components/NotificationCenter";
+import { LoginPage } from "./components/LoginPage";
+import {
+  SkeletonBox,
+  SkeletonText,
+  SkeletonBadge,
+  SkeletonMetricCard,
+  SkeletonCardsGrid,
+  SkeletonTable,
+  SkeletonCaseQueue,
+  SkeletonClaimsExplorer,
+  SkeletonEvidenceCenter,
+  SkeletonGraphView,
+  SkeletonDataIngestion,
+  SkeletonPerformanceDashboard,
+  SkeletonUserRows,
+  SkeletonHealthStatus,
+} from "./components/SkeletonLoaders";
 
 const BACKEND_URL =
   typeof import.meta.env.VITE_BACKEND_URL === "string" && import.meta.env.VITE_BACKEND_URL !== ""
@@ -223,21 +242,97 @@ const DEFAULT_ACCOUNTS: Record<AppRole, { username: string; defaultPassword: str
 // ============================================================
 
 export function App() {
+  const NAV_ITEMS: Array<{ key: NavSection; label: string; icon: React.ReactNode; roles: string[] }> = [
+    { key: "overview", label: "Beranda Utama", icon: <LayoutGrid size={20}/>, roles: ["all"] },
+    { key: "investigation", label: "Pemeriksaan Klaim", icon: <FolderOpen size={20}/>, roles: ["ADMINISTRATOR","VERIFIKATOR","INVESTIGATOR","SUPERVISOR","FRAUD_ANALYST","CLAIM_VERIFIER","AUDITOR"] },
+    { key: "data_intelligence", label: "Pusat Data & Mutu", icon: <Database size={20}/>, roles: ["all"] },
+    { key: "reports", label: "Laporan & Kinerja", icon: <BarChart3 size={20}/>, roles: ["ADMINISTRATOR","SUPERVISOR","DATA_ANALYST","AUDITOR"] },
+    { key: "administration", label: "Administrasi Sistem", icon: <Settings size={20}/>, roles: ["ADMINISTRATOR"] },
+  ];
+
+  // Helper to parse initial route from URL hash or sessionStorage
+  const getInitialNav = () => {
+    try {
+      if (typeof window !== "undefined") {
+        const hash = window.location.hash.replace(/^#\/?/, "");
+        if (hash) {
+          const [secPart, queryPart] = hash.split("?");
+          const validSections: NavSection[] = [
+            "overview",
+            "investigation",
+            "data_intelligence",
+            "reports",
+            "administration",
+          ];
+          if (validSections.includes(secPart as NavSection)) {
+            const params = new URLSearchParams(queryPart || "");
+            return {
+              section: secPart as NavSection,
+              subView: params.get("view") || null,
+              claimId: params.get("claimId") || null,
+              caseId: params.get("caseId") || null,
+            };
+          }
+        }
+        const savedSection = sessionStorage.getItem("aura_nav_section") as NavSection | null;
+        const validSections: NavSection[] = [
+          "overview",
+          "investigation",
+          "data_intelligence",
+          "reports",
+          "administration",
+        ];
+        if (savedSection && validSections.includes(savedSection)) {
+          return {
+            section: savedSection,
+            subView: sessionStorage.getItem("aura_sub_view") || null,
+            claimId: sessionStorage.getItem("aura_selected_claim_id") || null,
+            caseId: sessionStorage.getItem("aura_selected_case_id") || null,
+          };
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return { section: "overview" as NavSection, subView: null, claimId: null, caseId: null };
+  };
+
+  const initialNav = getInitialNav();
+
   // Auth state — P0 Security: Must have verified cryptographic token
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
-    id: "authenticating",
-    username: "authenticating",
-    fullName: "Memverifikasi sesi BPJS...",
+    id: "",
+    username: "",
+    fullName: "",
     role: "VERIFIKATOR",
     token: "",
   });
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
 
-  // Navigation state
-  const [activeSection, setActiveSection] = useState<NavSection>("overview");
-  const [investigationView, setInvestigationView] = useState<InvestigationView>("queue");
-  const [dataView, setDataView] = useState<DataView>("ingestion");
-  const [reportsView, setReportsView] = useState<ReportsView>("performance");
-  const [adminView, setAdminView] = useState<AdminView>("users");
+  // Navigation state — persisten di URL hash & sessionStorage (tetap di halaman saat di-refresh)
+  const [activeSection, setActiveSection] = useState<NavSection>(() => initialNav.section);
+  const [investigationView, setInvestigationView] = useState<InvestigationView>(() =>
+    initialNav.section === "investigation" && initialNav.subView
+      ? (initialNav.subView as InvestigationView)
+      : (sessionStorage.getItem("aura_nav_inv_view") as InvestigationView) || "queue"
+  );
+  const [dataView, setDataView] = useState<DataView>(() =>
+    initialNav.section === "data_intelligence" && initialNav.subView
+      ? (initialNav.subView as DataView)
+      : (sessionStorage.getItem("aura_nav_data_view") as DataView) || "ingestion"
+  );
+  const [reportsView, setReportsView] = useState<ReportsView>(() =>
+    initialNav.section === "reports" && initialNav.subView
+      ? (initialNav.subView as ReportsView)
+      : (sessionStorage.getItem("aura_nav_reports_view") as ReportsView) || "performance"
+  );
+  const [adminView, setAdminView] = useState<AdminView>(() =>
+    initialNav.section === "administration" && initialNav.subView
+      ? (initialNav.subView as AdminView)
+      : (sessionStorage.getItem("aura_nav_admin_view") as AdminView) || "users"
+  );
 
   // Claims data & advanced filters
   const [data, setData] = useState<ClaimsListResponse | null>(null);
@@ -306,6 +401,16 @@ export function App() {
 
   // Health status
   const [healthStatus, setHealthStatus] = useState<any>(null);
+
+  // Desktop PWA & Tauri install states
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isDesktopStandalone, setIsDesktopStandalone] = useState<boolean>(false);
+  const [showDesktopModal, setShowDesktopModal] = useState<boolean>(false);
+
+  // Operational Notifications state
+  const [notifications, setNotifications] = useState<AppNotificationItem[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [showNotifCenter, setShowNotifCenter] = useState<boolean>(false);
 
   const authHeaders = useCallback(() => ({
     "Content-Type": "application/json",
@@ -680,14 +785,302 @@ export function App() {
               token: savedToken,
             });
           } else {
-            switchRole("VERIFIKATOR");
+            sessionStorage.removeItem("aura_token");
+            setCurrentUser({
+              id: "",
+              username: "",
+              fullName: "",
+              role: "VERIFIKATOR",
+              token: "",
+            });
           }
         })
-        .catch(() => switchRole("VERIFIKATOR"));
+        .catch(() => {
+          sessionStorage.removeItem("aura_token");
+          setCurrentUser({
+            id: "",
+            username: "",
+            fullName: "",
+            role: "VERIFIKATOR",
+            token: "",
+          });
+        })
+        .finally(() => {
+          setAuthChecking(false);
+        });
     } else {
-      switchRole("VERIFIKATOR");
+      setAuthChecking(false);
+      setCurrentUser({
+        id: "",
+        username: "",
+        fullName: "",
+        role: "VERIFIKATOR",
+        token: "",
+      });
     }
   }, []);
+
+  // Online / Offline Connectivity Detection
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("aura_token");
+    sessionStorage.removeItem("aura_nav_section");
+    sessionStorage.removeItem("aura_sub_view");
+    sessionStorage.removeItem("aura_selected_case_id");
+    sessionStorage.removeItem("aura_selected_claim_id");
+    setCurrentUser({
+      id: "",
+      username: "",
+      fullName: "",
+      role: "VERIFIKATOR",
+      token: "",
+    });
+    setProfileMenuOpen(false);
+    if (typeof window !== "undefined") {
+      window.location.hash = "";
+    }
+  };
+
+  // Desktop PWA install detection
+  useEffect(() => {
+    const isStandaloneMode =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+    setIsDesktopStandalone(isStandaloneMode);
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+      setIsDesktopStandalone(true);
+      console.log("[AURA-JKN] Aplikasi Desktop PWA berhasil dipasang!");
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  const handleTriggerDesktopInstall = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice && choice.outcome === "accepted") {
+        setInstallPrompt(null);
+        setIsDesktopStandalone(true);
+      }
+    }
+  };
+
+  // Operational Notification Fetching & Handlers
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/notifications?role=${currentUser.role}`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json?.notifications) {
+        let storedReadIds: string[] = [];
+        try {
+          storedReadIds = JSON.parse(localStorage.getItem("aura_read_notifs") || "[]");
+        } catch {
+          storedReadIds = [];
+        }
+        const readSet = new Set(storedReadIds);
+        const list: AppNotificationItem[] = json.notifications.map((n: AppNotificationItem) => ({
+          ...n,
+          isRead: readSet.has(n.id),
+        }));
+        setNotifications(list);
+        const unread = list.filter(n => !n.isRead).length;
+        setUnreadNotifCount(unread);
+      }
+    } catch (err) {
+      console.warn("[AURA-JKN] Gagal sinkronisasi notifikasi:", err);
+    }
+  }, [BACKEND_URL, currentUser.role, authHeaders]);
+
+  const handleMarkAsRead = useCallback((id: string) => {
+    try {
+      let stored: string[] = [];
+      try {
+        stored = JSON.parse(localStorage.getItem("aura_read_notifs") || "[]");
+      } catch {
+        stored = [];
+      }
+      if (!stored.includes(id)) {
+        stored.push(id);
+        localStorage.setItem("aura_read_notifs", JSON.stringify(stored));
+      }
+      setNotifications(prev =>
+        prev.map(n => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      setUnreadNotifCount(prev => Math.max(0, prev - 1));
+
+      fetch(`${BACKEND_URL}/api/notifications`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ action: "mark_read", id }),
+      }).catch(() => {});
+    } catch (e) {
+      console.warn("Gagal update status baca notifikasi:", e);
+    }
+  }, [BACKEND_URL, authHeaders]);
+
+  const handleMarkAllAsRead = useCallback(() => {
+    try {
+      const allIds = notifications.map(n => n.id);
+      localStorage.setItem("aura_read_notifs", JSON.stringify(allIds));
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadNotifCount(0);
+
+      fetch(`${BACKEND_URL}/api/notifications`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ action: "mark_all_read" }),
+      }).catch(() => {});
+    } catch (e) {
+      console.warn("Gagal tandai semua dibaca:", e);
+    }
+  }, [BACKEND_URL, notifications, authHeaders]);
+
+  const handleNotificationNavigate = (
+    section: NavSection,
+    subView?: string,
+    targetId?: string
+  ) => {
+    setActiveSection(section);
+    if (section === "investigation") {
+      if (subView) setInvestigationView(subView as InvestigationView);
+      if (targetId) {
+        const foundCase = cases.find(c => c.id === targetId || c.claim_id === targetId);
+        if (foundCase) {
+          setSelectedCase(foundCase);
+        } else if (data?.claims) {
+          const foundClaim = data.claims.find(cl => cl.claim_id === targetId);
+          if (foundClaim) {
+            setSelectedClaim(foundClaim);
+          }
+        }
+      }
+    } else if (section === "data_intelligence") {
+      if (subView) setDataView(subView as DataView);
+    } else if (section === "administration") {
+      if (subView) setAdminView(subView as AdminView);
+    } else if (section === "reports") {
+      if (subView) setReportsView(subView as ReportsView);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const timer = setInterval(() => {
+      fetchNotifications();
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [fetchNotifications]);
+
+  // Synchronize navigation state with URL Hash and sessionStorage
+  useEffect(() => {
+    let subView: string = "";
+    if (activeSection === "investigation") subView = investigationView;
+    else if (activeSection === "data_intelligence") subView = dataView;
+    else if (activeSection === "reports") subView = reportsView;
+    else if (activeSection === "administration") subView = adminView;
+
+    // Persist to sessionStorage
+    sessionStorage.setItem("aura_nav_section", activeSection);
+    sessionStorage.setItem("aura_sub_view", subView);
+    sessionStorage.setItem("aura_nav_inv_view", investigationView);
+    sessionStorage.setItem("aura_nav_data_view", dataView);
+    sessionStorage.setItem("aura_nav_reports_view", reportsView);
+    sessionStorage.setItem("aura_nav_admin_view", adminView);
+
+    // Build URL hash
+    let hash = `#${activeSection}`;
+    const params = new URLSearchParams();
+    if (subView) params.set("view", subView);
+    if (selectedCase?.id) params.set("caseId", selectedCase.id);
+    if (selectedClaim?.claim_id) params.set("claimId", selectedClaim.claim_id);
+
+    const queryStr = params.toString();
+    if (queryStr) hash += `?${queryStr}`;
+
+    if (typeof window !== "undefined" && window.location.hash !== hash) {
+      window.history.replaceState(null, "", hash);
+    }
+  }, [activeSection, investigationView, dataView, reportsView, adminView, selectedCase?.id, selectedClaim?.claim_id]);
+
+  // Listen for browser Back/Forward (popstate & hashchange)
+  useEffect(() => {
+    const handlePopState = () => {
+      const parsed = getInitialNav();
+      setActiveSection(parsed.section);
+      if (parsed.subView) {
+        if (parsed.section === "investigation") setInvestigationView(parsed.subView as InvestigationView);
+        if (parsed.section === "data_intelligence") setDataView(parsed.subView as DataView);
+        if (parsed.section === "reports") setReportsView(parsed.subView as ReportsView);
+        if (parsed.section === "administration") setAdminView(parsed.subView as AdminView);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("hashchange", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("hashchange", handlePopState);
+    };
+  }, []);
+
+  // Role section access guard: fallback if user switches role and current section is disallowed
+  useEffect(() => {
+    const item = NAV_ITEMS.find(n => n.key === activeSection);
+    if (item && !item.roles.includes("all") && !item.roles.includes(currentUser.role)) {
+      setActiveSection("overview");
+    }
+  }, [currentUser.role, activeSection]);
+
+  // Auto-restore selected case/claim from URL/sessionStorage if present
+  useEffect(() => {
+    if (cases.length > 0 && !selectedCase) {
+      const urlParams = new URLSearchParams(window.location.hash.split("?")[1] || "");
+      const targetCaseId = urlParams.get("caseId") || sessionStorage.getItem("aura_selected_case_id");
+      if (targetCaseId) {
+        const found = cases.find(c => c.id === targetCaseId || c.claim_id === targetCaseId || c.case_number === targetCaseId);
+        if (found) setSelectedCase(found);
+      }
+    }
+  }, [cases, selectedCase]);
+
+  useEffect(() => {
+    if (data?.claims?.length && !selectedClaim) {
+      const urlParams = new URLSearchParams(window.location.hash.split("?")[1] || "");
+      const targetClaimId = urlParams.get("claimId") || sessionStorage.getItem("aura_selected_claim_id");
+      if (targetClaimId) {
+        const found = data.claims.find(c => c.claim_id === targetClaimId);
+        if (found) setSelectedClaim(found);
+      }
+    }
+  }, [data?.claims, selectedClaim]);
   useEffect(() => { fetchClaims(); }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, currentUser.token]);
   useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, investigationView, caseStatusFilter, casePriorityFilter, caseSortBy, currentUser.token]);
   useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); fetchCases(); } }, [activeSection, currentUser.token]);
@@ -898,23 +1291,40 @@ export function App() {
       />
 
       {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <MetricCard className="stagger-1" title="TOTAL KLAIM TERDAFTAR" value={data?.summary.total_claims?.toLocaleString("id-ID") || "—"} subtitle={`Rata-rata Indeks Risiko: ${data?.summary.avg_fri ?? "—"} • Pangkalan Data Resmi`} icon={<Database size={18}/>}/>
-        <MetricCard className="stagger-2" title="INDIKASI ANOMALI TINGGI" value={data?.summary.high_risk_count?.toLocaleString("id-ID") || "—"} subtitle="Prioritas telaah berkas oleh petugas" color="#c95353" icon={<ShieldAlert size={18}/>}/>
-        <MetricCard className="stagger-3" title="KASUS DALAM ANTREAN" value={perfData?.investigation?.open_cases ?? (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Berkas aktif menanti tindak lanjut" color="#b45309" icon={<ClipboardList size={18}/>}/>
-        <MetricCard className="stagger-4" title="KLAIM SELESAI DIPERIKSA" value={perfData?.investigation?.throughput_all_time ?? "—"} subtitle="Total perkara telah diputuskan resmi" color="#098a58" icon={<CheckCircle2 size={18}/>}/>
-      </div>
+      {loading && !data ? (
+        <>
+          <SkeletonCardsGrid count={4} />
+          <SkeletonCardsGrid count={4} />
+        </>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+            <MetricCard className="stagger-1" title="TOTAL KLAIM TERDAFTAR" value={data?.summary.total_claims?.toLocaleString("id-ID") || "—"} subtitle={`Rata-rata Indeks Risiko: ${data?.summary.avg_fri ?? "—"} • Pangkalan Data Resmi`} icon={<Database size={18}/>}/>
+            <MetricCard className="stagger-2" title="INDIKASI ANOMALI TINGGI" value={data?.summary.high_risk_count?.toLocaleString("id-ID") || "—"} subtitle="Prioritas telaah berkas oleh petugas" color="#c95353" icon={<ShieldAlert size={18}/>}/>
+            <MetricCard className="stagger-3" title="KASUS DALAM ANTREAN" value={perfData?.investigation?.open_cases ?? (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Berkas aktif menanti tindak lanjut" color="#b45309" icon={<ClipboardList size={18}/>}/>
+            <MetricCard className="stagger-4" title="KLAIM SELESAI DIPERIKSA" value={perfData?.investigation?.throughput_all_time ?? "—"} subtitle="Total perkara telah diputuskan resmi" color="#098a58" icon={<CheckCircle2 size={18}/>}/>
+          </div>
 
-      {/* Second row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <MetricCard className="stagger-5" title="NILAI KLAIM DALAM PENELAAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Penyaringan pra-pembayaran: Ditahan sementara untuk verifikasi berkas" color="#076641" icon={<Scale size={18}/>}/>
-        <MetricCard className="stagger-6" title="RATA-RATA WAKTU PENYELESAIAN" value={perfData?.investigation?.median_investigation_hours ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dihitung sejak awal telaah hingga putusan resmi" icon={<Clock size={18}/>}/>
-        <MetricCard className="stagger-7" title="KELENGKAPAN CATATAN TELAAH" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Berkas memiliki catatan pertimbangan petugas" color="#0369a1" icon={<BookOpen size={18}/>}/>
-        <MetricCard className="stagger-8" title="STATUS SISTEM CERDAS" value={perfData?.model?.current_version ? `Aktif v${perfData.model.current_version}` : "Siap Operasi"} subtitle={`Pendeteksi anomali relasi faskes & dokter • Pembaruan: ${formatDate(perfData?.model?.last_inference)}`} color="#1e3a5f" icon={<Zap size={18}/>}/>
-      </div>
+          {/* Second row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+            <MetricCard className="stagger-5" title="NILAI KLAIM DALAM PENELAAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Penyaringan pra-pembayaran: Ditahan sementara untuk verifikasi berkas" color="#076641" icon={<Scale size={18}/>}/>
+            <MetricCard className="stagger-6" title="RATA-RATA WAKTU PENYELESAIAN" value={perfData?.investigation?.median_investigation_hours ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dihitung sejak awal telaah hingga putusan resmi" icon={<Clock size={18}/>}/>
+            <MetricCard className="stagger-7" title="KELENGKAPAN CATATAN TELAAH" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Berkas memiliki catatan pertimbangan petugas" color="#0369a1" icon={<BookOpen size={18}/>}/>
+            <MetricCard className="stagger-8" title="STATUS SISTEM CERDAS" value={perfData?.model?.current_version ? `Aktif v${perfData.model.current_version}` : "Siap Operasi"} subtitle={`Pendeteksi anomali relasi faskes & dokter • Pembaruan: ${formatDate(perfData?.model?.last_inference)}`} color="#1e3a5f" icon={<Zap size={18}/>}/>
+          </div>
+        </>
+      )}
 
       {/* Visual Risk Distribution Bar Card */}
-      {data?.summary && (
+      {loading && !data?.summary ? (
+        <div className="card skeleton-card" style={{ padding: "18px 22px", borderRadius: "20px", marginBottom: "24px", background: "#ffffff", border: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
+            <SkeletonBox width="280px" height="14px" borderRadius="4px" />
+            <SkeletonBox width="220px" height="12px" borderRadius="4px" />
+          </div>
+          <SkeletonBox width="100%" height="14px" borderRadius="8px" />
+        </div>
+      ) : data?.summary && (
         <div
           className="card card-interactive animate-fade-in stagger-8"
           style={{
@@ -1029,7 +1439,7 @@ export function App() {
                 <strong>Prinsip Kejujuran Data Terjamin</strong> — Seluruh angka dan berkas bersumber langsung dari pangkalan data resmi tanpa simulasi atau rekaan.
               </div>
             </div>
-          ) : <LoadingSpinner/>}
+          ) : <SkeletonHealthStatus />}
         </div>
       </div>
     </div>
@@ -1229,7 +1639,7 @@ export function App() {
         </div>
       </div>
 
-      {casesLoading ? <LoadingSpinner/> : cases.length === 0 ? (
+      {casesLoading ? <SkeletonCaseQueue count={5} /> : cases.length === 0 ? (
         <EmptyState
           icon={<Inbox size={48}/>}
           message={onlyMine ? "Belum ada berkas yang ditugaskan kepada Anda" : "Tidak ada berkas dalam antrean"}
@@ -1354,7 +1764,7 @@ export function App() {
           </div>
         </div>
 
-        {caseDetailLoading ? <LoadingSpinner/> : ec ? (
+        {caseDetailLoading ? <SkeletonEvidenceCenter /> : ec ? (
           <div key={selectedCase.id} className="grid-responsive-2">
             {/* Ringkasan Kasus */}
             <div className="card card-interactive animate-fade-in stagger-1" style={{ padding: "18px" }}>
@@ -1733,7 +2143,7 @@ export function App() {
         </div>
       )}
 
-      {loading ? <LoadingSpinner/> : (
+      {loading ? <SkeletonClaimsExplorer /> : (
         <div className="explorer-layout-grid">
           {/* Claim List */}
           <div className="card" style={{ padding: "14px", maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
@@ -1952,7 +2362,7 @@ export function App() {
         {dataSourceError && <DataSourceBanner error={dataSourceError} />}
 
         {loading ? (
-          <LoadingSpinner />
+          <SkeletonGraphView />
         ) : !data?.claims || data.claims.length === 0 ? (
           <EmptyState
             icon={<Network size={48} />}
@@ -2363,7 +2773,7 @@ export function App() {
   const renderDataIngestion = () => (
     <div>
       <SectionHeader title="Riwayat Penerimaan Berkas Klaim" subtitle="Pencatatan resmi proses penerimaan dan validasi berkas klaim faskes. Semua metrik bersumber dari pangkalan data aktual." action={<button className="button button-secondary" onClick={fetchIngestion} disabled={ingestionLoading}><RefreshCw size={14} className={ingestionLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
-      {ingestionLoading ? <LoadingSpinner/> : ingestionData ? (
+      {ingestionLoading ? <SkeletonDataIngestion /> : ingestionData ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
             <MetricCard title="TOTAL BERKAS KLAIM" value={ingestionData.database_summary?.total_claims_in_db?.toLocaleString("id-ID")} subtitle="Berkas klaim tersimpan resmi" icon={<Database size={18}/>}/>
@@ -2445,7 +2855,7 @@ export function App() {
         {dataView === "quality" && (
           <div>
             <SectionHeader title="Validasi Mutu Berkas Klaim" subtitle="Tingkat kelengkapan, kepatuhan format, dan sebaran tingkat risiko klaim pelayanan"/>
-            {perfLoading ? <LoadingSpinner/> : perfData ? (
+            {perfLoading ? <SkeletonCardsGrid count={6} /> : perfData ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
                 <MetricCard title="TOTAL SELURUH KLAIM" value={perfData.data_quality?.total_claims?.toLocaleString("id-ID")} icon={<Database size={18}/>}/>
                 <MetricCard title="SELESAI DISKRINING" value={perfData.data_quality?.assessed_claims?.toLocaleString("id-ID")} subtitle={`Cakupan: ${perfData.data_quality?.assessment_coverage_pct}%`} color="#059669" icon={<CheckCircle2 size={18}/>}/>
@@ -2454,7 +2864,7 @@ export function App() {
                 <MetricCard title="INDIKASI ANOMALI SEDANG" value={perfData.data_quality?.medium_risk?.toLocaleString("id-ID")} color="#d97706" icon={<AlertTriangle size={18}/>}/>
                 <MetricCard title="KLAIM WAJAR / SESUAI" value={perfData.data_quality?.low_risk?.toLocaleString("id-ID")} color="#059669" icon={<ShieldCheck size={18}/>}/>
               </div>
-            ) : <LoadingSpinner/>}
+            ) : <SkeletonCardsGrid count={6} />}
           </div>
         )}
         {dataView === "alert_explorer" && renderAlertExplorer()}
@@ -2471,7 +2881,7 @@ export function App() {
     <div>
       <SectionHeader title="Dasbor Kinerja Penanganan Klaim &amp; Verifikasi" subtitle={`Metrik operasional riil — 30 hari terakhir • Diperbarui: ${formatDate(new Date().toISOString())}`}
         action={<button className="button button-secondary" onClick={fetchPerformance} disabled={perfLoading}><RefreshCw size={14} className={perfLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
-      {perfLoading ? <LoadingSpinner/> : perfData ? (
+      {perfLoading ? <SkeletonPerformanceDashboard /> : perfData ? (
         <>
           <div style={{ padding: "12px 16px", borderRadius: "12px", background: "#f0f9ff", border: "1px solid #bae6fd", color: "#0369a1", marginBottom: "20px", fontSize: "12px" }}>
             <Info size={14} style={{ display: "inline", marginRight: "6px" }}/>
@@ -2625,7 +3035,12 @@ export function App() {
                 <Lock size={32} style={{ color: "var(--muted)", marginBottom: "12px" }}/>
                 <p style={{ color: "var(--muted)" }}>Akun dengan peran <RoleBadge role={currentUser.role}/> tidak memiliki izin untuk membuka buku catatan log audit operasional.</p>
               </div>
-            ) : auditLoading ? <LoadingSpinner/> : (
+            ) : auditLoading ? (
+              <SkeletonTable
+                headers={["Waktu Aktivitas", "Nama Petugas", "Tupoksi / Peran", "Jenis Tindakan", "Nomor Berkas / Target", "Keterangan Lengkap"]}
+                rows={6}
+              />
+            ) : (
               <div className="card" style={{ padding: "0", overflow: "hidden" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                   <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
@@ -2716,8 +3131,9 @@ export function App() {
                       {["Nama Pengguna", "Nama Lengkap", "Tupoksi / Peran", "Status Akun", "Tanggal Terdaftar", "Tindakan"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
                     </tr></thead>
                     <tbody>
-                      {usersLoading ? <tr><td colSpan={6} style={{ textAlign: "center", padding: "24px" }}><RefreshCw size={18} className="animate-spin" style={{ color: "var(--green)" }}/></td></tr>
-                      : managedUsers.map(u => (
+                      {usersLoading ? (
+                        <SkeletonUserRows count={4} />
+                      ) : managedUsers.map(u => (
                         <tr key={u.id} style={{ borderBottom: "1px solid var(--line)" }}>
                           <td style={{ padding: "10px 14px", fontFamily: "monospace", fontWeight: 700 }}>{u.username}</td>
                           <td style={{ padding: "10px 14px" }}>{u.fullName}</td>
@@ -2786,7 +3202,12 @@ export function App() {
                       <button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>
                     </div>
                   }/>
-                {auditLoading ? <LoadingSpinner/> : (
+                {auditLoading ? (
+                  <SkeletonTable
+                    headers={["Waktu Aktivitas", "Nama Petugas", "Tupoksi / Peran", "Jenis Tindakan", "Nomor Berkas / Target", "Keterangan Lengkap"]}
+                    rows={6}
+                  />
+                ) : (
                   <div className="card table-responsive" style={{ padding: "0", overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                       <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
@@ -2817,21 +3238,81 @@ export function App() {
   );
 
   // ============================================================
-  // MAIN RENDER
+  // MAIN RENDER (PRODUCTION AUTH GATE & LAYOUT)
   // ============================================================
 
-  const NAV_ITEMS: Array<{ key: NavSection; label: string; icon: React.ReactNode; roles: string[] }> = [
-    { key: "overview", label: "Beranda Utama", icon: <LayoutGrid size={20}/>, roles: ["all"] },
-    { key: "investigation", label: "Pemeriksaan Klaim", icon: <FolderOpen size={20}/>, roles: ["ADMINISTRATOR","VERIFIKATOR","INVESTIGATOR","SUPERVISOR","FRAUD_ANALYST","CLAIM_VERIFIER","AUDITOR"] },
-    { key: "data_intelligence", label: "Pusat Data & Mutu", icon: <Database size={20}/>, roles: ["all"] },
-    { key: "reports", label: "Laporan & Kinerja", icon: <BarChart3 size={20}/>, roles: ["ADMINISTRATOR","SUPERVISOR","DATA_ANALYST","AUDITOR"] },
-    { key: "administration", label: "Administrasi Sistem", icon: <Settings size={20}/>, roles: ["ADMINISTRATOR"] },
-  ];
+  if (authChecking) {
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "radial-gradient(ellipse at top, #0d281e 0%, #06140e 60%, #030805 100%)",
+          color: "#ffffff",
+          fontFamily: "'Manrope', sans-serif",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            className="animate-spin"
+            style={{
+              width: "44px",
+              height: "44px",
+              border: "3px solid rgba(52, 211, 153, 0.2)",
+              borderTopColor: "#34d399",
+              borderRadius: "50%",
+              margin: "0 auto 16px auto",
+            }}
+          />
+          <div style={{ fontSize: "15px", fontWeight: 700, color: "#34d399" }}>
+            Memverifikasi Sesi Kredensial BPJS...
+          </div>
+          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+            Pangkalan Data PostgreSQL Terenkripsi
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser.token) {
+    return (
+      <LoginPage
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setAuthChecking(false);
+        }}
+        backendUrl={BACKEND_URL}
+      />
+    );
+  }
 
   return (
     <>
       {/* TOPBAR */}
       <header className="topbar">
+        {/* Offline Alert Banner */}
+        {!isOnline && (
+          <div
+            style={{
+              background: "#7f1d1d",
+              color: "#fecaca",
+              padding: "6px 14px",
+              fontSize: "11px",
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              width: "100%",
+            }}
+          >
+            <WifiOff size={14} />
+            <span>Mode Offline Terdeteksi: Sambungan internet terputus. Cache lokal PWA aktif.</span>
+          </div>
+        )}
         <div className="topbar-brand">
           <div className="brand" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div className="brand-symbol">
@@ -2855,6 +3336,74 @@ export function App() {
           <button className="icon-button" title="Segarkan" onClick={fetchClaims} disabled={loading}>
             <RefreshCw size={18} className={loading ? "animate-spin text-green" : ""}/>
           </button>
+          <button
+            className="button button-secondary"
+            style={{
+              minHeight: "36px",
+              padding: "6px 12px",
+              fontSize: "12px",
+              borderRadius: "20px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: isDesktopStandalone ? "#f0fdf4" : "var(--surface)",
+              color: isDesktopStandalone ? "#15803d" : "#334155",
+              border: isDesktopStandalone ? "1px solid #86efac" : "1px solid var(--line)"
+            }}
+            onClick={() => setShowDesktopModal(true)}
+            title={isDesktopStandalone ? "Aplikasi Desktop Mandiri Aktif" : "Pasang Aplikasi Desktop Windows"}
+          >
+            {isDesktopStandalone ? (
+              <CheckCircle2 size={14} style={{ color: "#16a34a" }} />
+            ) : (
+              <Monitor size={14} style={{ color: "#098a58" }} />
+            )}
+            <span style={{ fontWeight: 600 }}>
+              {isDesktopStandalone ? "Desktop App" : "App Desktop"}
+            </span>
+          </button>
+          {/* Bell Notification Button */}
+          <button
+            className="icon-button"
+            style={{
+              position: "relative",
+              width: "36px",
+              height: "36px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              background: showNotifCenter ? "#e2e8f0" : "transparent",
+            }}
+            title={`Pusat Notifikasi Operasional (${unreadNotifCount} belum dibaca)`}
+            onClick={() => setShowNotifCenter(v => !v)}
+          >
+            <Bell size={18} style={{ color: unreadNotifCount > 0 ? "#0f172a" : "#64748b" }} />
+            {unreadNotifCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: "2px",
+                  right: "2px",
+                  minWidth: "16px",
+                  height: "16px",
+                  padding: "0 4px",
+                  borderRadius: "8px",
+                  background: "#dc2626",
+                  color: "#ffffff",
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "2px solid #ffffff",
+                  boxShadow: "0 2px 4px rgba(220, 38, 38, 0.4)",
+                }}
+              >
+                {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
+              </span>
+            )}
+          </button>
           <div className="relative">
             <button className="button button-secondary" style={{ minHeight: "36px", padding: "6px 14px", fontSize: "12px", borderRadius: "20px" }} onClick={() => setRoleMenuOpen(v => !v)}>
               <UserCheck size={14} style={{ color: rCfg.color }}/><span>{rCfg.label}</span><ChevronDown size={13}/>
@@ -2875,11 +3424,83 @@ export function App() {
             )}
           </div>
           <div className="topbar-divider"/>
-          <button className="profile-button" title={currentUser.fullName}>
-            <span className="avatar avatar-profile" style={{ background: rCfg.bg, color: rCfg.color, border: `2px solid ${rCfg.color}` }}>
-              {currentUser.fullName.substring(0, 2).toUpperCase()}
-            </span>
-          </button>
+          <div className="relative">
+            <button
+              className="profile-button"
+              title={currentUser.fullName}
+              onClick={() => setProfileMenuOpen(v => !v)}
+              style={{ cursor: "pointer" }}
+            >
+              <span className="avatar avatar-profile" style={{ background: rCfg.bg, color: rCfg.color, border: `2px solid ${rCfg.color}` }}>
+                {currentUser.fullName ? currentUser.fullName.substring(0, 2).toUpperCase() : "US"}
+              </span>
+            </button>
+            {profileMenuOpen && (
+              <div
+                className="card animate-slide-down"
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "48px",
+                  zIndex: 60,
+                  padding: "16px",
+                  borderRadius: "18px",
+                  width: "280px",
+                  boxShadow: "0 15px 35px rgba(0,0,0,0.18)",
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                  <span className="avatar avatar-profile" style={{ width: "40px", height: "40px", fontSize: "15px", background: rCfg.bg, color: rCfg.color, border: `2px solid ${rCfg.color}` }}>
+                    {currentUser.fullName ? currentUser.fullName.substring(0, 2).toUpperCase() : "US"}
+                  </span>
+                  <div style={{ overflow: "hidden" }}>
+                    <div style={{ fontWeight: 800, fontSize: "13px", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {currentUser.fullName}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748b" }}>
+                      @{currentUser.username}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: "12px" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: rCfg.bg, color: rCfg.color }}>
+                    {rCfg.label}
+                  </span>
+                </div>
+
+                <div style={{ background: "#f8fafc", padding: "8px 10px", borderRadius: "10px", fontSize: "11px", color: "#64748b", marginBottom: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Lock size={12} style={{ color: "#098a58" }} />
+                  <span>Sesi Aman Kriptografis HMAC</span>
+                </div>
+
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px",
+                    borderRadius: "10px",
+                    background: "#fef2f2",
+                    color: "#dc2626",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                    border: "1px solid #fecaca",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  <LogOut size={14} />
+                  <span>Keluar dari Sistem (Logout)</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -2939,6 +3560,31 @@ export function App() {
         }}
       />
 
+      {/* DESKTOP INSTALL MODAL */}
+      <DesktopInstallModal
+        isOpen={showDesktopModal}
+        onClose={() => setShowDesktopModal(false)}
+        deferredPrompt={installPrompt}
+        isStandalone={isDesktopStandalone}
+        onTriggerInstall={handleTriggerDesktopInstall}
+      />
+
+      {/* NOTIFICATION CENTER */}
+      <NotificationCenter
+        isOpen={showNotifCenter}
+        onClose={() => setShowNotifCenter(false)}
+        notifications={notifications}
+        unreadCount={unreadNotifCount}
+        onMarkAsRead={handleMarkAsRead}
+        onMarkAllAsRead={handleMarkAllAsRead}
+        onRefresh={fetchNotifications}
+        onNavigate={handleNotificationNavigate}
+        activeRole={currentUser.role}
+        roleLabel={rCfg.label}
+        roleBg={rCfg.bg}
+        roleColor={rCfg.color}
+      />
+
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="mobile-bottom-nav" aria-label="Navigasi Bawah Seluler">
         {NAV_ITEMS.filter(n => n.roles.includes("all") || n.roles.includes(currentUser.role)).map(n => (
@@ -2957,6 +3603,40 @@ export function App() {
             </span>
           </button>
         ))}
+        <button
+          onClick={() => setShowNotifCenter(true)}
+          className="mobile-bottom-nav-item"
+          title="Notifikasi"
+          aria-label="Notifikasi"
+          style={{ position: "relative" }}
+        >
+          <div className="mobile-nav-icon" style={{ position: "relative" }}>
+            <Bell size={20} />
+            {unreadNotifCount > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  right: "-6px",
+                  minWidth: "14px",
+                  height: "14px",
+                  padding: "0 3px",
+                  borderRadius: "7px",
+                  background: "#dc2626",
+                  color: "#ffffff",
+                  fontSize: "9px",
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+              </span>
+            )}
+          </div>
+          <span className="mobile-nav-label">Notif</span>
+        </button>
         <button
           onClick={() => setShowSimulatorModal(true)}
           className="mobile-bottom-nav-item"

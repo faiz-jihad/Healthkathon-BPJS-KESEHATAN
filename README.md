@@ -3,48 +3,114 @@
 
   # AURA-JKN (Autonomous Relational Anti-Fraud)
   ### PREDICT • PREVENT • PROTECT
-  **Sistem Deteksi Risiko Klaim Fiktif Berbasis Graf Heterogen, Analisis Spasiotemporal, dan R-GCN**  
+  **Sistem Deteksi Risiko Klaim Fiktif Berbasis Graf Heterogen (Hetero GraphSAGE) dan Analisis Spasiotemporal**  
   *Decision-Support System untuk Deteksi Dini & Pencegahan Phantom Billing serta Repeat Billing pada Klaim BPJS Kesehatan — Healthkathon 2026*
 </div>
 
 ---
 
-## 1. Kebijakan Integritas: Zero Mock Data & Authoritative Live Database
+## 1. Kebijakan Integritas: Zero Mock Data, Validitas AI, & Live Database
 
-Sistem **AURA-JKN** mengimplementasikan prinsip integritas data dan kecerdasan buatan mutlak:
+Sistem **AURA-JKN** mengimplementasikan prinsip integritas data, validitas kecerdasan buatan, dan transparansi ilmiah mutlak:
 
-1. **Zero Mock Data Policy**:
+1. **Zero Fabrication & Zero Mock Data Policy**:
    - **Tanpa Fallback In-Memory**: Tidak ada data klaim tiruan, array memori palsu, skor probabilitas *hardcoded* (seperti `0.86`), maupun subgraf anomali buatan pada jalur *runtime*.
    - **Kejujuran Kegagalan Basis Data**: Jika basis data PostgreSQL terputus, sistem secara jujur mengembalikan status `DATA_SOURCE_UNAVAILABLE` (HTTP 503) tanpa memalsukan keberhasilan operasi.
-   - **Kejujuran Kegagalan AI**: Jika inferensi R-GCN tidak dapat diakses atau klaim baru belum dikonstruksi ke dalam topologi graf, sistem melaporkan status `ANALYSIS_UNAVAILABLE` atau `NOT_ANALYZED` tanpa merekayasa skor risiko.
+   - **Kejujuran Kegagalan & Penanganan Klaim Baru**: Jika inferensi graf tidak dapat diakses atau berkas klaim baru belum diindeks dalam topologi graf, sistem melaporkan status eksplisit `NOT_ANALYZED` atau `ANALYSIS_UNAVAILABLE` tanpa merekayasa probabilitas fraud.
 
-2. **Penyimpanan Otoritatif Persisten (Live PostgreSQL Database)**:
+2. **Arsitektur Model Graf Aktual**:
+   - Model graf heterogen diimplementasikan menggunakan **PyTorch Geometric `HeteroConv` dengan `SAGEConv` (Heterogeneous GraphSAGE)**, yang melakukan agregasi pesan terpisah lintas jenis relasi (`Registration`, `Examination`, `Authorization`, `Referral`) untuk simpul `claim`, `patient`, `doctor`, `facility`, dan `diagnosis`.
+   - *Transparansi Nomenklatur*: Sistem menggunakan `HeteroConv(SAGEConv)` untuk konvolusi relasional heterogen, bukan kelas tunggal `RGCNConv`.
+
+3. **Penyimpanan Otoritatif Persisten (Live PostgreSQL Database)**:
    Seluruh entitas disimpan secara nyata dan dapat diverifikasi langsung pada database PostgreSQL (`localhost:5432/aura_jkn_db`):
    
    | Entitas Database | Jumlah Rekor Riil | Sumber Data | Status Persistensi |
    | :--- | :---: | :--- | :--- |
    | **Klaim (`claims`)** | **19.999** | `data/claims.parquet` | Terindeks & Tersimpan di PostgreSQL |
-   | **Asesmen Risiko (`risk_assessments`)** | **12.117** | Evaluasi Model PyG R-GCN & Analisis Spatiotemporal | Terindeks & Tersimpan di PostgreSQL |
-   | **Pasien Terpseudonimisasi (`patients`)** | **5.005** | `data/patients.parquet` (UU PDP Compliant) | Terindeks & Tersimpan di PostgreSQL |
+   | **Asesmen Risiko (`risk_assessments`)** | **12.117** | Evaluasi Model Hetero GraphSAGE & Spatiotemporal | Terindeks & Tersimpan di PostgreSQL |
+   | **Pasien Terpseudonimisasi (`patients`)** | **5.005** | `data/patients.parquet` (UU PDP No. 27/2022) | Terindeks & Tersimpan di PostgreSQL |
    | **Dokter (`doctors`)** | **150** | `data/doctors.parquet` | Terindeks & Tersimpan di PostgreSQL |
    | **Fasilitas Kesehatan (`facilities`)** | **30** | `data/facilities.parquet` | Terindeks & Tersimpan di PostgreSQL |
    | **Akun Pengguna RBAC (`users`)** | **4** | Salted PBKDF2 SHA-512 | Terindeks & Tersimpan di PostgreSQL |
+   | **Kasus Investigasi (`case_investigations`)** | Transaksional | State Machine Penanganan Berkas Klaim | Atomik di PostgreSQL |
    | **Keputusan Telaah (`human_reviews`)** | Transaksional | Input Verifikator Pra-Pembayaran | Atomik di PostgreSQL |
-   | **Log Jejak Audit (`audit_logs`)** | Transaksional | Audit Keamanan Sistem | Atomik & Imutabel di PostgreSQL |
+   | **Log Jejak Audit (`audit_logs`)** | Transaksional | Jejak Audit Keamanan Sistem | Atomik & Imutabel di PostgreSQL |
 
-3. **Transparansi Data Sintetis (Healthkathon 2026)**:
-   - Seluruh dataset contoh pada repositori ini merupakan **data sintetis terisolasi** yang dirancang khusus untuk memodelkan 3 skenario anomali (Skenario A: Kolusi Faskes Rujukan, Skenario B: Lonjakan Ekstrem Kapasitas Dokter, Skenario C: Konflik Spasiotemporal Dokter).
-   - Seluruh data ditandai dengan flag eksplisit `is_synthetic: true` dan **bukan data operasional rahasia BPJS Kesehatan**.
+4. **Transparansi Data Sintetis & Batasan Integrasi Eksternal**:
+   - Seluruh dataset pada repositori ini merupakan **data sintetis terkontrol** yang dirancang untuk memodelkan 3 skenario anomali (Skenario A: Klaster Pasien Fiktif/Kolusi Rujukan, Skenario B: Beban Kerja Dokter Ekstrem, Skenario C: Konflik Spasiotemporal Dokter).
+   - Seluruh data ditandai dengan flag eksplisit `is_synthetic: true` dan **bukan data rekam medis rahasia BPJS Kesehatan**.
+   - Sistem **tidak mengklaim koneksi langsung live** ke server produksi BPJS (V-Claim, P-Care, SIMRS, atau SATUSEHAT) tanpa otorisasi resmi. AURA-JKN dibangun dengan antarmuka REST API dan kontrak JSON terstandarisasi yang siap diintegrasikan melalui secure API gateway BPJS Kesehatan di masa mendatang.
+   - Nilai finansial dihitung sebagai **Estimated Potential Exposure at Risk** (estimasi nilai klaim anomali berisiko), bukan klaim penghematan riil yang belum melalui audit fisik.
 
-4. **Human-in-the-Loop Decision Support**:
-   - Skor *Fraud Risk Index* (FRI) dan probabilitas graf R-GCN berfungsi murni sebagai **rekomendasi skrining pra-pembayaran**, bukan vonis hukum sepihak.
+5. **Human-in-the-Loop Decision Support**:
+   - Skor risiko dan probabilitas graf berfungsi murni sebagai **rekomendasi skrining pra-pembayaran**, bukan vonis penolakan otomatis.
    - Keputusan akhir (`RELEASE`, `CLARIFY`, `ESCALATE_AUDIT`) sepenuhnya berada di bawah kendali petugas verifikator berwenang BPJS Kesehatan.
 
 ---
 
-## 2. Matriks Otorisasi Peran Pengguna (RBAC)
+---
 
-AURA-JKN menerapkan kontrol akses berbasis peran (*Role-Based Access Control*) yang ditegakkan secara ketat pada setiap rute API menggunakan tanda tangan kriptografis token HMAC-SHA256 dan hash kata sandi PBKDF2 SHA-512:
+## 2. Hasil Evaluasi Studi Ablasi Multi-Model Terverifikasi (E1 s/d E5)
+
+Evaluasi komparatif multi-model dijalankan secara **reproducible** (`python benchmark_models.py`) pada **3.000 sampel klaim uji (holdout unseen test set)** dengan prevalensi positif sintetis 20% (600 klaim anomali, 2.400 klaim wajar):
+
+| Kode | Konfigurasi Model & Sistem | PR-AUC | ROC-AUC | F1-Score | Recall* | Precision | FPR | Precision @ 250 | Kelengkapan Bukti |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **E1** | Rule-Based Operational Baseline | `0.2034` | `0.5102` | `0.0000` | `0.0000` | `0.0000` | `0.0000` | `0.2320` | 50.0% |
+| **E2A** | Tabular Logistic Regression (Engineered) | `0.9168` | `0.9789` | `0.8746` | `0.8833` | `0.8660` | `0.0342` | `0.9560` | 50.0% |
+| **E2B** | Tabular Random Forest (100 Trees) | `0.9534` | `0.9922` | `0.9213` | `0.9850` | `0.8653` | `0.0383` | `0.9480` | 50.0% |
+| **E3** | Hetero GraphSAGE (Relational Alone) | `0.8294` | `0.9612` | `0.7585` | `1.0000` | `0.6110` | `0.1592` | `0.9040` | 75.0% |
+| **E4** | Hybrid (GraphSAGE + Rules) | `0.8294` | `0.9612` | `0.7595` | `1.0000` | `0.6122` | `0.1583` | `0.9040` | 85.0% |
+| **E5** | **Evidence-Driven Triage (Full Framework)** | **`0.8294`** | **`0.9612`** | **`0.7595`** | **`1.0000`** | **`0.6122`** | **`0.1583`** | **`0.9040`** | **95.0%** |
+
+*\*Catatan: Recall 100% dan Precision@250 90.4% diukur pada sampel positif berdasarkan label dataset sintetis terkontrol, bukan fraud riil operasional BPJS.*
+
+### Temuan Audit Ilmiah Kritis:
+1. **Analisis Shortcut Learning pada Fitur Tabular**:
+   Tingginya PR-AUC tabular pada E2A/E2B (`0.9168` dan `0.9534`) dipicu oleh fitur agregasi `doctor_daily_volume`. Karena seluruh 4.000 fraud sintetis terpusat pada 3 dokter saja, Random Forest mengandalkan fitur dokter hingga **95.9%**. Ketika diuji pada **Entity-Disjoint Split** (dokter fraud belum pernah dilihat pada data latih), recall Random Forest anjlok ke **0.0000** (PR-AUC `0.3867`). Hal ini membuktikan keterbatasan mendasar model tabular pada sindikat baru (*inductive failure*).
+2. **Kekuatan Relasional Hetero GraphSAGE (E3)**:
+   Model graf heterogen mengagregasi relasi struktural 2-hop dokter-faskes-pasien dengan **Brier Score terkalibrasi `0.0909`** dan ECE `8.37%`.
+3. **Nilai Operasional Evidence-Driven Triage (E5)**:
+   Pada kuota pemeriksaan harian verifikator (250 berkas), sistem triase menghasilkan **`90.4%` ketepatan temuan (Precision@250)** dengan rantai bukti 4-lapis yang dapat diverifikasi secara dinamis (100% traceable alerts, mengeliminasi peringatan tanpa dasar).
+
+*Laporan lengkap dan artefak tersimpan di [`docs/BENCHMARK_AND_ABLATION_REPORT.md`](file:///d:/Healthkathon/Healthkathon-BPJS-KESEHATAN/docs/BENCHMARK_AND_ABLATION_REPORT.md), [`docs/PHASE3_REPRODUCIBILITY_AUDIT.md`](file:///d:/Healthkathon/Healthkathon-BPJS-KESEHATAN/docs/PHASE3_REPRODUCIBILITY_AUDIT.md), dan [`docs/ablation_benchmark_results.json`](file:///d:/Healthkathon/Healthkathon-BPJS-KESEHATAN/docs/ablation_benchmark_results.json).*
+
+---
+
+## 3. Penanganan Klaim Baru (Dual-Layer Fail-Safe Architecture)
+
+Untuk klaim baru yang masuk melalui registrasi API dan belum diindeks dalam topologi graf:
+
+```mermaid
+flowchart TD
+    NewClaim["Klaim Baru Masuk (/api/claims POST)"] --> ValGate{"Validasi Skema & SEP"}
+    ValGate -- "Cacat / Duplikat" --> Reject["HTTP 400 / 409 Conflict"]
+    ValGate -- "Valid" --> PersistDB["Persistensi ke PostgreSQL"]
+    
+    PersistDB --> SpatioCheck["Lapisan 1: Analisis Aturan Spasiotemporal & Kuota"]
+    PersistDB --> GNNIndex{"Klaim Terindeks dalam Graf?"}
+    
+    GNNIndex -- "Sudah Terindeks" --> GNNInfer["Inferensi Graf Heterogen (Hetero GraphSAGE)"]
+    GNNIndex -- "Belum Terindeks (Klaim Baru)" --> HonestStatus["Tandai Status: NOT_ANALYZED (Tanpa Skor Palsu)"]
+    
+    SpatioCheck --> CombineGate["Evaluasi Dual-Layer Risk Gate"]
+    GNNInfer --> CombineGate
+    HonestStatus --> CombineGate
+    
+    CombineGate --> CaseRoute["Registrasi Otomatis ke CaseInvestigation"]
+    CaseRoute --> Queue["Antrean Verifikator (FLAGGED_FOR_REVIEW / Priority: MEDIUM)"]
+```
+
+- **Kejujuran Ilmiah**: Sistem tidak mengonversi status klaim baru menjadi skor aman palsu `0.0` atau skor buatan `0.86`.
+- **Dual-Layer Protection**: Lapisan 1 mengevaluasi aturan deterministik (jarak faskes Haversine, benturan waktu praktik, dan kuota harian dokter). Jika terdeteksi anomali, klaim langsung diberi flag.
+- **Fail-Safe Routing**: Berkas dengan status `NOT_ANALYZED` secara otomatis didaftarkan ke tabel `CaseInvestigation` dengan status `FLAGGED_FOR_REVIEW` dan prioritas `MEDIUM` untuk ditinjau oleh petugas verifikator pra-pembayaran.
+
+---
+
+## 4. Matriks Otorisasi Peran Pengguna (RBAC)
+
+AURA-JKN menerapkan kontrol akses berbasis peran (*Role-Based Access Control*) yang ditegakkan pada tingkat server menggunakan tanda tangan token HMAC-SHA256:
 
 | Kemampuan Operasional | Administrator (`ADMINISTRATOR`) | Analis Fraud (`FRAUD_ANALYST`) | Verifikator Klaim (`CLAIM_VERIFIER`) | Auditor (`AUDITOR`) |
 | :--- | :---: | :---: | :---: | :---: |
@@ -53,6 +119,7 @@ AURA-JKN menerapkan kontrol akses berbasis peran (*Role-Based Access Control*) y
 | **Eksplorasi Antrean & Detail Klaim** | Baca-Saja | **Ya** | **Ya** | Baca-Saja |
 | **Inspeksi Subgraf Relasional (XAI)** | Baca-Saja | **Ya** | **Ya** | Baca-Saja |
 | **Eksekusi Keputusan Telaah Klaim** | Ditolak (Pemisahan Tugas) | Ditolak (Rekomendasi) | **Ya (`RELEASE`/`CLARIFY`/`ESCALATE`)** | Ditolak (Pencegahan Konflik) |
+| **Transisi Status Kasus Investigasi** | **Ya** | **Ya** | **Ya** | Ditolak (403) |
 | **Akses Log Audit Transaksional** | **Ya** | Ditolak (403) | Ditolak (403) | **Ya (Lengkap & Terverifikasi)** |
 | **Manipulasi Log / Skor AI** | **Dilarang (Imutabel)** | **Dilarang (Imutabel)** | **Dilarang (Imutabel)** | **Dilarang (Imutabel)** |
 
@@ -64,53 +131,57 @@ AURA-JKN menerapkan kontrol akses berbasis peran (*Role-Based Access Control*) y
 
 ---
 
-## 3. Struktur & Arsitektur Repositori
+## 5. Struktur & Arsitektur Repositori
 
 ```text
 Healthkathon-BPJS-KESEHATAN/
 ├── package.json                        # Monorepo runner terpadu untuk orkestrasi seluruh layanan
-├── requirements.txt                    # Dependensi Python lengkap (FastAPI, PyG, PyTorch, Pandas, Psycopg2)
+├── requirements.txt                    # Dependensi Python (FastAPI, PyG, PyTorch, Pandas, Scikit-Learn)
+├── benchmark_models.py                 # Pipeline benchmark multi-model reproducible (Rule-Based vs Tabular vs Graph)
+├── test_spatiotemporal.py              # Suite pengujian unit analisis spasiotemporal (Haversine & Kuota)
 ├── backend/                            # Layanan Backend API (Next.js 14 App Router + Prisma ORM + PostgreSQL)
 │   ├── prisma/
-│   │   ├── schema.prisma               # Skema PostgreSQL (claims, risk_assessments, doctors, facilities, etc.)
+│   │   ├── schema.prisma               # Skema PostgreSQL (claims, risk_assessments, cases, transitions, audit_logs)
 │   │   └── seed.ts                     # Seeder otomatis terintegrasi ke PostgreSQL
 │   ├── src/lib/
 │   │   ├── auth.ts                     # Kriptografi PBKDF2, HMAC-SHA256 Token & Enforcer RBAC
-│   │   ├── benchmark-fixtures.ts       # Definisi tipe & acuan evaluasi benchmark Skenario A, B, C
 │   │   └── prisma.ts                   # Prisma Client Singleton
-│   ├── src/middleware.ts               # Global CORS & Preflight OPTIONS Request Handler
 │   ├── src/app/api/
 │   │   ├── admin/users/                # Kelola pengguna sistem (Administrator)
 │   │   ├── audit-logs/                 # Laporan log audit imutabel (Auditor & Admin)
 │   │   ├── auth/                       # /login, /me, /demo-token
-│   │   ├── claims/                     # /api/claims (Daftar teroptimasi dengan metrik agregat)
-│   │   ├── claims/[claimId]/           # Detail klaim & subgraf relasional
+│   │   ├── cases/                      # Manajemen investigasi kasus & state machine
+│   │   ├── cases/[caseId]/             # Detail kasus Evidence Center & transisi PATCH/POST
+│   │   ├── claims/                     # /api/claims (Antrean klaim berbasis risiko)
+│   │   ├── claims/[claimId]/           # Detail klaim & subgraf relasional bukti
 │   │   ├── claims/[claimId]/review/    # Transaksi atomik telaah verifikasi klaim
+│   │   ├── feedback-export/            # Ekspor umpan balik verifikator untuk retraining
 │   │   └── health/                     # Laporan diagnostik konektivitas live DB & AI
-│   ├── start_postgres.ts               # Runner embedded PostgreSQL bawaan (port 5432)
+│   ├── test_final_acceptance.ts        # Master Acceptance Suite (30 skenario keamanan & alur operasional)
 │   ├── test_master_verification.ts     # Suite verifikasi 19 skenario (RBAC, Kripto, Persistensi DB)
 │   └── test_zero_mock_policy.ts        # Suite verifikasi 8 skenario kebijakan Zero Mock
 ├── frontend/                           # Dashboard Investigasi Modern (React 18 + Vite + Tailwind CSS + React Flow)
 │   ├── src/
-│   │   ├── components/SubgraphViewer.tsx # Visualisasi interaktif graf heterogen R-GCN
+│   │   ├── components/SubgraphViewer.tsx # Visualisasi interaktif graf heterogen
 │   │   ├── types/aura.ts               # Kontrak tipe sinkron dengan API backend
 │   │   └── App.tsx                     # Antarmuka Single-Page Application responsif
 │   └── vite.config.ts                  # Konfigurasi Vite & proxy rute API backend
-├── data/                               # Dataset Parquet sumber kebenaran (19.999 klaim, 5000 pasien, 150 dokter, 30 faskes)
-├── docs/                               # Dokumentasi arsitektur, proposal & aturan logika keputusan
+├── data/                               # Dataset Parquet sumber kebenaran (19.999 klaim, 5005 pasien, 150 dokter, 30 faskes)
+├── docs/                               # Dokumentasi arsitektur, laporan benchmark & naskah demo
+│   ├── ARCHITECTURE.md                 # Penyelarasan arsitektur teknis terhadap proposal inovasi
+│   ├── BENCHMARK_REPORT.md             # Laporan hasil benchmark multi-model aktual & dapat direproduksi
+│   └── DEMO_SCRIPT.md                  # Panduan & naskah demonstrasi juri 3 menit
 ├── AURA_JKN_hetero_graph.ipynb         # Phase 1: Analisis data eksploratif & konstruksi HeteroData PyG
-├── train_rgcn.py                       # Phase 2: Pelatihan model AuraJKNRGCN heterogen
-├── app.py                              # Phase 3: Layanan inferensi FastAPI Python AI (R-GCN + Spatiotemporal)
-├── seed_parquet_to_db.py               # Importer massal dataset parquet langsung ke PostgreSQL (mendukung DATABASE_URL)
-├── test_api.py                         # Suite verifikasi inferensi live PyTorch Geometric
+├── train_rgcn.py                       # Phase 2: Pelatihan model AuraJKNRGCN (HeteroConv + SAGEConv)
+├── app.py                              # Phase 3: Layanan inferensi FastAPI Python AI (Hetero Graph + Spatiotemporal)
 └── docker-compose.yml                  # Opsi kontainer database PostgreSQL 16
 ```
 
 ---
 
-## 4. Panduan Menjalankan Sistem (Lengkap & Terverifikasi)
+## 6. Panduan Menjalankan Sistem
 
-### Opsi 1: Menjalankan Langsung dari Root Folder (Direkomendasikan)
+### Menjalankan Langsung dari Root Folder
 
 Buka terminal di root direktori `Healthkathon-BPJS-KESEHATAN`:
 
@@ -133,123 +204,51 @@ Dashboard langsung dapat diakses di browser melalui: **`http://localhost:5173`**
 
 ---
 
-### Opsi 2: Menjalankan per Subdirektori Manual
-
-#### Langkah 1: Menjalankan Basis Data PostgreSQL (Port 5432)
-Tersedia 2 opsi:
-* **Native (Tanpa Docker)**:
-  ```powershell
-  cd backend
-  npm run db:start
-  ```
-* **Menggunakan Docker Compose**:
-  ```bash
-  docker compose up -d postgres
-  ```
-
-#### Langkah 2: Migrasi Skema & Seeding Data
-```powershell
-cd backend
-npm install
-npm run db:push    # Menerapkan skema relasional ke aura_jkn_db
-npm run db:seed    # Mengimpor 19.999 klaim, 12.117 asesmen risiko, 5.005 pasien, dan 4 akun RBAC
-```
-
-#### Langkah 3: Menjalankan Layanan Backend Next.js (Port 3001)
-```powershell
-cd backend
-npm run dev
-```
-*Layanan backend API aktif di `http://localhost:3001`.*
-
-#### Langkah 4: Menjalankan Dashboard Frontend (Port 5173)
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-*Akses dashboard di browser melalui `http://localhost:5173`.*
-
----
-
-### Langkah 5 (Opsional): Menjalankan Layanan Inferensi Python AI (Port 8000)
-
-Layanan inferensi R-GCN PyG:
-```powershell
-# Pasang dependensi Python
-pip install -r requirements.txt
-
-# Jalankan server FastAPI
-uvicorn app:app --host 127.0.0.1 --port 8000 --reload
-```
-*Layanan AI aktif di `http://127.0.0.1:8000` dengan Swagger UI interaktif di `http://127.0.0.1:8000/docs`.*
-
----
-
-## 5. Rangkaian Pengujian Otomatis (Test Suite)
+## 7. Rangkaian Pengujian Otomatis (Quality Gates)
 
 Repositori dilengkapi rangkaian pengujian otomatis end-to-end yang dapat dijalankan kapan saja:
 
-### 1. Master System & Security Verification (19 Tests)
-Menguji kriptografi token, hashing PBKDF2, penegakan batasan peran (RBAC), integritas transaksi review, dan persistensi database:
+### 1. Master Operational Acceptance & Security Suite (30 Tests)
+Menguji 5 target keamanan kritis (isolasi demo-token, gate otentikasi ketat, derivasi sesi verifikator, fail-fast secret, token tamper-resistance) serta alur operasional Tahap A s/d I:
 ```powershell
-npm run test:master
-# atau: cd backend && npm run test:master
+cd backend
+npm run test:acceptance
 ```
-*Hasil: `19/19 TESTS PASSED`.*
+*Hasil: `30/30 TESTS PASSED` (100% Lulus).*
 
-### 2. Zero Mock Policy Verification (8 Tests)
-Menguji penolakan payload cacat, penolakan enum ilegal, dan kepatuhan Zero Mock Data:
+### 2. Spatiotemporal Risk Unit Tests
+Menguji kalkulasi jarak Haversine, deteksi benturan waktu faskes berjauhan (>400 km), toleransi mobilitas dalam kota (<30 km), dan imunitas koordinat hilang (*Null Island / missing coordinate immunity*):
 ```powershell
-npm run test:policy
-# atau: cd backend && npm run test:policy
+python test_spatiotemporal.py
 ```
-*Hasil: `8/8 TESTS PASSED`.*
+*Hasil: `ALL SPATIOTEMPORAL UNIT TESTS PASSED SUCCESSFULLY`.*
 
-### 3. Python AI PyG Live Inference Verification
-Menguji pipeline inferensi langsung dari checkpoint model `aura_jkn_rgcn_model.pt` dan graf heterogen `aura_jkn_hetero_graph.pt`:
+### 3. Multi-Model Benchmark Suite
+Menjalankan evaluasi komparatif Rule-Based vs Logistic Regression vs Random Forest vs Hetero GraphSAGE pada 3.000 klaim test set unseen:
 ```powershell
-python test_api.py
+python benchmark_models.py
 ```
-*Hasil: `ALL ZERO MOCK VERIFICATION TESTS EXECUTED SUCCESSFULLY`.*
+*Hasil: `PR-AUC 0.8294` dan `Precision@250 90.4%` pada model graf heterogen.*
 
 ### 4. Kompilasi Produksi (Production Build)
 ```powershell
-npm run build
+# Backend Build
+cd backend && npm run build
+
+# Frontend Build
+cd ../frontend && npm run build
 ```
 *Hasil: Backend Next.js dan Frontend Vite terkompilasi sukses dengan 0 error.*
 
 ---
 
-## 6. Ringkasan Endpoint API Backend
+## 8. Panduan Presentasi & Demonstrasi Juri (3 Menit)
 
-| Metode | Endpoint | Fungsi Operasional | Otorisasi RBAC |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/health` | Diagnostik konektivitas live PostgreSQL & Python AI | Publik |
-| `POST` | `/api/auth/login` | Login otentikasi kredensial (PBKDF2 SHA-512) | Publik |
-| `GET` | `/api/auth/me` | Profil pengguna & daftar izin peran aktif | Terautentikasi Token |
-| `POST` | `/api/auth/demo-token` | Penerbitan token demo untuk pengujian peran | Publik (Dev/Test) |
-| `GET` | `/api/claims` | Antrean klaim teroptimasi dengan metrik agregat DB | Terautentikasi |
-| `POST` | `/api/claims` | Registrasi klaim baru & evaluasi validitas | Administrator / Analis |
-| `GET` | `/api/claims/[claimId]` | Detail klaim, XAI, dan subgraf relasional | Terautentikasi |
-| `POST` | `/api/claims/[claimId]/review` | Transaksi atomik simpan keputusan telaah & audit log | **Khusus Verifikator Klaim** |
-| `GET` | `/api/audit-logs` | Inspeksi jejak audit operasional sistem | **Khusus Auditor & Admin** |
-| `GET` | `/api/admin/users` | Daftar seluruh akun terdaftar di sistem | **Khusus Administrator** |
-| `POST` | `/api/admin/users` | Pembuatan akun baru pengguna RBAC | **Khusus Administrator** |
-| `PATCH` | `/api/admin/users/[userId]` | Mutasi peran atau penonaktifan akun | **Khusus Administrator** |
-
----
-
-## 7. Troubleshooting & FAQ
-
-#### Q: Mengapa muncul `Unknown command: "INSTALL"` di terminal?
-> **A:** Perintah `npm` bersifat *case-sensitive*. Pastikan mengetik dengan huruf kecil: `npm install`.
-
-#### Q: Mengapa muncul `ENOENT: no such file or directory, open '...package.json'`?
-> **A:** Di versi sebelumnya perintah dijalankan di root tanpa file `package.json`. Repositori ini sekarang telah dilengkapi root [package.json](file:///d:/Healthkathon/Healthkathon-BPJS-KESEHATAN/package.json). Anda dapat menjalankan perintah langsung dari root direktori.
-
-#### Q: Mengapa ada pesan `Module '@prisma/client' has no exported member 'PrismaClient'` di editor?
-> **A:** Jalankan `npm run db:generate`. Jika IDE Anda masih mencache definisi lama, tekan `Ctrl + Shift + P` di editor, ketik dan pilih: **`TypeScript: Restart TS Server`**.
+Naskah demonstrasi juri 3 menit terperinci telah disiapkan di [`docs/DEMO_SCRIPT.md`](file:///d:/Healthkathon/Healthkathon-BPJS-KESEHATAN/docs/DEMO_SCRIPT.md):
+1. **Menit 00:00 – 00:45**: Login terautentikasi & pembuktian RBAC di server (*Separation of Duties*).
+2. **Menit 00:45 – 01:30**: Antrean klaim berbasis risiko & transparansi klaim baru (`NOT_ANALYZED` fail-safe).
+3. **Menit 01:30 – 02:15**: Evidence Graph Explorer interaktif (5 tipe simpul dari PostgreSQL, XAI multi-hop).
+4. **Menit 02:15 – 03:00**: Human-in-the-Loop decision, transisi state machine kasus, dan audit trail imutabel.
 
 ---
 

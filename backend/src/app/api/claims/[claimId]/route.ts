@@ -1,6 +1,7 @@
 import { prisma } from "../../../../lib/prisma";
 import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../../lib/auth";
 import { ClaimApiRecord } from "../route";
+import { buildEvidenceChain } from "../../../../lib/evidence-chain";
 
 // ==============================================================================
 // GET /api/claims/[claimId]
@@ -47,13 +48,14 @@ export async function GET(
   let c: any = null;
 
   try {
-    c = await prisma.claim.findUnique({
+    c = await (prisma.claim as any).findUnique({
       where: { claimId: claimId.trim() },
       include: {
         patient: true,
         doctor: true,
         facility: true,
         riskAssessment: true,
+        caseInvestigation: true,
         humanReviews: {
           orderBy: { reviewedAt: "desc" },
         },
@@ -162,6 +164,8 @@ export async function GET(
           }
         : null,
     model_version: ra?.modelVersion ?? null,
+    evidence_chain: buildEvidenceChain(c, ra, c.humanReviews, c.caseInvestigation),
+    triage_category: buildEvidenceChain(c, ra, c.humanReviews, c.caseInvestigation).triage_profile.triage_category,
     structured_evidence: {
       case_id: `CASE-${c.claimId}`,
       claim_id: c.claimId,
@@ -181,7 +185,7 @@ export async function GET(
         pattern_label: ra?.primaryFraudTrigger ?? (c.fraudScenario ? `Skenario ${c.fraudScenario}` : "Pola Wajar"),
       },
       model_outputs: {
-        model_name: "PyTorch Geometric Hetero R-GCN v1.0",
+        model_name: "PyTorch Geometric Hetero GraphSAGE v1.0",
         anomaly_score: ra?.fraudProbability ?? null,
         decision_gate: ra?.prePaymentGate ?? "PENDING_ASSESSMENT",
         evaluation_status: analysisStatus,

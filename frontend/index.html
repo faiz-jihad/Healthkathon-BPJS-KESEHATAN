@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#076641" />
+    <meta name="description" content="AURA-JKN: Sistem Skrining Pra-Pembayaran Berbasis Graph Intelligence BPJS Kesehatan" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AURA-JKN" />
+    <link rel="apple-touch-icon" href="/aura-jkn-logo.png" />
     <title>AURA-JKN | Autonomous Relational Anti-Fraud Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,5 +22,19 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then(
+            (reg) => {
+              console.log('[AURA-JKN PWA] Service Worker aktif:', reg.scope);
+            },
+            (err) => {
+              console.warn('[AURA-JKN PWA] Registrasi Service Worker gagal:', err);
+            }
+          );
+        });
+      }
+    </script>
   </body>
 </html>

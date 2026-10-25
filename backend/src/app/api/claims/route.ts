@@ -1,5 +1,6 @@
 import { prisma } from "../../../lib/prisma";
 import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../lib/auth";
+import { buildEvidenceChain, EvidenceChain } from "../../../lib/evidence-chain";
 
 export interface ClaimApiRecord {
   claim_id: string;
@@ -47,6 +48,14 @@ export interface ClaimApiRecord {
     };
   } | null;
   model_version?: string | null;
+  evidence_chain?: EvidenceChain;
+  triage_category?:
+    | "HIGH_RISK_REVIEW"
+    | "NEEDS_CLARIFICATION"
+    | "INSUFFICIENT_EVIDENCE"
+    | "NOT_ANALYZED"
+    | "ANALYSIS_FAILED"
+    | "REVIEWED";
   structured_evidence?: {
     case_id: string;
     claim_id: string;
@@ -93,6 +102,28 @@ export interface ClaimApiRecord {
   }>;
 }
 
+export interface ClaimsSummary {
+  total_claims: number;
+  high_risk_count: number;
+  medium_risk_count: number;
+  low_risk_count: number;
+  not_analyzed_count: number;
+  analysis_unavailable_count: number;
+  held_tariff_idr: number;
+  avg_fri: number;
+  traceable_alerts_pct?: number;
+  mean_evidence_completeness_pct?: number;
+  unexplained_alerts_count?: number;
+  triage_breakdown?: {
+    high_risk_review: number;
+    needs_clarification: number;
+    insufficient_evidence: number;
+    not_analyzed: number;
+    analysis_failed: number;
+    reviewed: number;
+  };
+}
+
 // ==============================================================================
 // GET /api/claims
 // Zero Mock Data: Only returns claims from authoritative PostgreSQL.
@@ -136,7 +167,7 @@ export async function GET(request: Request) {
   const limit = limitParam ? Math.min(Math.max(1, parseInt(limitParam, 10)), 5000) : 300;
 
   let dbClaims: any[] = [];
-  let summary = {
+  let summary: ClaimsSummary = {
     total_claims: 0,
     high_risk_count: 0,
     medium_risk_count: 0,
@@ -145,6 +176,17 @@ export async function GET(request: Request) {
     analysis_unavailable_count: 0,
     held_tariff_idr: 0,
     avg_fri: 0,
+    traceable_alerts_pct: 100,
+    mean_evidence_completeness_pct: 100,
+    unexplained_alerts_count: 0,
+    triage_breakdown: {
+      high_risk_review: 0,
+      needs_clarification: 0,
+      insufficient_evidence: 0,
+      not_analyzed: 0,
+      analysis_failed: 0,
+      reviewed: 0,
+    },
   };
 
   try {
@@ -243,7 +285,7 @@ export async function GET(request: Request) {
         _avg: { fraudRiskIndex: true },
         where: { assessmentStatus: "COMPLETED" },
       }),
-      prisma.claim.findMany({
+      (prisma.claim as any).findMany({
         where: whereClause,
         take: reviewStatusFilter && reviewStatusFilter !== "ALL" ? Math.min(limit * 4, 5000) : limit,
         include: {
@@ -251,6 +293,7 @@ export async function GET(request: Request) {
           doctor: true,
           facility: true,
           riskAssessment: true,
+          caseInvestigation: true,
           humanReviews: {
             orderBy: { reviewedAt: "desc" },
           },
@@ -272,6 +315,18 @@ export async function GET(request: Request) {
       avg_fri: avgFriAgg._avg?.fraudRiskIndex
         ? Math.round(avgFriAgg._avg.fraudRiskIndex * 10) / 10
         : 0,
+      // Novelty Engineering Metrics (Pengembangan A & B)
+      traceable_alerts_pct: 100,
+      mean_evidence_completeness_pct: 94.8,
+      unexplained_alerts_count: 0,
+      triage_breakdown: {
+        high_risk_review: highRiskCount,
+        needs_clarification: mediumRiskCount,
+        insufficient_evidence: lowRiskCount,
+        not_analyzed: Math.max(0, totalClaimsCount - totalAssessedCount),
+        analysis_failed: 0,
+        reviewed: 0,
+      },
     };
   } catch (dbError: any) {
     // ZERO MOCK POLICY: If database fails, return honest 503 without fake fallbacks
@@ -320,6 +375,8 @@ export async function GET(request: Request) {
       else reviewStatus = "PENDING_REVIEW";
     }
 
+    const chain = buildEvidenceChain(c, ra, c.humanReviews, c.caseInvestigation);
+
     return {
       claim_id: c.claimId,
       patient_id: c.patientId,
@@ -352,6 +409,8 @@ export async function GET(request: Request) {
           ? (ra.prePaymentGate as ClaimApiRecord["pre_payment_gate"])
           : "PENDING_ASSESSMENT",
       review_status: reviewStatus,
+      triage_category: chain.triage_profile.triage_category,
+      evidence_chain: chain,
       spatiotemporal_metrics:
         analysisStatus === "ANALYSIS_SUCCESS"
           ? {
@@ -427,6 +486,24 @@ export async function GET(request: Request) {
       })),
     };
   });
+
+  // Dynamically compute authentic traceability and evidence metrics from mapped claims (Zero Fabrication)
+  const totalMapped = mappedClaims.length;
+  const traceableCount = mappedClaims.filter((c) => c.evidence_chain?.traceability_metrics.is_traceable).length;
+  const unexplainedCount = mappedClaims.filter((c) => c.evidence_chain?.traceability_metrics.unexplained_alert).length;
+  const totalCompleteness = mappedClaims.reduce((acc, c) => acc + (c.evidence_chain?.traceability_metrics.evidence_completeness_pct ?? 0), 0);
+
+  summary.traceable_alerts_pct = totalMapped > 0 ? Math.round((traceableCount / totalMapped) * 1000) / 10 : 100;
+  summary.mean_evidence_completeness_pct = totalMapped > 0 ? Math.round((totalCompleteness / totalMapped) * 10) / 10 : 0;
+  summary.unexplained_alerts_count = unexplainedCount;
+  summary.triage_breakdown = {
+    high_risk_review: mappedClaims.filter((c) => c.triage_category === "HIGH_RISK_REVIEW").length,
+    needs_clarification: mappedClaims.filter((c) => c.triage_category === "NEEDS_CLARIFICATION").length,
+    insufficient_evidence: mappedClaims.filter((c) => c.triage_category === "INSUFFICIENT_EVIDENCE").length,
+    not_analyzed: mappedClaims.filter((c) => c.triage_category === "NOT_ANALYZED").length,
+    analysis_failed: mappedClaims.filter((c) => c.triage_category === "ANALYSIS_FAILED").length,
+    reviewed: mappedClaims.filter((c) => c.triage_category === "REVIEWED").length,
+  };
 
   // Apply review_status filter if specified (Task 2.2)
   const claims =
@@ -596,10 +673,13 @@ export async function POST(request: Request) {
     aiErrorReason = `Gagal menghubungi service AI (${aiUrl}): ${aiErr?.message || "Timeout / Koneksi ditolak"}`;
   }
 
-  // Determine honest assessment status
-  const assessmentStatus = aiResult ? "COMPLETED" : "UNAVAILABLE";
-  const fraudProbability = aiResult ? Number(aiResult.fraud_probability) : 0;
-  const fraudRiskIndex = aiResult ? Math.round(fraudProbability * 100) : 0;
+  // Determine honest assessment status (Zero Mock Policy)
+  // Preserves NOT_ANALYZED when the claim is not yet indexed in offline GNN graph
+  const assessmentStatus = aiResult
+    ? (aiResult.analysis_status === "NOT_ANALYZED" ? "NOT_ANALYZED" : "COMPLETED")
+    : "UNAVAILABLE";
+  const fraudProbability = aiResult && aiResult.fraud_probability !== null ? Number(aiResult.fraud_probability) : 0;
+  const fraudRiskIndex = aiResult && aiResult.fraud_probability !== null ? Math.round(Number(aiResult.fraud_probability) * 100) : 0;
   const riskLevel = aiResult ? aiResult.risk_level : "UNASSESSED";
   const prePaymentGate = aiResult ? aiResult.pre_payment_gate : "PENDING_ASSESSMENT";
 
@@ -709,15 +789,31 @@ export async function POST(request: Request) {
         },
       });
 
-      // If flagged for human review or high/medium risk, auto-generate CaseInvestigation (Phase 6)
-      if (prePaymentGate === "REJECT_FOR_HUMAN_REVIEW" || riskLevel === "HIGH" || riskLevel === "MEDIUM") {
+      // Auto-generate CaseInvestigation (Phase 6):
+      // Triggered for:
+      // 1. Elevated risk claims (REJECT_FOR_HUMAN_REVIEW, HIGH, or MEDIUM risk)
+      // 2. Unanalyzed / novel claims (Zero Mock Policy: absence of offline graph training does NOT mean claim is safe)
+      const isUnanalyzedClaim =
+        assessmentStatus === "NOT_ANALYZED" ||
+        prePaymentGate === "PENDING_ASSESSMENT" ||
+        riskLevel === "UNASSESSED";
+
+      if (
+        prePaymentGate === "REJECT_FOR_HUMAN_REVIEW" ||
+        riskLevel === "HIGH" ||
+        riskLevel === "MEDIUM" ||
+        isUnanalyzedClaim
+      ) {
         try {
           const date = new Date();
           const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
           const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
           const caseNumber = `CASE-${dateStr}-${rand}`;
-          const priorityScore = Math.max(30, fraudRiskIndex ?? 50);
+          const priorityScore = isUnanalyzedClaim ? 50 : Math.max(30, fraudRiskIndex ?? 50);
           const priority = priorityScore >= 70 ? "HIGH" : "MEDIUM";
+          const transitionNotes = isUnanalyzedClaim
+            ? "Berkas klaim baru belum terindeks dalam topologi graf offline. Sesuai Zero Mock Policy, diarahkan ke verifikasi pra-pembayaran manual."
+            : `Auto-flagged ke antrean investigasi berdasarkan evaluasi AI (FRI: ${priorityScore}, Gate: ${prePaymentGate})`;
 
           await (tx as any).caseInvestigation.create({
             data: {
@@ -734,7 +830,7 @@ export async function POST(request: Request) {
                     toStatus: "FLAGGED_FOR_REVIEW",
                     actorName: "SYSTEM_PRE_PAYMENT_GATE",
                     actorRole: "SYSTEM",
-                    notes: `Auto-flagged ke antrean investigasi berdasarkan evaluasi AI (FRI: ${priorityScore}, Gate: ${prePaymentGate})`,
+                    notes: transitionNotes,
                   },
                 ],
               },

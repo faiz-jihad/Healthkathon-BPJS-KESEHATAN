@@ -1,0 +1,27 @@
+{
+  "name": "AURA-JKN: Sistem Skrining Pra-Pembayaran BPJS",
+  "short_name": "AURA-JKN",
+  "description": "Autonomous Relational Anti-Fraud & Graph Intelligence Engine BPJS Kesehatan",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#f5f6f2",
+  "theme_color": "#076641",
+  "orientation": "any",
+  "categories": ["medical", "business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/aura-jkn-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

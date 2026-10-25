@@ -33,6 +33,7 @@ npm-debug.log*
 .postgres-data/
 **/.postgres-data/
 
-# Temporary templates
+# Temporary templates & scratch scripts
 template-extracted/
 *.zip
+scratch_*.py
