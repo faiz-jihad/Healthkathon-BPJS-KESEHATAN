@@ -293,7 +293,7 @@ export const SubgraphViewer: React.FC<SubgraphViewerProps> = ({ nodes, edges, on
         )}
 
         {/* Bottom Legend */}
-        <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm border border-[#edf0e9] rounded-xl px-3 py-1.5 shadow-sm text-[11px] flex items-center gap-3 text-[#1e241f] font-sans">
+        <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm border border-[#edf0e9] rounded-xl px-3 py-1.5 shadow-sm text-[10px] md:text-[11px] flex items-center flex-wrap gap-2 md:gap-3 text-[#1e241f] font-sans max-w-[calc(100%-24px)] z-10">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#098a58]"></span> Faskes Mitra
           </span>

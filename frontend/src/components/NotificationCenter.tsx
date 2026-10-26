@@ -318,6 +318,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
               justifyContent: "space-between",
               gap: "8px",
               marginTop: "4px",
+              flexWrap: "wrap",
             }}
           >
             <div
@@ -327,6 +328,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 background: "#f1f5f9",
                 padding: "3px",
                 borderRadius: "10px",
+                overflowX: "auto",
+                maxWidth: "100%",
               }}
             >
               <button

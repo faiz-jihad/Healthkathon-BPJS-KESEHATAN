@@ -83,14 +83,11 @@ export const SkeletonCardsGrid: React.FC<{
   count?: number;
   columns?: string;
   className?: string;
-}> = ({ count = 4, columns = "repeat(auto-fit, minmax(200px, 1fr))", className = "" }) => (
+}> = ({ count = 4, columns, className = "" }) => (
   <div
-    className={className}
+    className={`grid-responsive-cards ${className}`}
     style={{
-      display: "grid",
-      gridTemplateColumns: columns,
-      gap: "16px",
-      marginBottom: "24px",
+      ...(columns ? { gridTemplateColumns: columns } : {}),
     }}
   >
     {Array.from({ length: count }).map((_, i) => (
@@ -120,7 +117,7 @@ export const SkeletonTable: React.FC<{
       className="card skeleton-card table-responsive"
       style={{
         padding: 0,
-        overflow: "hidden",
+        overflowX: "auto",
         background: "#ffffff",
         border: "1px solid var(--line)",
         borderRadius: "18px",
@@ -430,7 +427,7 @@ export const SkeletonEvidenceCenter: React.FC = () => (
     </div>
 
     {/* 2-Column Responsive Layout */}
-    <div className="grid-responsive-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+    <div className="grid-responsive-2" style={{ gap: "20px" }}>
       {/* Left Column: Summary & Facts */}
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {/* Ringkasan Kasus */}
@@ -572,7 +569,7 @@ export const SkeletonGraphView: React.FC = () => (
     </div>
 
     {/* 3 Bottom Inspector Cards */}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px" }}>
+    <div className="grid-responsive-3" style={{ gap: "16px" }}>
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="card skeleton-card" style={{ padding: "18px", borderRadius: "18px", background: "#ffffff", border: "1px solid var(--line)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
@@ -656,7 +653,7 @@ export const SkeletonPerformanceDashboard: React.FC = () => (
       }}
     >
       <SkeletonBox width="240px" height="14px" borderRadius="4px" style={{ marginBottom: "14px" }} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+      <div className="grid-responsive-2" style={{ gap: "12px" }}>
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} style={{ padding: "14px 16px", borderRadius: "14px", background: "#f8fafc", border: "1px solid var(--line)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>

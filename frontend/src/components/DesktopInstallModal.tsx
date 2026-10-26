@@ -335,9 +335,8 @@ export const DesktopInstallModal: React.FC<DesktopInstallModalProps> = ({
                   </div>
 
                   <div
+                    className="grid-responsive-2"
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
                       gap: "12px",
                     }}
                   >
@@ -415,9 +414,8 @@ export const DesktopInstallModal: React.FC<DesktopInstallModalProps> = ({
 
             {/* Keuntungan PWA Desktop */}
             <div
+              className="grid-responsive-3"
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
                 gap: "10px",
                 borderTop: "1px solid #f1f5f9",
                 paddingTop: "14px",

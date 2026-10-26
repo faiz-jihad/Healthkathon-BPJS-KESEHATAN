@@ -311,7 +311,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
 
         <div style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px" }}>
+            <div className="grid-responsive-2" style={{ gap: "10px" }}>
               <div>
                 <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>
                   Nomor Berkas Klaim:
@@ -530,7 +530,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px", fontSize: "12px" }}>
+              <div className="grid-responsive-3" style={{ gap: "10px", fontSize: "12px" }}>
                 <div style={{ background: "#ffffff", padding: "10px 12px", borderRadius: "12px", border: "1px solid var(--line)" }}>
                   <small className="muted" style={{ display: "block" }}>Indeks Risiko Anomali (FRI)</small>
                   <strong style={{ fontSize: "15px" }}>

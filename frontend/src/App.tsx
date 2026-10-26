@@ -9,7 +9,8 @@ import {
   ChevronDown, CircleCheck, PlusCircle, BarChart3, TrendingUp,
   Inbox, ClipboardList, FolderOpen, GitBranch, Settings,
   AlertCircle, CheckSquare, Hourglass, ArrowRight, Zap,
-  BookOpen, Target, Award, Download, Monitor, LogOut, Wifi, WifiOff
+  BookOpen, Target, Award, Download, Monitor, LogOut, Wifi, WifiOff,
+  Menu
 } from "lucide-react";
 import { ClaimRecord, ClaimsListResponse, SubgraphNode, SubgraphEdge, AppNotificationItem } from "./types/aura";
 import { SubgraphViewer } from "./components/SubgraphViewer";
@@ -95,6 +96,17 @@ const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; de
   FRAUD_ANALYST: { label: "Investigator & Analis Anti-Fraud", color: "#b45309", bg: "#fef3c7", description: "Pemeriksaan Anomali" },
   CLAIM_VERIFIER:{ label: "Petugas Verifikator Klaim",     color: "#0369a1", bg: "#e0f2fe", description: "Verifikasi Berkas" },
   AUDITOR:       { label: "Analis Mutu Data & Sistem",     color: "#1e3a5f", bg: "#eaf0f6", description: "Kajian Kinerja" },
+};
+
+const ROLE_SHORT_LABELS: Record<string, string> = {
+  ADMINISTRATOR: "Admin",
+  VERIFIKATOR: "Verifikator",
+  INVESTIGATOR: "Investigator",
+  SUPERVISOR: "Supervisor",
+  DATA_ANALYST: "Analis Data",
+  FRAUD_ANALYST: "Investigator",
+  CLAIM_VERIFIER: "Verifikator",
+  AUDITOR: "Analis Data",
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -310,6 +322,8 @@ export function App() {
   const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [mobileExplorerTab, setMobileExplorerTab] = useState<"list" | "detail">("list");
 
   // Navigation state — persisten di URL hash & sessionStorage (tetap di halaman saat di-refresh)
   const [activeSection, setActiveSection] = useState<NavSection>(() => initialNav.section);
@@ -1298,7 +1312,7 @@ export function App() {
         </>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+          <div className="grid-responsive-cards">
             <MetricCard className="stagger-1" title="TOTAL KLAIM TERDAFTAR" value={data?.summary.total_claims?.toLocaleString("id-ID") || "—"} subtitle={`Rata-rata Indeks Risiko: ${data?.summary.avg_fri ?? "—"} • Pangkalan Data Resmi`} icon={<Database size={18}/>}/>
             <MetricCard className="stagger-2" title="INDIKASI ANOMALI TINGGI" value={data?.summary.high_risk_count?.toLocaleString("id-ID") || "—"} subtitle="Prioritas telaah berkas oleh petugas" color="#c95353" icon={<ShieldAlert size={18}/>}/>
             <MetricCard className="stagger-3" title="KASUS DALAM ANTREAN" value={perfData?.investigation?.open_cases ?? (caseQueueSummary.FLAGGED_FOR_REVIEW || 0)} subtitle="Berkas aktif menanti tindak lanjut" color="#b45309" icon={<ClipboardList size={18}/>}/>
@@ -1306,7 +1320,7 @@ export function App() {
           </div>
 
           {/* Second row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+          <div className="grid-responsive-cards">
             <MetricCard className="stagger-5" title="NILAI KLAIM DALAM PENELAAHAN" value={data?.summary.held_tariff_idr ? formatIDR(data.summary.held_tariff_idr) : "—"} subtitle="Penyaringan pra-pembayaran: Ditahan sementara untuk verifikasi berkas" color="#076641" icon={<Scale size={18}/>}/>
             <MetricCard className="stagger-6" title="RATA-RATA WAKTU PENYELESAIAN" value={perfData?.investigation?.median_investigation_hours ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dihitung sejak awal telaah hingga putusan resmi" icon={<Clock size={18}/>}/>
             <MetricCard className="stagger-7" title="KELENGKAPAN CATATAN TELAAH" value={perfData?.evidence?.evidence_completeness_pct !== null && perfData?.evidence?.evidence_completeness_pct !== undefined ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle="Berkas memiliki catatan pertimbangan petugas" color="#0369a1" icon={<BookOpen size={18}/>}/>
@@ -1398,8 +1412,8 @@ export function App() {
       {/* Data Source Badges */}
       {dataSourceError && <DataSourceBanner error={dataSourceError}/>}
 
-      {/* Case Queue Preview */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+      {/* Case Queue Preview & Health Cards */}
+      <div className="grid-responsive-2" style={{ gap: "20px" }}>
         <div className="card card-interactive animate-fade-in stagger-9" style={{ padding: "18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "14px" }}>
             <strong>Antrean Berkas Pemeriksaan</strong>
@@ -1459,7 +1473,7 @@ export function App() {
             : "Daftar berkas klaim yang ditahan untuk ditelaah. Urutan penanganan disusun berdasarkan tingkat risiko anomali, kepatuhan faskes, dan batas waktu SLA."
         }
         action={
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <div className="toolbar-filter-row">
             <div style={{ position: "relative" }}>
               <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
               <input value={caseSearchQuery} onChange={e => setCaseSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchCases()} placeholder="Cari nomor berkas, klaim, petugas…"
@@ -1891,7 +1905,7 @@ export function App() {
                   <div style={{ fontSize: "11px", fontWeight: 700, color: "#374151", marginBottom: "8px" }}>
                     PEMBAGIAN TUGAS BERKAS (SUPERVISOR TIM)
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                  <div className="grid-responsive-2" style={{ gap: "8px", marginBottom: "8px" }}>
                     <select
                       value={assignTargetUser}
                       onChange={e => setAssignTargetUser(e.target.value)}
@@ -2030,7 +2044,7 @@ export function App() {
     <div>
       <SectionHeader title="Daftar Klaim &amp; Penyaringan Pra-Pembayaran" subtitle={`${data?.claims.length ?? 0} dari ${data?.summary.total_claims?.toLocaleString("id-ID") ?? "—"} berkas — Sumber: Pangkalan Data Resmi BPJS`}
         action={
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <div className="toolbar-filter-row">
             <div style={{ position: "relative" }}>
               <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
               <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchClaims()} placeholder="Cari nomor klaim, dokter, faskes…"
@@ -2086,73 +2100,124 @@ export function App() {
       )}
 
       {loading ? <SkeletonClaimsExplorer /> : (
-        <div className="explorer-layout-grid">
-          {/* Claim List */}
-          <div className="card" style={{ padding: "14px", maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
-            <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, marginBottom: "10px", padding: "0 4px" }}>DAFTAR PENYARINGAN KLAIM — {data?.claims.length ?? 0} BERKAS</div>
-            {(!data?.claims || data.claims.length === 0) ? (
-              <EmptyState icon={<Inbox size={32}/>} message="Tidak ada berkas klaim" sub="Coba sesuaikan penyaring pencarian"/>
-            ) : data.claims.map((c, idx) => (
-              <button key={c.claim_id} onClick={() => setSelectedClaim(c)}
-                className={`list-item-hover animate-fade-in stagger-${(idx % 8) + 1}`}
-                style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: "12px", marginBottom: "6px", border: `1px solid ${selectedClaim?.claim_id === c.claim_id ? "var(--green)" : "var(--line)"}`, background: selectedClaim?.claim_id === c.claim_id ? "#e6efe6" : "#fff", cursor: "pointer" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                  <span style={{ fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>{c.claim_id.substring(0, 18)}…</span>
-                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "8px", background: c.risk_level === "HIGH" ? "#faecec" : c.risk_level === "MEDIUM" ? "#fef3c7" : "#e6efe6", color: c.risk_level === "HIGH" ? "#c95353" : c.risk_level === "MEDIUM" ? "#b45309" : "#076641" }}>
-                    {c.risk_level === "HIGH" ? "TINGGI" : c.risk_level === "MEDIUM" ? "SEDANG" : "WAJAR"}
-                  </span>
-                </div>
-                <div style={{ fontSize: "11px", color: "var(--muted)" }}>
-                  Indeks FRI: <strong>{c.fraud_risk_index ?? "—"}</strong> • {c.service_date} • {formatIDR(c.ina_cbgs_tariff)}
-                </div>
-                {/* Mini FRI Risk Bar */}
-                <div style={{ marginTop: "4px", marginBottom: "4px", height: "4px", width: "100%", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
-                  <div style={{
-                    height: "100%",
-                    width: `${Math.min(100, Math.max(8, Number(c.fraud_risk_index || 0) * 100))}%`,
-                    background: c.risk_level === "HIGH" ? "#ef4444" : c.risk_level === "MEDIUM" ? "#f59e0b" : "#10b981",
-                    borderRadius: "3px",
-                  }} />
-                </div>
-                <div style={{ display: "flex", gap: "6px", marginTop: "4px", flexWrap: "wrap" }}>
-                  {c.fraud_scenario && (
-                    <span style={{ fontSize: "9.5px", fontWeight: 700, padding: "1px 6px", borderRadius: "6px", background: "#f1f5f9", color: "#334155" }}>
-                      Skenario {c.fraud_scenario}
-                    </span>
-                  )}
-                  <span style={{ fontSize: "9.5px", fontWeight: 600, padding: "1px 6px", borderRadius: "6px", background: c.review_status === "PENDING_REVIEW" ? "#f1f5f9" : "#e6efe6", color: c.review_status === "PENDING_REVIEW" ? "#64748b" : "#076641" }}>
-                    {c.review_status === "PENDING_REVIEW" ? "Menunggu Telaah" : c.review_status === "RELEASED" ? "Disetujui Sah" : c.review_status === "CLARIFICATION_REQUESTED" ? "Konfirmasi Faskes" : "Eskalasi Audit"}
-                  </span>
-                </div>
+        <>
+          {/* Mobile Tab Switcher */}
+          <div className="mobile-only" style={{ marginBottom: "14px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: "#f1f5f9", padding: "4px", borderRadius: "14px", gap: "4px" }}>
+              <button
+                type="button"
+                onClick={() => setMobileExplorerTab("list")}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  fontSize: "12px",
+                  fontWeight: mobileExplorerTab === "list" ? 700 : 500,
+                  background: mobileExplorerTab === "list" ? "#ffffff" : "transparent",
+                  color: mobileExplorerTab === "list" ? "var(--dark-green)" : "#64748b",
+                  boxShadow: mobileExplorerTab === "list" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                  cursor: "pointer",
+                }}
+              >
+                Daftar Berkas ({data?.claims.length ?? 0})
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setMobileExplorerTab("detail")}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  fontSize: "12px",
+                  fontWeight: mobileExplorerTab === "detail" ? 700 : 500,
+                  background: mobileExplorerTab === "detail" ? "#ffffff" : "transparent",
+                  color: mobileExplorerTab === "detail" ? "var(--dark-green)" : "#64748b",
+                  boxShadow: mobileExplorerTab === "detail" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
+                  cursor: "pointer",
+                }}
+              >
+                Detail Telaah {selectedClaim ? "✓" : ""}
+              </button>
+            </div>
           </div>
 
-          {/* Claim Detail */}
-          {selectedClaim ? (
-            <div key={selectedClaim.claim_id} className="animate-fade-in-right" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              <div className="card card-interactive animate-fade-in stagger-1" style={{ padding: "18px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
-                  <div>
-                    <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 800, fontFamily: "monospace" }}>{selectedClaim.claim_id}</h2>
-                    <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: selectedClaim.risk_level === "HIGH" ? "#faecec" : "#fef3c7", color: selectedClaim.risk_level === "HIGH" ? "#c95353" : "#b45309" }}>
-                        {selectedClaim.risk_level === "HIGH" ? "RISIKO ANOMALI TINGGI" : selectedClaim.risk_level === "MEDIUM" ? "RISIKO ANOMALI SEDANG" : "RISIKO WAJAR"}
-                      </span>
-                      <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9" }}>Indeks FRI: {selectedClaim.fraud_risk_index ?? "—"}</span>
-                      <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#e0f2fe", color: "#0369a1", fontWeight: 700 }}>
-                        Penapisan: {selectedClaim.pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW" ? "Tahan Sementara" : selectedClaim.pre_payment_gate === "AUTO_APPROVE" ? "Lolos Otomatis" : "Peringatan Khusus"}
-                      </span>
-                      {selectedClaim.is_synthetic && <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9", color: "#475569" }}>DATA PENGUJIAN (Healthkathon)</span>}
-                    </div>
+          <div className="explorer-layout-grid">
+            {/* Claim List */}
+            <div className={`card ${mobileExplorerTab === "detail" ? "desktop-only" : ""}`} style={{ padding: "14px", maxHeight: "calc(100vh - 280px)", overflowY: "auto" }}>
+              <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, marginBottom: "10px", padding: "0 4px" }}>DAFTAR PENYARINGAN KLAIM — {data?.claims.length ?? 0} BERKAS</div>
+              {(!data?.claims || data.claims.length === 0) ? (
+                <EmptyState icon={<Inbox size={32}/>} message="Tidak ada berkas klaim" sub="Coba sesuaikan penyaring pencarian"/>
+              ) : data.claims.map((c, idx) => (
+                <button key={c.claim_id} onClick={() => { setSelectedClaim(c); setMobileExplorerTab("detail"); }}
+                  className={`list-item-hover animate-fade-in stagger-${(idx % 8) + 1}`}
+                  style={{ width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: "12px", marginBottom: "6px", border: `1px solid ${selectedClaim?.claim_id === c.claim_id ? "var(--green)" : "var(--line)"}`, background: selectedClaim?.claim_id === c.claim_id ? "#e6efe6" : "#fff", cursor: "pointer" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: "11px", fontWeight: 700 }}>{c.claim_id.substring(0, 18)}…</span>
+                    <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "8px", background: c.risk_level === "HIGH" ? "#faecec" : c.risk_level === "MEDIUM" ? "#fef3c7" : "#e6efe6", color: c.risk_level === "HIGH" ? "#c95353" : c.risk_level === "MEDIUM" ? "#b45309" : "#076641" }}>
+                      {c.risk_level === "HIGH" ? "TINGGI" : c.risk_level === "MEDIUM" ? "SEDANG" : "WAJAR"}
+                    </span>
                   </div>
-                  {hasPermission(currentUser.role, ["investigate", "start_review"]) && (
-                    <button className="button button-primary" style={{ fontSize: "11px" }} onClick={() => createCaseFromClaim(selectedClaim.claim_id)}>
-                      <PlusCircle size={13}/> Buka Berkas Pemeriksaan
-                    </button>
-                  )}
+                  <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                    Indeks FRI: <strong>{c.fraud_risk_index ?? "—"}</strong> • {c.service_date} • {formatIDR(c.ina_cbgs_tariff)}
+                  </div>
+                  {/* Mini FRI Risk Bar */}
+                  <div style={{ marginTop: "4px", marginBottom: "4px", height: "4px", width: "100%", background: "#f1f5f9", borderRadius: "3px", overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%",
+                      width: `${Math.min(100, Math.max(8, Number(c.fraud_risk_index || 0) * 100))}%`,
+                      background: c.risk_level === "HIGH" ? "#ef4444" : c.risk_level === "MEDIUM" ? "#f59e0b" : "#10b981",
+                      borderRadius: "3px",
+                    }} />
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", marginTop: "4px", flexWrap: "wrap" }}>
+                    {c.fraud_scenario && (
+                      <span style={{ fontSize: "9.5px", fontWeight: 700, padding: "1px 6px", borderRadius: "6px", background: "#f1f5f9", color: "#334155" }}>
+                        Skenario {c.fraud_scenario}
+                      </span>
+                    )}
+                    <span style={{ fontSize: "9.5px", fontWeight: 600, padding: "1px 6px", borderRadius: "6px", background: c.review_status === "PENDING_REVIEW" ? "#f1f5f9" : "#e6efe6", color: c.review_status === "PENDING_REVIEW" ? "#64748b" : "#076641" }}>
+                      {c.review_status === "PENDING_REVIEW" ? "Menunggu Telaah" : c.review_status === "RELEASED" ? "Disetujui Sah" : c.review_status === "CLARIFICATION_REQUESTED" ? "Konfirmasi Faskes" : "Eskalasi Audit"}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Claim Detail */}
+            {selectedClaim ? (
+              <div key={selectedClaim.claim_id} className={`animate-fade-in-right ${mobileExplorerTab === "list" ? "desktop-only" : ""}`} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div className="mobile-only" style={{ marginBottom: "2px" }}>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => setMobileExplorerTab("list")}
+                    style={{ fontSize: "11px", padding: "6px 12px", minHeight: 0 }}
+                  >
+                    ← Kembali ke Daftar Klaim
+                  </button>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", fontSize: "12px" }}>
+                <div className="card card-interactive animate-fade-in stagger-1" style={{ padding: "18px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 800, fontFamily: "monospace" }}>{selectedClaim.claim_id}</h2>
+                      <div style={{ display: "flex", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "8px", background: selectedClaim.risk_level === "HIGH" ? "#faecec" : "#fef3c7", color: selectedClaim.risk_level === "HIGH" ? "#c95353" : "#b45309" }}>
+                          {selectedClaim.risk_level === "HIGH" ? "RISIKO ANOMALI TINGGI" : selectedClaim.risk_level === "MEDIUM" ? "RISIKO ANOMALI SEDANG" : "RISIKO WAJAR"}
+                        </span>
+                        <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9" }}>Indeks FRI: {selectedClaim.fraud_risk_index ?? "—"}</span>
+                        <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#e0f2fe", color: "#0369a1", fontWeight: 700 }}>
+                          Penapisan: {selectedClaim.pre_payment_gate === "REJECT_FOR_HUMAN_REVIEW" ? "Tahan Sementara" : selectedClaim.pre_payment_gate === "AUTO_APPROVE" ? "Lolos Otomatis" : "Peringatan Khusus"}
+                        </span>
+                        {selectedClaim.is_synthetic && <span style={{ fontSize: "10px", padding: "2px 8px", borderRadius: "8px", background: "#f1f5f9", color: "#475569" }}>DATA PENGUJIAN (Healthkathon)</span>}
+                      </div>
+                    </div>
+                    {hasPermission(currentUser.role, ["investigate", "start_review"]) && (
+                      <button className="button button-primary" style={{ fontSize: "11px" }} onClick={() => createCaseFromClaim(selectedClaim.claim_id)}>
+                        <PlusCircle size={13}/> Buka Berkas Pemeriksaan
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px", fontSize: "12px" }}>
                   {[["ID Peserta (Anonim)", selectedClaim.patient_id], ["Dokter DPJP", selectedClaim.doctor_id], ["Fasilitas Kesehatan", selectedClaim.facility_id], ["Diagnosis ICD-10", selectedClaim.icd10_code], ["Tanggal Pelayanan", selectedClaim.service_date], ["Tarif INA-CBG", formatIDR(selectedClaim.ina_cbgs_tariff)], ["Hari Rawat (LOS)", `${selectedClaim.length_of_stay} hari`], ["Tingkat Faskes", selectedClaim.facility_class], ["Daerah Asal Peserta", selectedClaim.home_region]].map(([k, v]) => (
                     <div key={k} style={{ padding: "8px 10px", borderRadius: "8px", background: "#f9fafb" }}>
                       <div style={{ fontSize: "10px", color: "var(--muted)" }}>{k}</div>
@@ -2251,7 +2316,8 @@ export function App() {
             <EmptyState icon={<Eye size={48}/>} message="Pilih berkas klaim dari daftar" sub="Klik salah satu klaim untuk melihat rincian pelayanan dan opsi telaah"/>
           )}
         </div>
-      )}
+      </>
+    )}
     </div>
   );
 
@@ -2330,7 +2396,7 @@ export function App() {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: "300px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: "200px" }}>
                   <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>
                     PILIH BERKAS KLAIM:
                   </span>
@@ -2717,7 +2783,7 @@ export function App() {
       <SectionHeader title="Riwayat Penerimaan Berkas Klaim" subtitle="Pencatatan resmi proses penerimaan dan validasi berkas klaim faskes. Semua metrik bersumber dari pangkalan data aktual." action={<button className="button button-secondary" onClick={fetchIngestion} disabled={ingestionLoading}><RefreshCw size={14} className={ingestionLoading ? "animate-spin" : ""}/>Segarkan</button>}/>
       {ingestionLoading ? <SkeletonDataIngestion /> : ingestionData ? (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+          <div className="grid-responsive-cards">
             <MetricCard title="TOTAL BERKAS KLAIM" value={ingestionData.database_summary?.total_claims_in_db?.toLocaleString("id-ID")} subtitle="Berkas klaim tersimpan resmi" icon={<Database size={18}/>}/>
             <MetricCard title="TOTAL PESERTA TERLAYANI" value={ingestionData.database_summary?.total_patients_in_db?.toLocaleString("id-ID")} subtitle="Identitas terproteksi UU PDP" icon={<User size={18}/>}/>
             <MetricCard title="DOKTER PENANGGUNG JAWAB (DPJP)" value={ingestionData.database_summary?.total_doctors_in_db?.toLocaleString("id-ID")} subtitle="Profil dokter terdaftar" icon={<Stethoscope size={18}/>}/>
@@ -2770,7 +2836,7 @@ export function App() {
   const renderModelEval = () => (
     <div>
       <SectionHeader title="Akurasi Sistem Skrining &amp; Umpan Balik Verifikator" subtitle="Status model deteksi anomali relasi heterogen &amp; ekspor data pembelajaran dari hasil telaah resmi verifikator"/>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+      <div className="grid-responsive-2" style={{ gap: "16px", marginBottom: "20px" }}>
         <MetricCard title="VERSI MODEL AKTIF" value={perfData?.model?.current_version ? `v${perfData.model.current_version}` : "v1.0.0"} subtitle={`Terakhir diperbarui: ${formatDate(perfData?.model?.last_inference)}`} icon={<Zap size={18}/>}/>
         <MetricCard title="CAKUPAN PENAPISAN KLAIM" value={perfData?.data_quality?.assessment_coverage_pct !== undefined ? `${perfData.data_quality.assessment_coverage_pct}%` : null} subtitle="Persentase berkas klaim yang telah diskrining oleh sistem" color="#0284c7" icon={<Target size={18}/>}/>
       </div>
@@ -2798,7 +2864,7 @@ export function App() {
           <div>
             <SectionHeader title="Validasi Mutu Berkas Klaim" subtitle="Tingkat kelengkapan, kepatuhan format, dan sebaran tingkat risiko klaim pelayanan"/>
             {perfLoading ? <SkeletonCardsGrid count={6} /> : perfData ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+              <div className="grid-responsive-cards">
                 <MetricCard title="TOTAL SELURUH KLAIM" value={perfData.data_quality?.total_claims?.toLocaleString("id-ID")} icon={<Database size={18}/>}/>
                 <MetricCard title="SELESAI DISKRINING" value={perfData.data_quality?.assessed_claims?.toLocaleString("id-ID")} subtitle={`Cakupan: ${perfData.data_quality?.assessment_coverage_pct}%`} color="#059669" icon={<CheckCircle2 size={18}/>}/>
                 <MetricCard title="MENUNGGU DISKRINING" value={perfData.data_quality?.not_assessed?.toLocaleString("id-ID")} color="#d97706" icon={<Hourglass size={18}/>}/>
@@ -2829,13 +2895,13 @@ export function App() {
             <Info size={14} style={{ display: "inline", marginRight: "6px" }}/>
             Semua metrik operasional dihitung langsung dari data riil transaksi klaim tanpa rekayasa.
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+          <div className="grid-responsive-cards">
             <MetricCard title="TOTAL KASUS SELESAI" value={perfData.investigation?.throughput_all_time} subtitle="Berkas selesai diputuskan &amp; ditutup" color="#059669" icon={<TrendingUp size={18}/>}/>
             <MetricCard title="BERKAS MENUNGGU TELAAH" value={perfData.investigation?.backlog} subtitle="Menanti tindak lanjut petugas" color="#d97706" icon={<Inbox size={18}/>}/>
             <MetricCard title="RATA-RATA WAKTU PENELAAHAN" value={perfData.investigation?.median_investigation_hours !== null ? `${perfData.investigation.median_investigation_hours} jam` : null} subtitle="Dihitung sejak awal telaah hingga putusan" icon={<Clock size={18}/>}/>
             <MetricCard title="RASIO TELAAH BERKAS" value={perfData.alert_quality?.alert_review_rate !== null ? `${perfData.alert_quality.alert_review_rate}%` : null} subtitle={`${perfData.alert_quality?.reviewed_in_period} berkas ditelaah dalam periode`} color="#0284c7" icon={<Eye size={18}/>}/>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+          <div className="grid-responsive-cards">
             <MetricCard title="TINGKAT KLAIM SAH SETELAH TELAAH" value={perfData.alert_quality?.verified_false_positive_rate !== null ? `${perfData.alert_quality.verified_false_positive_rate}%` : null} subtitle="Berkas tersaring anomali yang dikonfirmasi wajar & sah oleh verifikator" color="#b45309" icon={<Scale size={18}/>}/>
             <MetricCard title="KELENGKAPAN CATATAN TELAAH" value={perfData.evidence?.evidence_completeness_pct !== null ? `${perfData.evidence.evidence_completeness_pct}%` : null} subtitle={`${perfData.evidence?.cases_with_evidence} berkas memiliki catatan pertimbangan`} color="#059669" icon={<BookOpen size={18}/>}/>
             <MetricCard title="KETEPATAN PRIORITAS PENAPISAN" value={null} subtitle={perfData.alert_quality?.precision_at_k_note || "Tingkat kesesuaian urutan anomali teratas dengan telaah petugas"} icon={<Target size={18}/>}/>
@@ -2908,7 +2974,7 @@ export function App() {
                 </button>
               }
             />
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "20px" }}>
+            <div className="grid-responsive-3" style={{ gap: "16px", marginBottom: "20px" }}>
               <MetricCard title="BERKAS SELESAI DIPUTUSKAN" value={perfData?.investigation?.resolved_cases} color="#059669" icon={<CheckCircle2 size={18}/>}/>
               <MetricCard title="BERKAS DITUTUP ADMINISTRATIF" value={perfData?.investigation?.closed_cases} icon={<Lock size={18}/>}/>
               <MetricCard title="BERKAS DIESKALASI KE AUDIT" value={perfData?.investigation?.escalated_cases} color="#dc2626" icon={<ArrowUpRight size={18}/>}/>
@@ -2916,7 +2982,7 @@ export function App() {
             {perfData?.investigation?.outcomes_distribution && (
               <div className="card" style={{ padding: "18px", marginBottom: "20px" }}>
                 <strong>Distribusi Hasil Putusan Kasus (Outcomes)</strong>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", marginTop: "12px" }}>
+                <div className="grid-responsive-2" style={{ gap: "12px", marginTop: "12px" }}>
                   {Object.entries(OUTCOME_LABELS).map(([key, cfg]) => {
                     const totalOutcomes = Object.values(perfData.investigation.outcomes_distribution).reduce((a: number, b: any) => a + Number(b || 0), 0) || 1;
                     const count = Number(perfData.investigation.outcomes_distribution[key] ?? 0);
@@ -2983,7 +3049,7 @@ export function App() {
                 rows={6}
               />
             ) : (
-              <div className="card" style={{ padding: "0", overflow: "hidden" }}>
+              <div className="card table-responsive" style={{ padding: "0", overflow: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                   <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
                     {["Waktu Aktivitas", "Nama Petugas", "Tupoksi / Peran", "Jenis Tindakan", "Nomor Berkas / Target", "Keterangan Lengkap"].map(h => (
@@ -3046,7 +3112,7 @@ export function App() {
                 {userMgmtSuccess && <div style={{ padding: "10px 14px", background: "#d1fae5", color: "#059669", borderRadius: "12px", marginBottom: "12px", fontSize: "12px" }}>{userMgmtSuccess}</div>}
                 <form onSubmit={handleCreateUser} className="card" style={{ padding: "18px", marginBottom: "16px" }}>
                   <strong style={{ display: "block", marginBottom: "12px" }}>Registrasi Akun Petugas Baru</strong>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div className="grid-responsive-2" style={{ gap: "10px" }}>
                     {[["Nama Pengguna (Username)", newUsername, setNewUsername, "contoh: verifikator_jateng", "text"], ["Nama Lengkap Petugas", newFullName, setNewFullName, "contoh: Dr. Rina S.", "text"], ["Kata Sandi Akun", newPassword, setNewPassword, "Minimal 8 karakter", "password"]].map(([label, val, setter, ph, type]) => (
                       <div key={label as string}>
                         <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "4px" }}>{label as string}:</label>
@@ -3067,7 +3133,7 @@ export function App() {
                   </div>
                   <button type="submit" className="button button-primary" style={{ marginTop: "12px" }}>Daftarkan Akun Petugas</button>
                 </form>
-                <div className="card table-responsive" style={{ padding: "0", overflow: "hidden" }}>
+                <div className="card table-responsive" style={{ padding: "0", overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                     <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
                       {["Nama Pengguna", "Nama Lengkap", "Tupoksi / Peran", "Status Akun", "Tanggal Terdaftar", "Tindakan"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
@@ -3096,7 +3162,7 @@ export function App() {
               <div>
                 <SectionHeader title="Kondisi Infrastruktur &amp; Pangkalan Data" subtitle="Status kesiapan server aplikasi dan pangkalan data resmi BPJS" action={<button className="button button-secondary" onClick={fetchHealth}><RefreshCw size={14}/>Periksa Kondisi Sistem</button>}/>
                 {healthStatus ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
+                  <div className="grid-responsive-2" style={{ gap: "16px" }}>
                     {[
                       { name: "Pangkalan Data Resmi BPJS (PostgreSQL)", connected: isDbConnected, detail: healthStatus.database },
                       { name: "Layanan Skrining Cerdas Relasi (FastAPI R-GCN)", connected: isAiConnected, detail: healthStatus.ai_engine || healthStatus.ai_service },
@@ -3150,7 +3216,7 @@ export function App() {
                     rows={6}
                   />
                 ) : (
-                  <div className="card table-responsive" style={{ padding: "0", overflow: "hidden" }}>
+                  <div className="card table-responsive" style={{ padding: "0", overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                       <thead><tr style={{ borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
                         {["Waktu Aktivitas", "Nama Petugas", "Tupoksi / Peran", "Jenis Tindakan", "Nomor Berkas / Target", "Keterangan Lengkap"].map(h => <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: "11px" }}>{h}</th>)}
@@ -3233,30 +3299,42 @@ export function App() {
 
   return (
     <>
+      {/* Offline Alert Banner */}
+      {!isOnline && (
+        <div
+          style={{
+            background: "#7f1d1d",
+            color: "#fecaca",
+            padding: "8px 14px",
+            fontSize: "11px",
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            width: "100%",
+            borderRadius: "14px",
+            marginBottom: "8px",
+            boxSizing: "border-box",
+          }}
+        >
+          <WifiOff size={14} />
+          <span>Mode Offline Terdeteksi: Sambungan internet terputus. Cache lokal PWA aktif.</span>
+        </div>
+      )}
+
       {/* TOPBAR */}
       <header className="topbar">
-        {/* Offline Alert Banner */}
-        {!isOnline && (
-          <div
-            style={{
-              background: "#7f1d1d",
-              color: "#fecaca",
-              padding: "6px 14px",
-              fontSize: "11px",
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "6px",
-              width: "100%",
-            }}
+        <div className="topbar-brand" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen(true)}
+            title="Buka Menu Navigasi"
+            aria-label="Buka Menu Navigasi"
           >
-            <WifiOff size={14} />
-            <span>Mode Offline Terdeteksi: Sambungan internet terputus. Cache lokal PWA aktif.</span>
-          </div>
-        )}
-        <div className="topbar-brand">
-          <div className="brand" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <Menu size={19} />
+          </button>
+          <div className="brand" style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }} onClick={() => setActiveSection("overview")}>
             <div className="brand-symbol">
               <ShieldCheck size={24} strokeWidth={2.4}/>
             </div>
@@ -3279,13 +3357,12 @@ export function App() {
             <RefreshCw size={18} className={loading ? "animate-spin text-green" : ""}/>
           </button>
           <button
-            className="button button-secondary"
+            className="button button-secondary topbar-desktop-btn"
             style={{
               minHeight: "36px",
               padding: "6px 12px",
               fontSize: "12px",
               borderRadius: "20px",
-              display: "inline-flex",
               alignItems: "center",
               gap: "6px",
               background: isDesktopStandalone ? "#f0fdf4" : "var(--surface)",
@@ -3347,16 +3424,19 @@ export function App() {
             )}
           </button>
           <div className="relative">
-            <button className="button button-secondary" style={{ minHeight: "36px", padding: "6px 14px", fontSize: "12px", borderRadius: "20px" }} onClick={() => setRoleMenuOpen(v => !v)}>
-              <UserCheck size={14} style={{ color: rCfg.color }}/><span>{rCfg.label}</span><ChevronDown size={13}/>
+            <button className="button button-secondary topbar-role-btn" onClick={() => setRoleMenuOpen(v => !v)}>
+              <UserCheck size={14} style={{ color: rCfg.color }}/>
+              <span className="role-full-label">{rCfg.label}</span>
+              <span className="role-short-label">{ROLE_SHORT_LABELS[currentUser.role] || "Peran"}</span>
+              <ChevronDown size={13}/>
             </button>
             {roleMenuOpen && (
-              <div className="card animate-slide-down" style={{ position: "absolute", right: 0, top: "44px", zIndex: 50, padding: "8px", borderRadius: "16px", width: "240px", boxShadow: "0 10px 25px rgba(0,0,0,0.12)" }}>
+              <div className="card animate-slide-down" style={{ position: "absolute", right: 0, top: "44px", zIndex: 50, padding: "8px", borderRadius: "16px", width: "240px", maxWidth: "calc(100vw - 24px)", boxShadow: "0 10px 25px rgba(0,0,0,0.12)" }}>
                 <div style={{ padding: "6px 10px", fontSize: "10px", color: "var(--muted)", fontWeight: 700 }}>PILIH PERAN OPERASIONAL (RBAC):</div>
                 {(["ADMINISTRATOR","VERIFIKATOR","INVESTIGATOR","SUPERVISOR","DATA_ANALYST"] as const).map(role => {
                   const cfg = ROLE_CONFIG[role];
                   return (
-                    <button key={role} onClick={() => switchRole(role)} style={{ width: "100%", textAlign: "left", padding: "8px 12px", borderRadius: "10px", fontSize: "12px", fontWeight: currentUser.role === role ? 700 : 400, color: currentUser.role === role ? cfg.color : "#374151", background: currentUser.role === role ? cfg.bg : "transparent", cursor: "pointer", border: "none" }}>
+                    <button key={role} onClick={() => { switchRole(role); setRoleMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "8px 12px", borderRadius: "10px", fontSize: "12px", fontWeight: currentUser.role === role ? 700 : 400, color: currentUser.role === role ? cfg.color : "#374151", background: currentUser.role === role ? cfg.bg : "transparent", cursor: "pointer", border: "none" }}>
                       <div style={{ fontWeight: 700 }}>{cfg.label}</div>
                       <div style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 400 }}>{cfg.description}</div>
                     </button>
@@ -3388,6 +3468,7 @@ export function App() {
                   padding: "16px",
                   borderRadius: "18px",
                   width: "280px",
+                  maxWidth: "calc(100vw - 24px)",
                   boxShadow: "0 15px 35px rgba(0,0,0,0.18)",
                   background: "#ffffff",
                   border: "1px solid #e2e8f0"
@@ -3527,66 +3608,297 @@ export function App() {
         roleColor={rCfg.color}
       />
 
+      {/* MOBILE SLIDE-OVER NAVIGATION DRAWER */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-drawer-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            className="mobile-drawer-sheet"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <div className="mobile-drawer-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span className="avatar avatar-profile" style={{ width: "38px", height: "38px", fontSize: "14px", background: rCfg.bg, color: rCfg.color, border: `2px solid ${rCfg.color}` }}>
+                  {currentUser.fullName ? currentUser.fullName.substring(0, 2).toUpperCase() : "US"}
+                </span>
+                <div style={{ overflow: "hidden" }}>
+                  <div style={{ fontWeight: 800, fontSize: "13px", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {currentUser.fullName}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#64748b" }}>
+                    @{currentUser.username} &bull; <span style={{ fontWeight: 700, color: rCfg.color }}>{ROLE_SHORT_LABELS[currentUser.role] || currentUser.role}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setMobileMenuOpen(false)}
+                title="Tutup Menu"
+                style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#f1f5f9" }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Drawer Body Scroll */}
+            <div className="mobile-drawer-body">
+              {/* Role Switcher Pill Bar */}
+              <div style={{ marginBottom: "18px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Peran Operasional (RBAC):
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                  {(["ADMINISTRATOR", "VERIFIKATOR", "INVESTIGATOR", "SUPERVISOR", "DATA_ANALYST"] as const).map(role => {
+                    const cfg = ROLE_CONFIG[role];
+                    const isCurrent = currentUser.role === role;
+                    return (
+                      <button
+                        key={role}
+                        onClick={() => { switchRole(role); setMobileMenuOpen(false); }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "8px 12px",
+                          borderRadius: "10px",
+                          border: isCurrent ? `1.5px solid ${cfg.color}` : "1px solid #f1f5f9",
+                          background: isCurrent ? cfg.bg : "#ffffff",
+                          color: isCurrent ? cfg.color : "#475569",
+                          fontWeight: isCurrent ? 700 : 500,
+                          fontSize: "12px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: isCurrent ? cfg.color : "#cbd5e1" }} />
+                          <span>{cfg.label}</span>
+                        </div>
+                        {isCurrent && <span style={{ fontSize: "10px", fontWeight: 800, padding: "1px 6px", borderRadius: "6px", background: cfg.color, color: "#ffffff" }}>AKTIF</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Navigation Sections */}
+              <div style={{ marginBottom: "18px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Navigasi Utama:
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {NAV_ITEMS.filter(n => n.roles.includes("all") || n.roles.includes(currentUser.role)).map(n => {
+                    const isActive = activeSection === n.key;
+                    return (
+                      <button
+                        key={n.key}
+                        onClick={() => {
+                          setActiveSection(n.key);
+                          setMobileMenuOpen(false);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "10px 12px",
+                          borderRadius: "12px",
+                          border: "none",
+                          background: isActive ? "#eef7f2" : "transparent",
+                          color: isActive ? "var(--dark-green)" : "#334155",
+                          fontWeight: isActive ? 700 : 500,
+                          fontSize: "13px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <span style={{ color: isActive ? "var(--green)" : "#64748b" }}>{n.icon}</span>
+                        <span>{n.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Quick Actions & Tools */}
+              <div style={{ marginBottom: "18px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Aksi &amp; Fitur Operasional:
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <button
+                    onClick={() => { setShowSimulatorModal(true); setMobileMenuOpen(false); }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 12px",
+                      borderRadius: "12px",
+                      border: "1px solid #bbf7d0",
+                      background: "#f0fdf4",
+                      color: "#166534",
+                      fontWeight: 700,
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <PlusCircle size={16} style={{ color: "var(--green)" }} />
+                    <span>Simulasi Pemasukan Klaim Baru</span>
+                  </button>
+                  <button
+                    onClick={() => { setShowNotifCenter(true); setMobileMenuOpen(false); }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 12px",
+                      borderRadius: "12px",
+                      border: "1px solid var(--line)",
+                      background: "#ffffff",
+                      color: "#334155",
+                      fontWeight: 600,
+                      fontSize: "12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <Bell size={16} style={{ color: "#64748b" }} />
+                      <span>Pusat Notifikasi Operasional</span>
+                    </div>
+                    {unreadNotifCount > 0 && (
+                      <span style={{ padding: "1px 6px", borderRadius: "8px", background: "#dc2626", color: "#fff", fontSize: "10px", fontWeight: 800 }}>
+                        {unreadNotifCount}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => { setShowDesktopModal(true); setMobileMenuOpen(false); }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 12px",
+                      borderRadius: "12px",
+                      border: "1px solid var(--line)",
+                      background: "#ffffff",
+                      color: "#334155",
+                      fontWeight: 600,
+                      fontSize: "12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Monitor size={16} style={{ color: "#098a58" }} />
+                    <span>Aplikasi Desktop Windows Mandiri</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* System Integrity & Logout */}
+              <div style={{ marginTop: "auto", paddingTop: "14px", borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--muted)", marginBottom: "12px" }}>
+                  <ShieldCheck size={14} style={{ color: "var(--green)" }} />
+                  <span>Integritas Pangkalan Data Resmi (Zero Mock)</span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px",
+                    borderRadius: "12px",
+                    background: "#fef2f2",
+                    color: "#dc2626",
+                    fontWeight: 700,
+                    fontSize: "12px",
+                    border: "1px solid #fecaca",
+                    cursor: "pointer",
+                  }}
+                >
+                  <LogOut size={15} />
+                  <span>Keluar dari Sistem (Logout)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="mobile-bottom-nav" aria-label="Navigasi Bawah Seluler">
-        {NAV_ITEMS.filter(n => n.roles.includes("all") || n.roles.includes(currentUser.role)).map(n => (
-          <button
-            key={n.key}
-            onClick={() => {
-              setActiveSection(n.key);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className={`mobile-bottom-nav-item ${activeSection === n.key ? "active" : ""}`}
-            aria-label={n.label}
-          >
-            <div className="mobile-nav-icon">{n.icon}</div>
-            <span className="mobile-nav-label">
-              {n.key === "overview" ? "Beranda" : n.key === "investigation" ? "Pemeriksaan" : n.key === "data_intelligence" ? "Pusat Data" : n.key === "reports" ? "Laporan" : "Admin"}
-            </span>
-          </button>
-        ))}
         <button
-          onClick={() => setShowNotifCenter(true)}
-          className="mobile-bottom-nav-item"
-          title="Notifikasi"
-          aria-label="Notifikasi"
-          style={{ position: "relative" }}
+          onClick={() => {
+            setActiveSection("overview");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`mobile-bottom-nav-item ${activeSection === "overview" && !mobileMenuOpen ? "active" : ""}`}
+          aria-label="Beranda"
+        >
+          <div className="mobile-nav-icon"><LayoutGrid size={19} /></div>
+          <span className="mobile-nav-label">Beranda</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveSection("investigation");
+            setInvestigationView("queue");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`mobile-bottom-nav-item ${activeSection === "investigation" && investigationView !== "graph" && !mobileMenuOpen ? "active" : ""}`}
+          aria-label="Kasus"
         >
           <div className="mobile-nav-icon" style={{ position: "relative" }}>
-            <Bell size={20} />
-            {unreadNotifCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-6px",
-                  minWidth: "14px",
-                  height: "14px",
-                  padding: "0 3px",
-                  borderRadius: "7px",
-                  background: "#dc2626",
-                  color: "#ffffff",
-                  fontSize: "9px",
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
-              </span>
+            <ClipboardList size={19} />
+            {cases.length > 0 && (
+              <span className="mobile-nav-badge">{cases.length}</span>
             )}
           </div>
-          <span className="mobile-nav-label">Notif</span>
+          <span className="mobile-nav-label">Kasus</span>
         </button>
+
         <button
-          onClick={() => setShowSimulatorModal(true)}
-          className="mobile-bottom-nav-item"
-          title="Simulasi Pengajuan Klaim"
-          aria-label="Simulasi Pengajuan Klaim"
+          onClick={() => {
+            setActiveSection("investigation");
+            setInvestigationView("graph");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`mobile-bottom-nav-item ${activeSection === "investigation" && investigationView === "graph" && !mobileMenuOpen ? "active" : ""}`}
+          aria-label="Peta Graf"
         >
-          <div className="mobile-nav-icon" style={{ color: "var(--green)" }}><PlusCircle size={20} /></div>
-          <span className="mobile-nav-label">Simulasi</span>
+          <div className="mobile-nav-icon"><Network size={19} /></div>
+          <span className="mobile-nav-label">Graf</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveSection("data_intelligence");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`mobile-bottom-nav-item ${activeSection === "data_intelligence" && !mobileMenuOpen ? "active" : ""}`}
+          aria-label="Pusat Data"
+        >
+          <div className="mobile-nav-icon"><Database size={19} /></div>
+          <span className="mobile-nav-label">Data</span>
+        </button>
+
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className={`mobile-bottom-nav-item ${mobileMenuOpen ? "active" : ""}`}
+          aria-label="Menu Lengkap"
+        >
+          <div className="mobile-nav-icon" style={{ position: "relative" }}>
+            <SlidersHorizontal size={19} />
+            {unreadNotifCount > 0 && (
+              <span className="mobile-nav-dot" />
+            )}
+          </div>
+          <span className="mobile-nav-label">Menu</span>
         </button>
       </nav>
     </>
