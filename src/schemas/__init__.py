@@ -1,4 +1,8 @@
 from .claim import (
+    AuditBrief,
+    ChatMessage,
+    ClaimChatRequest,
+    ClaimChatResponse,
     ClaimPredictionRequest,
     ClaimPredictionResponse,
     HealthCheckResponse,
@@ -10,6 +14,10 @@ from .claim import (
 )
 
 __all__ = [
+    "AuditBrief",
+    "ChatMessage",
+    "ClaimChatRequest",
+    "ClaimChatResponse",
     "ClaimPredictionRequest",
     "ClaimPredictionResponse",
     "HealthCheckResponse",
@@ -19,3 +27,4 @@ __all__ = [
     "SubgraphNode",
     "XAIExplanation",
 ]
+

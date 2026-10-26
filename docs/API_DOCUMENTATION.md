@@ -45,11 +45,13 @@ API **AURA-JKN** menyediakan antarmuka RESTful berlatensi rendah untuk verifikas
 | Metode HTTP | Endpoint | Tag / Kategori | Ringkasan Fungsi |
 | :---: | :--- | :--- | :--- |
 | **`GET`** | `/health` | *System & Monitoring* | Status kesehatan memori, status koneksi database, dan kapasitas data aktif. |
-| **`POST`** | `/api/v1/predict-claim` | *Claim Risk Assessment* | Menerima payload klaim baru, mengevaluasi 3 parameter analitik, dan menerbitkan putusan audit. |
-| **`GET`** | `/api/v1/claims/{claim_id}` | *Claim Risk Assessment* | Mengambil data klaim yang tersimpan di registri master dan menjalankan audit verifikasi instan. |
+| **`POST`** | `/api/v1/predict-claim` | *Claim Risk Assessment* | Menerima payload klaim baru, mengevaluasi 3 parameter analitik, dan menerbitkan putusan audit + Audit Brief. |
+| **`GET`** | `/api/v1/claims/{claim_id}` | *Claim Risk Assessment* | Mengambil data klaim yang tersimpan di registri master dan menjalankan audit verifikasi instan + Audit Brief. |
+| **`POST`** | `/api/v1/claims/{claim_id}/chat` | *Audit Copilot Interactive Chat* | Asisten AI Copilot interaktif untuk tanya-jawab auditor spesifik per klaim dengan sliding window & Zero Hallucination. |
 | **`GET`** | `/` | *System & Monitoring* | Menampilkan informasi versi, nama layanan, dan tautan dokumentasi Swagger. |
 
 ---
+
 
 ## 4. Detail Spesifikasi Endpoint
 
@@ -149,6 +151,11 @@ curl -X POST "http://localhost:8000/api/v1/predict-claim" \
         {"source": "pat_demo_hash_99", "target": "FAC0013", "relation": "referred_to"},
         {"source": "FAC0013", "target": "FAC0008", "relation": "concurrent_practice_conflict"}
       ]
+    },
+    "audit_brief": {
+      "audit_narrative": "Klaim CLM_SIMULATED_2026 ditandai RISIKO TINGGI (Putusan: REJECT FOR HUMAN REVIEW) dengan probabilitas anomali 88.5%. Ditemukan indikasi penyimpangan kritis: Dokter DOC0040 melayani klaim di faskes FAC0013 dan FAC0008 berjarak ~3.794 km pada hari yang sama (Konflik Spasio-Temporal).",
+      "llm_provider_used": "groq",
+      "is_fallback": false
     }
   }
 }
@@ -157,7 +164,7 @@ curl -X POST "http://localhost:8000/api/v1/predict-claim" \
 ---
 
 ### C. GET `/api/v1/claims/{claim_id}`
-Mengambil klaim tersimpan berdasarkan `claim_id` dari dataset dan mengeksekusi pipeline penilaian risiko secara instan.
+Mengambil klaim tersimpan berdasarkan `claim_id` dari dataset dan mengeksekusi pipeline penilaian risiko secara instan lengkap dengan ringkasan narasi audit LLM.
 
 #### Path Parameter
 | Parameter | Tipe Data | Wajib? | Contoh | Keterangan |
@@ -169,28 +176,56 @@ Mengambil klaim tersimpan berdasarkan `claim_id` dari dataset dan mengeksekusi p
 curl -X GET "http://localhost:8000/api/v1/claims/CLMC00001104" -H "accept: application/json"
 ```
 
-#### Kemungkinan Respon:
-* **200 OK**: Mengembalikan objek `ClaimPredictionResponse` lengkap.
-* **404 Not Found**: Jika klaim tidak ditemukan di registri:
-  ```json
-  {
-    "detail": "Claim 'CLM_UNKNOWN' not found in registry. Use POST /api/v1/predict-claim for ad-hoc claims."
-  }
-  ```
+---
+
+### D. POST `/api/v1/claims/{claim_id}/chat` (Interactive Copilot Chat)
+Asisten AI interaktif untuk auditor verifikator klaim BPJS Kesehatan. Memanfaatkan isolasi fakta data klaim dan *sliding window memory* (5 riwayat pesan terakhir) dengan persona resmi *Zero Hallucination*.
+
+#### Path Parameter
+| Parameter | Tipe Data | Wajib? | Contoh | Keterangan |
+| :--- | :---: | :---: | :--- | :--- |
+| `claim_id` | String | Ya | `CLMC00001104` | ID klaim yang ingin ditanyakan. |
+
+#### Request Body (`ClaimChatRequest`)
+```json
+{
+  "user_message": "Apakah ada indikasi konflik spasial atau phantom billing pada klaim ini?",
+  "chat_history": [
+    {
+      "role": "user",
+      "content": "Berapa skor risiko klaim ini?"
+    },
+    {
+      "role": "assistant",
+      "content": "Probabilitas fraud klaim ini adalah 89.6% dengan putusan REJECT FOR HUMAN REVIEW."
+    }
+  ]
+}
+```
+
+#### Struktur Response (200 OK)
+```json
+{
+  "claim_id": "CLMC00001104",
+  "reply": "Berdasarkan audit spatiotemporal klaim CLMC00001104, terdeteksi konflik spasial geografis. Dokter DOC0373 melayani klaim di faskes FAC0044 dan FAC0049 berjarak ~2.826 km pada hari yang sama (Konflik Spasio-Temporal). Hal ini merupakan pelanggaran integritas lokasi pelayanan.",
+  "provider_used": "groq",
+  "is_fallback": false
+}
+```
 
 ---
 
-### D. GET `/`
+### E. GET `/`
 Endpoint root untuk memverifikasi server aktif dan mendapatkan tautan cepat dokumentasi.
 
 #### Struktur Response (200 OK)
 ```json
 {
-  "system": "AURA-JKN Decision Service",
-  "version": "1.0.0",
-  "status": "RUNNING",
-  "docs": "/docs",
-  "openapi": "/openapi.json"
+  "title": "AURA-JKN Phase 3 REST API",
+  "description": "Healthcare Fraud Detection Engine using R-GCN, Spatiotemporal Analysis, and XAI",
+  "documentation": "/docs",
+  "health_check": "/health",
+  "predict_endpoint": "/api/v1/predict-claim"
 }
 ```
 

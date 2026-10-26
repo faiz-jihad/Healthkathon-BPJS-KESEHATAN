@@ -68,12 +68,21 @@ class SubgraphEvidence(BaseModel):
     edges: List[SubgraphEdge] = Field(default_factory=list)
 
 
+class AuditBrief(BaseModel):
+    """Generative AI Audit Narrative Summary."""
+
+    audit_narrative: str = Field(..., description="1-2 sentence executive audit brief")
+    llm_provider_used: str = Field(..., description="LLM provider name: groq, nvidia_nim, or local_fallback")
+    is_fallback: bool = Field(..., description="Whether fallback provider or local rule engine was used")
+
+
 class XAIExplanation(BaseModel):
     """Explainable AI package from Module 4."""
 
     primary_fraud_trigger: str = Field(..., description="Dominant detected fraud pattern")
     evidence_reasons: List[str] = Field(..., description="Explicit text-based explanatory rationales")
     subgraph_evidence: SubgraphEvidence = Field(..., description="Relational neighborhood subgraph")
+    audit_brief: Optional[AuditBrief] = Field(None, description="Generative AI executive audit summary")
 
 
 class ClaimPredictionResponse(BaseModel):
@@ -90,6 +99,42 @@ class ClaimPredictionResponse(BaseModel):
     xai_explanation: XAIExplanation
 
 
+class ChatMessage(BaseModel):
+    """Single message entry in the interactive copilot chat history."""
+
+    role: str = Field(..., description="'user' or 'assistant'", examples=["user"])
+    content: str = Field(..., description="Message text content", examples=["Jelaskan mengapa klaim ini berisiko tinggi."])
+
+
+class ClaimChatRequest(BaseModel):
+    """Input payload for interactive claim audit copilot conversation."""
+
+    user_message: str = Field(..., description="Specific question from auditor", examples=["Apakah ada indikasi konflik spasial atau phantom billing?"])
+    chat_history: Optional[List[ChatMessage]] = Field(default_factory=list, description="Recent conversation turns (sliding window applied)")
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "user_message": "Apakah ada indikasi kecurangan pada klaim ini?",
+                "chat_history": [
+                    {"role": "user", "content": "Berapa probabilitas fraud klaim ini?"},
+                    {"role": "assistant", "content": "Probabilitas fraud terhitung sebesar 88.5% dengan status REJECT_FOR_HUMAN_REVIEW."}
+                ],
+            }
+        },
+    )
+
+
+class ClaimChatResponse(BaseModel):
+    """Response payload for interactive claim audit copilot conversation."""
+
+    claim_id: str = Field(..., description="Audited Claim Identifier")
+    reply: str = Field(..., description="Copilot's factual answer based on claim evidence")
+    provider_used: str = Field(..., description="groq | nvidia_nim | local_fallback")
+    is_fallback: bool = Field(..., description="Whether fallback provider or local engine was used")
+
+
 class HealthCheckResponse(BaseModel):
     """API Health and diagnostic readiness status."""
 
@@ -103,3 +148,4 @@ class HealthCheckResponse(BaseModel):
     num_claims_in_registry: int
     num_facilities_in_registry: int
     num_doctors_in_registry: int
+

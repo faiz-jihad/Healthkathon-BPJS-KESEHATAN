@@ -81,3 +81,11 @@ def resolve_database_url() -> str:
 
 DATABASE_URL = os.environ.get("DATABASE_URL") or resolve_database_url()
 API_PORT = int(os.environ.get("PORT", 8000))
+
+# Generative AI Layer Configuration
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "auto")
+NVIDIA_MODEL = os.environ.get("NVIDIA_MODEL", "auto")
+LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "3.0"))
+

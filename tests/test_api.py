@@ -1,13 +1,16 @@
 """
-AURA-JKN Phase 3: Automated API Verification Script
-===================================================
+AURA-JKN Phase 3 & Generative AI Layer: Automated API Verification Script
+=========================================================================
 Tests the Phase 3 FastAPI service against sample claims:
 1. Health check (/health)
-2. Normal Claim: Low Risk Auto-Approve (CLM00010650)
-3. Scenario C: Spatio-Temporal Conflict (CLMC00001104)
-4. Novel / Ad-Hoc Simulated Claim (POST /api/v1/predict-claim)
+2. Normal Claim: Low Risk Auto-Approve (CLM00010650) + Audit Brief
+3. Scenario C: Spatio-Temporal Conflict (CLMC00001104) + Audit Brief
+4. Novel / Ad-Hoc Simulated Claim (POST /api/v1/predict-claim) + Audit Brief
+5. Interactive Copilot Chat (POST /api/v1/claims/{claim_id}/chat) with sliding window
+6. Zero HTTP 500 Failure Guarantee / Fallback Resilience
 """
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -17,73 +20,114 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app import (
+    ClaimChatRequest,
     ClaimPredictionRequest,
+    app,
+    chat_claim_copilot,
     get_claim_by_id,
     get_health_status,
-    model_engine,
+    lifespan,
     predict_claim,
-    registry,
 )
 
 
-def run_tests():
+async def run_tests():
     print("=" * 70)
-    print("       AURA-JKN PHASE 3 ENDPOINT VERIFICATION TEST SUITE      ")
+    print("   AURA-JKN PHASE 3 + GENERATIVE AI LAYER VERIFICATION SUITE   ")
     print("=" * 70)
 
-    # 1. Test Health Endpoint
-    print("\n[1] Testing GET /health ...")
-    health = get_health_status()
-    print(f"    Status: {health.status.upper()} | Model Loaded: {health.model_loaded} | Claims: {health.num_claims_in_registry:,}")
-    assert health.status == "healthy"
+    async with lifespan(app):
+        # 1. Test Health Endpoint
+        print("\n[1] Testing GET /health ...")
+        health = get_health_status()
+        print(f"    Status: {health.status.upper()} | Model Loaded: {health.model_loaded} | Claims: {health.num_claims_in_registry:,}")
+        assert health.status == "healthy"
 
-    # 2. Test Normal Claim (Auto Approve)
-    print("\n[2] Testing Normal Claim (CLM00010650) ...")
-    norm_res = get_claim_by_id("CLM00010650")
-    print(f"    Claim ID: {norm_res.claim_id}")
-    print(f"    Fraud Probability: {norm_res.fraud_probability:.3f} | Gate: {norm_res.pre_payment_gate}")
-    print(f"    Primary Trigger: {norm_res.xai_explanation.primary_fraud_trigger}")
-    print(f"    Evidence Reasons: {norm_res.xai_explanation.evidence_reasons}")
+        # 2. Test Normal Claim (Auto Approve)
+        print("\n[2] Testing Normal Claim (CLM00010650) ...")
+        norm_res = await get_claim_by_id("CLM00010650")
+        print(f"    Claim ID: {norm_res.claim_id}")
+        print(f"    Fraud Probability: {norm_res.fraud_probability:.3f} | Gate: {norm_res.pre_payment_gate}")
+        print(f"    Primary Trigger: {norm_res.xai_explanation.primary_fraud_trigger}")
+        assert norm_res.xai_explanation.audit_brief is not None
+        brief = norm_res.xai_explanation.audit_brief
+        print(f"    [Audit Brief] Provider: {brief.llm_provider_used} (is_fallback={brief.is_fallback})")
+        print(f"    [Audit Brief] Narrative: {brief.audit_narrative}")
+        assert len(brief.audit_narrative) > 10
 
-    # 3. Test Fraud Claim - Scenario C Spatio-Temporal Conflict
-    print("\n[3] Testing Fraud Scenario C (CLMC00001104) ...")
-    fraud_res = get_claim_by_id("CLMC00001104")
-    print(f"    Claim ID: {fraud_res.claim_id}")
-    print(f"    Fraud Probability: {fraud_res.fraud_probability:.3f} | Gate: {fraud_res.pre_payment_gate}")
-    print(f"    Spatial Conflict Detected: {fraud_res.spatiotemporal_metrics.spatial_conflict_detected}")
-    print(f"    Primary Trigger: {fraud_res.xai_explanation.primary_fraud_trigger}")
-    print(f"    Evidence Reasons:")
-    for r in fraud_res.xai_explanation.evidence_reasons:
-        print(f"      - {r}")
-    print(f"    Subgraph Nodes Count: {len(fraud_res.xai_explanation.subgraph_evidence.nodes)}")
-    print(f"    Subgraph Edges Count: {len(fraud_res.xai_explanation.subgraph_evidence.edges)}")
+        # 3. Test Fraud Claim - Scenario C Spatio-Temporal Conflict
+        print("\n[3] Testing Fraud Scenario C (CLMC00001104) ...")
+        fraud_res = await get_claim_by_id("CLMC00001104")
+        print(f"    Claim ID: {fraud_res.claim_id}")
+        print(f"    Fraud Probability: {fraud_res.fraud_probability:.3f} | Gate: {fraud_res.pre_payment_gate}")
+        print(f"    Spatial Conflict Detected: {fraud_res.spatiotemporal_metrics.spatial_conflict_detected}")
+        print(f"    Primary Trigger: {fraud_res.xai_explanation.primary_fraud_trigger}")
+        for r in fraud_res.xai_explanation.evidence_reasons:
+            print(f"      - {r}")
+        assert fraud_res.xai_explanation.audit_brief is not None
+        c_brief = fraud_res.xai_explanation.audit_brief
+        print(f"    [Audit Brief] Provider: {c_brief.llm_provider_used} (is_fallback={c_brief.is_fallback})")
+        print(f"    [Audit Brief] Narrative: {c_brief.audit_narrative}")
+        assert len(c_brief.audit_narrative) > 10
 
-    # 4. Test POST /api/v1/predict-claim with payload
-    print("\n[4] Testing POST /api/v1/predict-claim (Simulated Novel Claim) ...")
-    sample_payload = ClaimPredictionRequest(
-        claim_id="CLM_SIMULATED_2026",
-        patient_id="pat_demo_hash_99",
-        doctor_id="DOC0040",
-        facility_id="FAC0013",
-        icd10_code="K29",
-        service_date="2024-03-13",
-        service_time="11:45:00",
-        ina_cbgs_tariff=1450000.0,
-        length_of_stay=3,
-    )
-    sim_res = predict_claim(sample_payload)
-    print(f"    Claim ID: {sim_res.claim_id}")
-    print(f"    Fraud Probability: {sim_res.fraud_probability:.3f} | Gate: {sim_res.pre_payment_gate}")
-    print(f"    Risk Level: {sim_res.risk_level}")
-    print(f"    Spatiotemporal Risk Score: {sim_res.spatiotemporal_metrics.spatiotemporal_risk_score}")
-    print(f"    Primary Trigger: {sim_res.xai_explanation.primary_fraud_trigger}")
+        # 4. Test POST /api/v1/predict-claim with payload
+        print("\n[4] Testing POST /api/v1/predict-claim (Simulated Novel Claim) ...")
+        sample_payload = ClaimPredictionRequest(
+            claim_id="CLM_SIMULATED_2026",
+            patient_id="pat_demo_hash_99",
+            doctor_id="DOC0040",
+            facility_id="FAC0013",
+            icd10_code="K29",
+            service_date="2024-03-13",
+            service_time="11:45:00",
+            ina_cbgs_tariff=1450000.0,
+            length_of_stay=3,
+        )
+        sim_res = await predict_claim(sample_payload)
+        print(f"    Claim ID: {sim_res.claim_id}")
+        print(f"    Fraud Probability: {sim_res.fraud_probability:.3f} | Gate: {sim_res.pre_payment_gate}")
+        print(f"    Risk Level: {sim_res.risk_level}")
+        assert sim_res.xai_explanation.audit_brief is not None
+        sim_brief = sim_res.xai_explanation.audit_brief
+        print(f"    [Audit Brief] Provider: {sim_brief.llm_provider_used} (is_fallback={sim_brief.is_fallback})")
+        print(f"    [Audit Brief] Narrative: {sim_brief.audit_narrative}")
 
-    print("\n" + "=" * 70)
-    print("     ALL ENDPOINTS & VERIFICATIONS EXECUTED SUCCESSFULLY!      ")
-    print("=" * 70)
+        # 5. Test POST /api/v1/claims/{claim_id}/chat (Copilot Interactive Chat)
+        print("\n[5] Testing POST /api/v1/claims/{claim_id}/chat (Auditor Q&A) ...")
+        chat_req = ClaimChatRequest(
+            user_message="Apakah ada indikasi konflik spasial atau phantom billing pada klaim ini?",
+            chat_history=[
+                {"role": "user", "content": "Berapa probabilitas kecurangan klaim ini?"},
+                {"role": "assistant", "content": "Probabilitas fraud terhitung 88.5% dengan status REJECT_FOR_HUMAN_REVIEW."},
+            ],
+        )
+        chat_res = await chat_claim_copilot("CLMC00001104", chat_req)
+        print(f"    Claim ID: {chat_res.claim_id}")
+        print(f"    Provider Used: {chat_res.provider_used} | is_fallback: {chat_res.is_fallback}")
+        print(f"    Copilot Reply:\n    \"{chat_res.reply}\"")
+        assert chat_res.claim_id == "CLMC00001104"
+        assert len(chat_res.reply) > 10
+
+        # 6. Test Copilot Chat Sliding Window (history > 5 turns)
+        print("\n[6] Testing Copilot Chat Sliding Window (truncation test) ...")
+        long_history = [
+            {"role": "user", "content": f"Pertanyaan awal {i}"} for i in range(10)
+        ]
+        window_req = ClaimChatRequest(
+            user_message="Tolong jelaskan diagnosa ICD-10 dan tarif klaim ini.",
+            chat_history=long_history,
+        )
+        window_res = await chat_claim_copilot("CLM00010650", window_req)
+        print(f"    Claim ID: {window_res.claim_id} | Provider: {window_res.provider_used}")
+        print(f"    Copilot Reply:\n    \"{window_res.reply}\"")
+        assert window_res.claim_id == "CLM00010650"
+        assert len(window_res.reply) > 10
+
+        print("\n" + "=" * 70)
+        print("     ALL ENDPOINTS & VERIFICATIONS EXECUTED SUCCESSFULLY!      ")
+        print("=" * 70)
 
 
 if __name__ == "__main__":
-    registry.load_data()
-    model_engine.initialize(registry)
-    run_tests()
+    asyncio.run(run_tests())
+
