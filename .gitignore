@@ -21,3 +21,5 @@ Thumbs.db
 
 # Large checkpoints / outputs (optional if checkpoints are distributed via registry)
 # models/*.pt
+samples/
+.ipynb_checkpoints/

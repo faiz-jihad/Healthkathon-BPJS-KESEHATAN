@@ -63,3 +63,26 @@ class DatasetRegistry:
             f"[DatasetRegistry] Loaded {len(self.claims_df):,} claims, "
             f"{len(self.doctors_df):,} doctors, {len(self.facilities_df):,} facilities."
         )
+
+    def register_claim(self, record: Dict[str, Any]) -> None:
+        """Dynamically registers or updates a claim record in memory."""
+        cid = str(record.get("claim_id", ""))
+        if not cid:
+            return
+        
+        # Ensure normalized string representations
+        record["service_date_str"] = str(record.get("service_date_str") or record.get("service_date", ""))
+        record["service_time_str"] = str(record.get("service_time_str") or record.get("service_time", ""))
+        self.claim_map[cid] = record
+
+        # Also update spatiotemporal lookup indexes
+        doc_key = (str(record.get("doctor_id")), str(record["service_date_str"]))
+        existing_doc_claims = self.doctor_claims_by_date.setdefault(doc_key, [])
+        if not any(c.get("claim_id") == cid for c in existing_doc_claims):
+            existing_doc_claims.append(record)
+
+        pat_key = (str(record.get("patient_id")), str(record["service_date_str"]))
+        existing_pat_claims = self.patient_claims_by_date.setdefault(pat_key, [])
+        if not any(c.get("claim_id") == cid for c in existing_pat_claims):
+            existing_pat_claims.append(record)
+

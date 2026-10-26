@@ -5,7 +5,8 @@ Controller layer providing RESTful endpoints for real-time claim fraud risk asse
 """
 
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+from sqlalchemy import text
 
 try:
     import httpx
@@ -125,6 +126,37 @@ def get_health_status() -> HealthCheckResponse:
     )
 
 
+def get_or_resolve_claim_record(claim_id: str) -> Optional[Dict[str, Any]]:
+    """Resolves claim record from in-memory registry first, then PostgreSQL DB if missing."""
+    # 1. Fast in-memory lookup
+    record = registry.claim_map.get(claim_id)
+    if record:
+        return record
+
+    # 2. Database lookup if not found in memory
+    if db_engine:
+        try:
+            with db_engine.connect() as conn:
+                stmt = text("""
+                    SELECT claim_id, patient_id, doctor_id, facility_id, icd10_code,
+                           service_date, service_time, ina_cbgs_tariff, length_of_stay,
+                           fraud_probability, risk_level, pre_payment_gate
+                    FROM claims
+                    WHERE claim_id = :cid
+                """)
+                row = conn.execute(stmt, {"cid": claim_id}).mappings().fetchone()
+                if row:
+                    record_dict = dict(row)
+                    record_dict["service_date_str"] = str(record_dict.get("service_date", ""))
+                    record_dict["service_time_str"] = str(record_dict.get("service_time", ""))
+                    registry.register_claim(record_dict)
+                    return record_dict
+        except Exception as err:
+            print(f"[Database Error] Could not query claim '{claim_id}': {err}")
+
+    return None
+
+
 @app.post(
     "/api/v1/predict-claim",
     response_model=ClaimPredictionResponse,
@@ -237,6 +269,24 @@ async def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionRespo
         xai_explanation=xai_explanation,
     )
 
+    # 7. Update in-memory registry for immediate queryability & copilot chat
+    registry.register_claim({
+        "claim_id": payload.claim_id,
+        "patient_id": payload.patient_id,
+        "doctor_id": payload.doctor_id,
+        "facility_id": payload.facility_id,
+        "icd10_code": payload.icd10_code,
+        "service_date": payload.service_date,
+        "service_time": payload.service_time,
+        "service_date_str": str(payload.service_date),
+        "service_time_str": str(payload.service_time),
+        "ina_cbgs_tariff": payload.ina_cbgs_tariff,
+        "length_of_stay": payload.length_of_stay,
+        "fraud_probability": round(fraud_prob, 3),
+        "risk_level": risk_level,
+        "pre_payment_gate": pre_payment_gate,
+    })
+
     return ClaimPredictionResponse(
         claim_id=payload.claim_id,
         fraud_probability=round(fraud_prob, 3),
@@ -260,11 +310,11 @@ async def get_claim_by_id(
     Convenience endpoint for analytical dashboards.
     Looks up stored claim attributes from the registry and routes through the Phase 3 pipeline.
     """
-    record = registry.claim_map.get(claim_id)
+    record = get_or_resolve_claim_record(claim_id)
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Claim '{claim_id}' not found in registry. Use POST /api/v1/predict-claim for ad-hoc claims.",
+            detail=f"Claim '{claim_id}' not found in registry or database. Use POST /api/v1/predict-claim for ad-hoc claims.",
         )
 
     # Map stored record into prediction request
@@ -301,11 +351,11 @@ async def chat_claim_copilot(
     - Strict Zero Hallucination: Answers auditor questions firmly based on factual claim evidence.
     - Multi-Tier Fallback: GroqCloud (llama-3.3-70b-versatile) -> NVIDIA NIM (llama-3.1-70b-instruct) -> Local Rule Engine.
     """
-    record = registry.claim_map.get(claim_id)
+    record = get_or_resolve_claim_record(claim_id)
     if not record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Claim '{claim_id}' not found in registry. Copilot requires an indexed claim record.",
+            detail=f"Claim '{claim_id}' not found in registry or database. Copilot requires an indexed claim record.",
         )
 
     request_payload = ClaimPredictionRequest(
