@@ -12,8 +12,9 @@
    - [A. GET /health (Pemeriksaan Kesehatan Sistem)](#a-get-health)
    - [B. POST /api/v1/predict-claim (Evaluasi Risiko Klaim Real-Time)](#b-post-apiv1predict-claim)
    - [C. GET /api/v1/claims/{claim_id} (Audit Klaim Tersimpan)](#c-get-apiv1claimsclaim_id)
-   - [D. GET / (Root Info & Links)](#d-get-)
-5. [Logika Penentu Keputusan (Sintesis 3 Parameter)](#5-logika-penentu-keputusan-sintesis-3-parameter)
+   - [D. POST /api/v1/claims/{claim_id}/chat (Interactive Copilot Chat)](#d-post-apiv1claimsclaim_idchat-interactive-copilot-chat)
+   - [E. GET / (Root Info & Links)](#e-get-)
+5. [Logika Penentu Keputusan (Sintesis 3 Parameter & Generative AI)](#5-logika-penentu-keputusan-sintesis-3-parameter)
 6. [Struktur Subgraf XAI untuk Visualisasi Frontend](#6-struktur-subgraf-xai-untuk-visualisasi-frontend)
 7. [Penanganan Error & Kode Status HTTP](#7-penanganan-error--kode-status-http)
 8. [Contoh Kode Integrasi Klien (Python & cURL)](#8-contoh-kode-integrasi-klien)
@@ -26,7 +27,8 @@ API **AURA-JKN** menyediakan antarmuka RESTful berlatensi rendah untuk verifikas
 1. **Model Relational Graph Convolutional Network (R-GCN)** via PyTorch Geometric.
 2. **Mesin Verifikasi Fisik Spatiotemporal** (Haversine collision & kuota harian dokter).
 3. **Penyusun Narasi Bukti Explainable AI (XAI)** dan subgraf NetworkX interaktif.
-4. **Auto-Persistence** ke database relasional PostgreSQL.
+4. **Generative AI Layer (Modul 5)**: Executive Audit Brief dan Interactive Audit Copilot Chat dengan Multi-Tier Fallback Resilience (Groq -> NVIDIA NIM -> Local Rule Engine).
+5. **Auto-Persistence** ke database relasional PostgreSQL.
 
 ---
 
@@ -309,6 +311,7 @@ Field `subgraph_evidence` menyajikan struktur graf berbobot ringan yang siap dik
 ## 8. Contoh Kode Integrasi Klien
 
 ### Integrasi Python (`requests`)
+#### 1. Audit Prediksi Klaim Real-Time
 ```python
 import requests
 
@@ -332,12 +335,34 @@ data = response.json()
 print(f"Status Keputusan Gate: {data['pre_payment_gate']}")
 print(f"Tingkat Risiko       : {data['risk_level']}")
 print(f"Probabilitas Fraud   : {data['fraud_probability']}")
+print(f"Audit Brief          : {data['xai_explanation']['audit_brief']['audit_narrative']}")
 print("Alasan Bukti (XAI)   :")
 for reason in data["xai_explanation"]["evidence_reasons"]:
     print(f" - {reason}")
 ```
 
+#### 2. Tanya-Jawab Interaktif Audit Copilot Chat
+```python
+import requests
+
+CLAIM_ID = "CLMC00001104"
+CHAT_URL = f"http://localhost:8000/api/v1/claims/{CLAIM_ID}/chat"
+
+chat_payload = {
+    "user_message": "Apakah ada kejanggalan pada jarak antar faskes yang dikunjungi dokter?",
+    "chat_history": []
+}
+
+resp = requests.post(CHAT_URL, json=chat_payload)
+chat_res = resp.json()
+
+print("Jawaban Copilot :", chat_res["reply"])
+print("Provider Digunakan:", chat_res["provider_used"])
+print("Fallback Status   :", chat_res["is_fallback"])
+```
+
 ### Integrasi JavaScript (Fetch API / Frontend)
+#### 1. Audit Prediksi Klaim
 ```javascript
 async function auditClaim(claimData) {
   try {
@@ -349,10 +374,33 @@ async function auditClaim(claimData) {
 
     const result = await res.json();
     console.log("Decision Gate:", result.pre_payment_gate);
+    console.log("Audit Brief:", result.xai_explanation.audit_brief.audit_narrative);
     console.log("XAI Subgraph Nodes:", result.xai_explanation.subgraph_evidence.nodes);
     return result;
   } catch (error) {
     console.error("Gagal melakukan audit klaim:", error);
+  }
+}
+```
+
+#### 2. Interaksi Chat Copilot
+```javascript
+async function askCopilot(claimId, question, history = []) {
+  try {
+    const res = await fetch(`http://localhost:8000/api/v1/claims/${claimId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_message: question,
+        chat_history: history.slice(-5) // Sliding window 5 pesan
+      }),
+    });
+
+    const data = await res.json();
+    console.log("Copilot Reply:", data.reply);
+    return data;
+  } catch (error) {
+    console.error("Gagal menghubungi Audit Copilot:", error);
   }
 }
 ```

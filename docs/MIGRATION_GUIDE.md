@@ -127,16 +127,20 @@ Script [`scripts/migrate_to_postgres.py`](file:///d:/Documents/AURA-JKN/scripts/
 
 ## 4. Prasyarat & Konfigurasi Lingkungan
 
-### A. Dependensi Driver Python
-Pastikan pustaka database telah terpasang:
+### A. Dependensi Driver Python & AI Services
+Pastikan pustaka database dan paket Generative AI telah terpasang:
 ```bash
-pip install psycopg2-binary sqlalchemy python-dotenv
+pip install psycopg2-binary sqlalchemy python-dotenv groq openai httpx
+# atau cukup jalankan:
+pip install -r requirements.txt
 ```
 
 ### B. Konfigurasi File `.env`
-Sesuaikan parameter koneksi di file [`.env`](file:///d:/Documents/AURA-JKN/.env):
+Sesuaikan parameter koneksi database dan API key AI di file [`.env`](file:///d:/Documents/AURA-JKN/.env):
 ```ini
-# Parameter Kredensial Individual
+# ==============================================================================
+# PostgreSQL Database Configuration
+# ==============================================================================
 DB_USER=postgres
 DB_PASSWORD=your_password
 DB_HOST=localhost
@@ -144,8 +148,25 @@ DB_PORT=5432
 DB_NAME=aura_jkn
 
 # Atau Connection String Lengkap (Memiliki prioritas lebih tinggi jika diisi):
-DATABASE_URL=postgresql+psycopg2://postgres:your_password@localhost:5432/aura_jkn
+# DATABASE_URL=postgresql+psycopg2://postgres:your_password@localhost:5432/aura_jkn
+
+# Server Configuration
+PORT=8000
+ENVIRONMENT=development
+
+# ==============================================================================
+# Generative AI Layer (GroqCloud & NVIDIA NIM)
+# ==============================================================================
+GROQ_API_KEY=gsk_your_groq_api_key_here
+NVIDIA_API_KEY=nvapi-your_nvidia_api_key_here
+GROQ_MODEL=auto
+NVIDIA_MODEL=auto
+LLM_TIMEOUT=3.0
 ```
+
+> [!TIP]
+> **Dynamic Model Discovery (`auto`)**:
+> Mengatur `GROQ_MODEL=auto` dan `NVIDIA_MODEL=auto` memungkinkan sistem secara cerdas melakukan *auto-healing* mendeteksi model teks/chat yang aktif di katalog provider tanpa khawatir jika ada model lama yang dipensiunkan (*End of Life*).
 
 ---
 
@@ -211,8 +232,9 @@ Migration completed successfully! PostgreSQL is ready for AURA-JKN.
 AURA-JKN tidak hanya membaca database, tetapi juga **menyimpan hasil keputusan secara live** melalui modul [`src/database/connection.py`](file:///d:/Documents/AURA-JKN/src/database/connection.py).
 
 Setiap kali endpoint `POST /api/v1/predict-claim` atau `GET /api/v1/claims/{claim_id}` dipanggil:
-1. Sistem mengeksekusi sintesis 3 parameter (Jarak, Volume, dan GNN).
-2. Fungsi `persist_claim_audit()` menjalankan query `UPSERT`:
+1. Sistem mengeksekusi sintesis 4 pilar analitik (Jarak Spasial, Beban Volume Dokter, R-GCN Graph Anomaly, dan Generative AI Layer).
+2. Generative AI Layer menyusun *Executive Audit Brief* yang disematkan ke dalam payload XAI.
+3. Fungsi `persist_claim_audit()` menjalankan query `UPSERT`:
    ```sql
    INSERT INTO claims (
        claim_id, patient_id, doctor_id, facility_id, icd10_code,
@@ -234,7 +256,7 @@ Setiap kali endpoint `POST /api/v1/predict-claim` atau `GET /api/v1/claims/{clai
        subgraph_evidence = EXCLUDED.subgraph_evidence,
        updated_at = CURRENT_TIMESTAMP;
    ```
-3. **Foreign Key Protection untuk Klaim Simulasi Baru**:
+4. **Foreign Key Protection untuk Klaim Simulasi Baru**:
    Jika klaim yang diuji merupakan klaim simulasi ad-hoc dengan ID entitas baru, sistem secara otomatis memastikan entitas stub terdaftar dengan `ON CONFLICT DO NOTHING` sebelum menyisipkan klaim, menjamin tidak ada error *Foreign Key Constraint Violation*.
 
 ---
