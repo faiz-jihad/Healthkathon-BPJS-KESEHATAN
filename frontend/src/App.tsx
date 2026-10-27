@@ -3339,7 +3339,7 @@ export function App() {
               <ShieldCheck size={24} strokeWidth={2.4}/>
             </div>
             <div className="brand-name">
-              AURA<span>JKN</span>
+              AURA<span className="brand-name-sub">JKN</span>
             </div>
           </div>
         </div>
@@ -3353,7 +3353,17 @@ export function App() {
         </nav>
 
         <div className="topbar-actions">
-          <button className="icon-button" title="Segarkan" onClick={fetchClaims} disabled={loading}>
+          {(roleMenuOpen || profileMenuOpen) && (
+            <div
+              className="topbar-backdrop"
+              style={{ position: "fixed", inset: 0, zIndex: 45, background: "transparent" }}
+              onClick={() => {
+                setRoleMenuOpen(false);
+                setProfileMenuOpen(false);
+              }}
+            />
+          )}
+          <button className="icon-button topbar-refresh-btn" title="Segarkan" onClick={fetchClaims} disabled={loading}>
             <RefreshCw size={18} className={loading ? "animate-spin text-green" : ""}/>
           </button>
           <button
@@ -3383,7 +3393,7 @@ export function App() {
           </button>
           {/* Bell Notification Button */}
           <button
-            className="icon-button"
+            className="icon-button topbar-notif-btn"
             style={{
               position: "relative",
               width: "36px",
@@ -3400,6 +3410,7 @@ export function App() {
             <Bell size={18} style={{ color: unreadNotifCount > 0 ? "#0f172a" : "#64748b" }} />
             {unreadNotifCount > 0 && (
               <span
+                className="topbar-notif-badge"
                 style={{
                   position: "absolute",
                   top: "2px",
@@ -3431,7 +3442,7 @@ export function App() {
               <ChevronDown size={13}/>
             </button>
             {roleMenuOpen && (
-              <div className="card animate-slide-down" style={{ position: "absolute", right: 0, top: "44px", zIndex: 50, padding: "8px", borderRadius: "16px", width: "240px", maxWidth: "calc(100vw - 24px)", boxShadow: "0 10px 25px rgba(0,0,0,0.12)" }}>
+              <div className="card animate-slide-down topbar-role-dropdown" style={{ position: "absolute", right: 0, top: "44px", zIndex: 50, padding: "8px", borderRadius: "16px", width: "240px", maxWidth: "calc(100vw - 24px)", boxShadow: "0 10px 25px rgba(0,0,0,0.12)" }}>
                 <div style={{ padding: "6px 10px", fontSize: "10px", color: "var(--muted)", fontWeight: 700 }}>PILIH PERAN OPERASIONAL (RBAC):</div>
                 {(["ADMINISTRATOR","VERIFIKATOR","INVESTIGATOR","SUPERVISOR","DATA_ANALYST"] as const).map(role => {
                   const cfg = ROLE_CONFIG[role];
@@ -3459,7 +3470,7 @@ export function App() {
             </button>
             {profileMenuOpen && (
               <div
-                className="card animate-slide-down"
+                className="card animate-slide-down topbar-profile-dropdown"
                 style={{
                   position: "absolute",
                   right: 0,

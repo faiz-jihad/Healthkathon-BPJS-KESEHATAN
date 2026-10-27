@@ -3787,8 +3787,9 @@ textarea:focus {
   }
 }
 @media (max-width: 1050px) {
-  .top-navigation a {
-    padding: 10px 12px;
+  .top-navigation a,
+  .top-navigation button {
+    padding: 8px 12px;
     font-size: 12px;
   }
   .top-navigation {
@@ -6425,7 +6426,7 @@ textarea:focus {
   }
 
   body {
-    padding: 8px 8px 82px 8px !important;
+    padding: 8px 8px calc(76px + env(safe-area-inset-bottom, 8px)) 8px !important;
     min-width: 320px;
     box-sizing: border-box;
   }
@@ -6444,6 +6445,10 @@ textarea:focus {
 
   .mobile-menu-toggle {
     display: inline-flex !important;
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0;
   }
 
   .topbar-desktop-btn {
@@ -6451,14 +6456,22 @@ textarea:focus {
   }
 
   .topbar-role-btn {
-    padding: 5px 10px !important;
+    padding: 4px 8px !important;
     font-size: 11px !important;
     min-height: 32px !important;
+    max-width: 110px;
+    border-radius: 14px !important;
+    gap: 4px !important;
+    flex-shrink: 0;
   }
 
   .role-short-label {
     display: inline !important;
     font-weight: 700;
+    max-width: 65px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .role-full-label {
@@ -6471,11 +6484,20 @@ textarea:focus {
     top: 6px !important;
     border-radius: 16px !important;
     margin-bottom: 10px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
     background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(14px) !important;
     -webkit-backdrop-filter: blur(14px) !important;
     box-sizing: border-box;
+    gap: 8px !important;
+    position: sticky;
+    z-index: 50;
+  }
+
+  .topbar-brand {
+    gap: 8px !important;
+    min-width: 0;
+    flex-shrink: 1;
   }
 
   .top-navigation {
@@ -6495,48 +6517,85 @@ textarea:focus {
   }
 
   .brand {
-    gap: 8px !important;
+    gap: 7px !important;
+    min-width: 0;
   }
 
   .brand-symbol {
     width: 32px !important;
     height: 32px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0;
   }
 
   .brand-symbol svg {
-    width: 20px !important;
-    height: 20px !important;
+    width: 19px !important;
+    height: 19px !important;
   }
 
   .brand-name {
-    font-size: 18px !important;
-    letter-spacing: -0.8px !important;
+    font-size: 17px !important;
+    letter-spacing: -0.6px !important;
+    line-height: 1 !important;
+    white-space: nowrap;
+    display: flex !important;
+    align-items: baseline;
+    gap: 2px;
   }
 
-  .brand-name > span {
+  .brand-name > span,
+  .brand-name-sub {
     font-size: 9.5px !important;
-    letter-spacing: 2px !important;
-    margin-top: 1px !important;
+    letter-spacing: 1.5px !important;
+    margin-top: 0 !important;
+    display: inline !important;
+    color: var(--green) !important;
+    font-weight: 700;
   }
 
   .topbar-actions {
-    gap: 5px !important;
+    gap: 4px !important;
+    flex-shrink: 0;
   }
 
-  .topbar-actions .button {
-    padding: 4px 8px !important;
-    font-size: 11px !important;
-    min-height: 30px !important;
+  .topbar-actions > .icon-button,
+  .topbar-actions > button.icon-button {
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0;
+  }
+
+  .topbar-actions > .icon-button svg,
+  .topbar-actions > button.icon-button svg {
+    width: 17px !important;
+    height: 17px !important;
   }
 
   .topbar-divider {
     display: none;
   }
 
+  .profile-button {
+    flex-shrink: 0;
+  }
+
   .profile-button .avatar {
     width: 30px !important;
     height: 30px !important;
     font-size: 11px !important;
+  }
+
+  /* Fixed dropdowns on mobile screen to prevent clipping */
+  .topbar-role-dropdown,
+  .topbar-profile-dropdown {
+    position: fixed !important;
+    top: 66px !important;
+    right: 12px !important;
+    left: auto !important;
+    width: min(280px, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    z-index: 1050 !important;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16) !important;
   }
 
   /* Mobile Bottom Navigation Bar */
@@ -6546,16 +6605,18 @@ textarea:focus {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 64px;
-    background: rgba(255, 255, 255, 0.96);
+    min-height: 58px;
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
+    padding: 2px 4px env(safe-area-inset-bottom, 4px) 4px;
+    background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid rgba(226, 232, 240, 0.9);
     z-index: 1000;
     justify-content: space-around;
     align-items: center;
-    padding: 2px 4px env(safe-area-inset-bottom, 6px) 4px;
     box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.08);
+    box-sizing: border-box;
   }
 
   .mobile-bottom-nav-item {
@@ -6566,15 +6627,19 @@ textarea:focus {
     background: none;
     border: none;
     color: #64748b;
-    padding: 5px 2px;
+    padding: 3px 2px;
     border-radius: 12px;
     transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
+    max-width: 100px;
+    height: 48px;
     cursor: pointer;
     position: relative;
     text-decoration: none;
     gap: 2px;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-bottom-nav-item:active {
@@ -6589,8 +6654,8 @@ textarea:focus {
   .mobile-bottom-nav-item.active::before {
     content: "";
     position: absolute;
-    top: 2px;
-    width: 24px;
+    top: 1px;
+    width: 22px;
     height: 3px;
     border-radius: 3px;
     background: #098a58;
@@ -6601,8 +6666,8 @@ textarea:focus {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 8px;
     transition: all 0.18s ease;
   }
@@ -6749,6 +6814,198 @@ textarea:focus {
   }
 }
 
+@media (max-width: 480px) {
+  .topbar {
+    height: 52px !important;
+    padding: 0 8px !important;
+    gap: 6px !important;
+    border-radius: 14px !important;
+  }
+
+  .mobile-menu-toggle {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 9px !important;
+  }
+
+  .brand {
+    gap: 6px !important;
+  }
+
+  .brand-symbol {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+  }
+
+  .brand-symbol svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .brand-name {
+    font-size: 16px !important;
+  }
+
+  .topbar-actions {
+    gap: 3px !important;
+  }
+
+  .topbar-actions > .icon-button,
+  .topbar-actions > button.icon-button {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .topbar-actions > .icon-button svg,
+  .topbar-actions > button.icon-button svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .topbar-role-btn {
+    padding: 3px 6px !important;
+    font-size: 10px !important;
+    min-height: 30px !important;
+    max-width: 76px;
+  }
+
+  .role-short-label {
+    max-width: 48px;
+  }
+
+  .profile-button .avatar {
+    width: 29px !important;
+    height: 29px !important;
+    font-size: 11px !important;
+  }
+
+  .mobile-nav-label {
+    font-size: 9.5px;
+  }
+
+  .mobile-nav-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-nav-icon svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .topbar {
+    height: 48px !important;
+    padding: 0 6px !important;
+    gap: 4px !important;
+    border-radius: 12px !important;
+    top: 4px !important;
+  }
+
+  .mobile-menu-toggle {
+    width: 29px !important;
+    height: 29px !important;
+    border-radius: 8px !important;
+  }
+
+  .brand {
+    gap: 5px !important;
+  }
+
+  .brand-symbol {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 7px !important;
+  }
+
+  .brand-symbol svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .brand-name {
+    font-size: 14.5px !important;
+  }
+
+  .brand-name > span,
+  .brand-name-sub {
+    display: none !important;
+  }
+
+  .topbar-actions {
+    gap: 2px !important;
+  }
+
+  .topbar-actions > .icon-button,
+  .topbar-actions > button.icon-button {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .topbar-actions > .icon-button svg,
+  .topbar-actions > button.icon-button svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  .topbar-role-btn {
+    width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+    border-radius: 50% !important;
+  }
+
+  .role-short-label,
+  .topbar-role-btn svg:last-child {
+    display: none !important;
+  }
+
+  .profile-button .avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 10px !important;
+  }
+
+  .mobile-bottom-nav {
+    min-height: 52px;
+    height: calc(52px + env(safe-area-inset-bottom, 0px));
+    padding: 2px 2px env(safe-area-inset-bottom, 2px) 2px;
+  }
+
+  .mobile-bottom-nav-item {
+    height: 44px;
+    gap: 1px;
+  }
+
+  .mobile-nav-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .mobile-nav-icon svg {
+    width: 15.5px !important;
+    height: 15.5px !important;
+  }
+
+  .mobile-nav-label {
+    font-size: 9px;
+    letter-spacing: -0.3px;
+  }
+
+  .mobile-nav-badge {
+    font-size: 8px;
+    min-width: 13px;
+    height: 13px;
+    top: -2px;
+    right: -5px;
+    padding: 0 2px;
+  }
+}
+
 @media (max-width: 360px) {
   .grid-responsive-cards {
     grid-template-columns: 1fr !important;
@@ -6757,6 +7014,24 @@ textarea:focus {
 
   .toolbar-filter-row {
     grid-template-columns: 1fr !important;
+  }
+
+  .mobile-nav-label {
+    font-size: 8.5px;
+  }
+}
+
+@media (max-width: 330px) {
+  .topbar-actions .topbar-refresh-btn {
+    display: none !important;
+  }
+
+  .brand-name {
+    font-size: 13px !important;
+  }
+
+  .mobile-nav-label {
+    font-size: 8px;
   }
 }
 
