@@ -1,9 +1,17 @@
-"""
-R-GCN Graph Model Engine & Inference Service (Phase 2 Integration)
-"""
-
+import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# Windows dynamic DLL resolution for torch/lib
+for p in sys.path:
+    torch_lib = os.path.join(p, "torch", "lib")
+    if os.path.isdir(torch_lib):
+        try:
+            os.add_dll_directory(torch_lib)
+        except Exception:
+            pass
+        break
 
 try:
     import torch
@@ -62,14 +70,23 @@ class RGCNModelEngine:
                     self.hetero_data = torch.load(self.graph_path, weights_only=False, map_location=self.device)
 
                     print(f"[RGCNModelEngine] Loading model weights from {self.checkpoint_path}...")
+                    ckpt = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
+                    in_channels_dict = ckpt.get("in_channels_dict") if isinstance(ckpt, dict) else None
+                    if in_channels_dict is None and self.hetero_data is not None:
+                        in_channels_dict = {
+                            node_type: self.hetero_data[node_type].x.size(1)
+                            for node_type in self.hetero_data.node_types
+                        }
+                    if in_channels_dict is None:
+                        in_channels_dict = NODE_INPUT_DIMS
+
                     model = AuraJKNRGCN(
                         edge_types=self.hetero_data.edge_types,
-                        in_channels_dict=NODE_INPUT_DIMS,
+                        in_channels_dict=in_channels_dict,
                         hidden_channels=HIDDEN_CHANNELS,
                     ).to(self.device)
 
-                    ckpt = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
-                    state_dict = ckpt.get("model_state_dict", ckpt)
+                    state_dict = ckpt.get("model_state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
                     model.load_state_dict(state_dict)
                     model.eval()
                     self.model = model

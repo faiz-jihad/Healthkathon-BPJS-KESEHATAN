@@ -19,7 +19,9 @@ env/
 .DS_Store
 Thumbs.db
 
-# Large checkpoints / outputs (optional if checkpoints are distributed via registry)
-# models/*.pt
+# Large checkpoints & graph data (> 100 MB GitHub file size limit)
+models/aura_jkn_hetero_graph.pt
+*.pt
+!models/aura_jkn_rgcn_model.pt
 samples/
 .ipynb_checkpoints/

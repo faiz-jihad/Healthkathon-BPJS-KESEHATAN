@@ -5,6 +5,19 @@ Relational Graph Convolutional Network (R-GCN) Architecture for AURA-JKN
 from __future__ import annotations
 from typing import Dict, List, Tuple
 
+import os
+import sys
+
+# Windows dynamic DLL resolution for torch/lib
+for p in sys.path:
+    torch_lib = os.path.join(p, "torch", "lib")
+    if os.path.isdir(torch_lib):
+        try:
+            os.add_dll_directory(torch_lib)
+        except Exception:
+            pass
+        break
+
 try:
     import torch
     import torch.nn as nn

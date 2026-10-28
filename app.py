@@ -4,14 +4,19 @@ AURA-JKN: End-to-End FastAPI Inference & Decision Service
 Controller layer providing RESTful endpoints for real-time claim fraud risk assessment.
 """
 
+import logging
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
+import pandas as pd
 from sqlalchemy import text
 
 try:
     import httpx
 except ImportError:
     httpx = None
+
+audit_logger = logging.getLogger("aura_jkn.audit")
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Path as FastApiPath, status
@@ -177,6 +182,8 @@ async def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionRespo
     5. Injects Generative AI Layer: Multi-tier Executive Audit Brief (Groq -> NVIDIA NIM -> Local Fallback).
     6. Optionally persists transaction and audit decision to PostgreSQL.
     """
+    t0 = time.perf_counter()
+
     # 1. Spatiotemporal Risk Analysis
     spatio_metrics, spatio_notes, conflict_record = spatio_analyzer.analyze(
         claim_id=payload.claim_id,
@@ -287,11 +294,45 @@ async def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionRespo
         "pre_payment_gate": pre_payment_gate,
     })
 
+    # 8. Resolve referral metadata
+    ref_dist = None
+    ref_missing = None
+    rec = registry.claim_map.get(payload.claim_id)
+    if rec and "referral_distance_to_fktp" in rec and pd.notna(rec["referral_distance_to_fktp"]):
+        ref_dist = float(rec["referral_distance_to_fktp"])
+        ref_missing = bool(rec.get("referral_distance_missing", False))
+    elif payload.referral_facility_id:
+        fac_rec = registry.facility_map.get(payload.referral_facility_id)
+        if fac_rec and "latitude" in fac_rec:
+            p_lat, p_lon = -6.2088, 106.8456
+            if payload.dati2:
+                from src.data.bpjs_sample_etl import get_centroid
+                p_lat, p_lon, _ = get_centroid(payload.dati2)
+            from src.data.bpjs_sample_etl import haversine_distance
+            ref_dist = round(haversine_distance(p_lat, p_lon, fac_rec["latitude"], fac_rec["longitude"]), 2)
+            ref_missing = False
+        else:
+            ref_dist = 12.5
+            ref_missing = True
+    else:
+        ref_dist = 12.5
+        ref_missing = True
+
+    latency_ms = (time.perf_counter() - t0) * 1000.0
+    audit_logger.info(
+        f"[Audit Telemetry] claim_id={payload.claim_id} fraud_prob={fraud_prob:.3f} "
+        f"risk_level={risk_level} gate={pre_payment_gate} latency_ms={latency_ms:.1f}"
+    )
+
     return ClaimPredictionResponse(
         claim_id=payload.claim_id,
         fraud_probability=round(fraud_prob, 3),
         risk_level=risk_level,
         pre_payment_gate=pre_payment_gate,
+        applied_threshold=GATE_HIGH_RISK_THRESHOLD,
+        warning_threshold=GATE_WARNING_THRESHOLD,
+        referral_distance_to_fktp=ref_dist,
+        referral_distance_missing=ref_missing,
         spatiotemporal_metrics=spatio_metrics,
         xai_explanation=xai_explanation,
     )
@@ -328,6 +369,9 @@ async def get_claim_by_id(
         service_time=str(record["service_time_str"]),
         ina_cbgs_tariff=float(record["ina_cbgs_tariff"]),
         length_of_stay=int(record["length_of_stay"]),
+        fktp_referral_id=str(record.get("fktp_referral_id", "")) if pd.notna(record.get("fktp_referral_id")) else None,
+        referral_facility_id=str(record.get("referral_facility_id", "")) if pd.notna(record.get("referral_facility_id")) else None,
+        dati2=int(record["dati2"]) if pd.notna(record.get("dati2")) else None,
     )
 
     return await predict_claim(request_payload)
@@ -446,13 +490,22 @@ async def chat_claim_copilot(
     http_cli = getattr(app.state, "http_client", None)
     history_dicts = [m.model_dump() for m in payload.chat_history] if payload.chat_history else []
 
+    t0 = time.perf_counter()
     # 6. Call Copilot Chat with sliding window
-    return await chat_with_copilot(
+    chat_res = await chat_with_copilot(
         claim_context=claim_context,
         user_message=payload.user_message,
         chat_history=history_dicts,
         client=http_cli,
     )
+
+    latency_ms = (time.perf_counter() - t0) * 1000.0
+    audit_logger.info(
+        f"[Copilot Telemetry] claim_id={claim_id} provider={chat_res.provider_used} "
+        f"is_fallback={chat_res.is_fallback} latency_ms={latency_ms:.1f}"
+    )
+
+    return chat_res
 
 
 

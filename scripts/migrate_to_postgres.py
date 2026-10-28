@@ -14,6 +14,7 @@ Usage:
 import argparse
 import os
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -103,12 +104,32 @@ def run_migration(db_url: str, drop_tables: bool = False):
         else:
             print("[Warning] schema.sql not found. Relying on Pandas automatic schema creation.")
 
+    # Helper for batch insertion with live progress tracking
+    def insert_with_progress(df: pd.DataFrame, table_name: str, chunk_size: int = 5000):
+        total = len(df)
+        t0 = time.time()
+        for i in range(0, total, chunk_size):
+            chunk = df.iloc[i : i + chunk_size]
+            chunk.to_sql(table_name, engine, if_exists="append", index=False)
+            done = min(total, i + len(chunk))
+            pct = (done / total) * 100
+            elapsed = time.time() - t0
+            speed = done / max(0.001, elapsed)
+            eta = (total - done) / max(0.001, speed)
+            print(
+                f"\r  -> [{table_name}] {done:,}/{total:,} ({pct:5.1f}%) | "
+                f"Speed: {speed:,.0f} rows/s | ETA: {int(eta//60):02d}m{int(eta%60):02d}s",
+                end="",
+                flush=True,
+            )
+        print()
+
     # 3. Load and Insert Facilities
     fac_path = DATA_DIR / "facilities.parquet"
     if fac_path.exists():
         print(f"[Import] Loading {fac_path.name}...")
         fac_df = pd.read_parquet(fac_path)
-        fac_df.to_sql("facilities", engine, if_exists="append", index=False, chunksize=1000)
+        insert_with_progress(fac_df, "facilities", chunk_size=2000)
         print(f"  -> Imported {len(fac_df):,} facilities into 'facilities' table.")
 
     # 4. Load and Insert Doctors
@@ -116,7 +137,7 @@ def run_migration(db_url: str, drop_tables: bool = False):
     if doc_path.exists():
         print(f"[Import] Loading {doc_path.name}...")
         doc_df = pd.read_parquet(doc_path)
-        doc_df.to_sql("doctors", engine, if_exists="append", index=False, chunksize=1000)
+        insert_with_progress(doc_df, "doctors", chunk_size=2000)
         print(f"  -> Imported {len(doc_df):,} doctors into 'doctors' table.")
 
     # 5. Load and Insert Patients
@@ -124,7 +145,7 @@ def run_migration(db_url: str, drop_tables: bool = False):
     if pat_path.exists():
         print(f"[Import] Loading {pat_path.name}...")
         pat_df = pd.read_parquet(pat_path)
-        pat_df.to_sql("patients", engine, if_exists="append", index=False, chunksize=5000)
+        insert_with_progress(pat_df, "patients", chunk_size=5000)
         print(f"  -> Imported {len(pat_df):,} patients into 'patients' table.")
 
     # 6. Load and Insert Claims
@@ -134,9 +155,7 @@ def run_migration(db_url: str, drop_tables: bool = False):
         clm_df = pd.read_parquet(clm_path)
         clm_df["service_date"] = pd.to_datetime(clm_df["service_date"]).dt.date
         clm_df["service_time"] = pd.to_datetime(clm_df["service_time"].astype(str), format="%H:%M:%S", errors="coerce").dt.time
-        
-        # Insert in chunks of 5,000 rows
-        clm_df.to_sql("claims", engine, if_exists="append", index=False, chunksize=5000)
+        insert_with_progress(clm_df, "claims", chunk_size=5000)
         print(f"  -> Imported {len(clm_df):,} claims into 'claims' table.")
 
     # 7. Verification Summary

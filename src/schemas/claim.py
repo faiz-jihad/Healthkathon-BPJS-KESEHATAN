@@ -18,6 +18,9 @@ class ClaimPredictionRequest(BaseModel):
     service_time: str = Field(..., description="Time of Service (HH:MM:SS)", examples=["09:30:00"])
     ina_cbgs_tariff: float = Field(..., description="Claim Tariff Amount in IDR", examples=[850000.0])
     length_of_stay: int = Field(0, description="Length of Inpatient Stay in Days", examples=[2])
+    fktp_referral_id: Optional[str] = Field(None, description="FKTP Referral Visit ID (if applicable)", examples=["FKP12345"])
+    referral_facility_id: Optional[str] = Field(None, description="Referred FKTP Facility ID (if applicable)", examples=["FAC_3374_01"])
+    dati2: Optional[int] = Field(None, description="Kab/Kota Dati2 Code", examples=[3374])
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -32,6 +35,9 @@ class ClaimPredictionRequest(BaseModel):
                 "service_time": "09:30:00",
                 "ina_cbgs_tariff": 850000.0,
                 "length_of_stay": 2,
+                "fktp_referral_id": "FKP12345",
+                "referral_facility_id": "FAC_3374_01",
+                "dati2": 3374,
             }
         },
     )
@@ -95,6 +101,10 @@ class ClaimPredictionResponse(BaseModel):
         ...,
         description="Automated gate action: REJECT_FOR_HUMAN_REVIEW, FLAGGED_WARNING, or AUTO_APPROVE",
     )
+    applied_threshold: float = Field(0.70, description="Active decision threshold applied for REJECT_FOR_HUMAN_REVIEW")
+    warning_threshold: float = Field(0.40, description="Active decision threshold applied for FLAGGED_WARNING")
+    referral_distance_to_fktp: Optional[float] = Field(None, description="Imputed/measured Haversine distance to referral FKTP (km)")
+    referral_distance_missing: Optional[bool] = Field(None, description="Whether referral distance was missing/imputed")
     spatiotemporal_metrics: SpatiotemporalMetrics
     xai_explanation: XAIExplanation
 

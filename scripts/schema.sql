@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS facilities (
     facility_class VARCHAR(20) NOT NULL, -- FKTP / FKRTL
     latitude DOUBLE PRECISION NOT NULL,
     longitude DOUBLE PRECISION NOT NULL,
+    region_name VARCHAR(100),
+    dati2 INT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -38,12 +40,17 @@ CREATE TABLE IF NOT EXISTS claims (
     patient_id VARCHAR(100) REFERENCES patients(patient_id) ON DELETE CASCADE,
     doctor_id VARCHAR(50) REFERENCES doctors(doctor_id) ON DELETE CASCADE,
     facility_id VARCHAR(50) REFERENCES facilities(facility_id) ON DELETE CASCADE,
-    icd10_code VARCHAR(20) NOT NULL,
-    icd9_code VARCHAR(20),
+    icd10_code TEXT NOT NULL,
+    icd9_code TEXT,
     service_date DATE NOT NULL,
     service_time TIME NOT NULL,
     ina_cbgs_tariff NUMERIC(14, 2) NOT NULL,
     length_of_stay INT DEFAULT 0,
+    fktp_referral_id VARCHAR(100),
+    referral_facility_id VARCHAR(50),
+    dati2 INT,
+    referral_distance_to_fktp DOUBLE PRECISION DEFAULT 0.0,
+    referral_distance_missing BOOLEAN DEFAULT TRUE,
     
     -- Ground Truth Label (for training/evaluation)
     is_fraud INT DEFAULT 0,

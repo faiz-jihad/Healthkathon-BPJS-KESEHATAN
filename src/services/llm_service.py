@@ -10,6 +10,7 @@ Multi-tier LLM execution engine providing:
 
 import json
 import logging
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 try:
@@ -211,6 +212,7 @@ async def _execute_llm_call(
         # --- Tier 1: GroqCloud API ---
         if GROQ_API_KEY and GROQ_API_KEY.strip() and not GROQ_API_KEY.startswith("gsk_placeholder"):
             try:
+                t0 = time.perf_counter()
                 active_groq_model = await _resolve_model("groq", GROQ_MODEL, GROQ_API_KEY.strip(), http_cli)
                 content = await _post_chat_completion(
                     http_cli=http_cli,
@@ -220,6 +222,8 @@ async def _execute_llm_call(
                     model=active_groq_model,
                 )
                 if content:
+                    latency_ms = (time.perf_counter() - t0) * 1000.0
+                    logger.info(f"[LLM Telemetry] provider=groq model={active_groq_model} latency_ms={latency_ms:.1f} is_fallback=False")
                     return content, "groq", False
             except Exception as exc:
                 logger.warning(f"[LLM Service] Groq primary provider failed ({type(exc).__name__}: {exc}). Proceeding to secondary fallback.")
@@ -227,6 +231,7 @@ async def _execute_llm_call(
         # --- Tier 2: NVIDIA NIM API ---
         if NVIDIA_API_KEY and NVIDIA_API_KEY.strip() and not NVIDIA_API_KEY.startswith("nvapi_placeholder"):
             try:
+                t0 = time.perf_counter()
                 active_nvidia_model = await _resolve_model("nvidia_nim", NVIDIA_MODEL, NVIDIA_API_KEY.strip(), http_cli)
                 content = await _post_chat_completion(
                     http_cli=http_cli,
@@ -236,12 +241,17 @@ async def _execute_llm_call(
                     model=active_nvidia_model,
                 )
                 if content:
+                    latency_ms = (time.perf_counter() - t0) * 1000.0
+                    logger.info(f"[LLM Telemetry] provider=nvidia_nim model={active_nvidia_model} latency_ms={latency_ms:.1f} is_fallback=True")
                     return content, "nvidia_nim", True
             except Exception as exc:
                 logger.warning(f"[LLM Service] NVIDIA NIM fallback failed ({type(exc).__name__}: {exc}). Proceeding to tertiary fallback.")
 
         # --- Tier 3: Local Rule Engine (Deterministic) ---
+        t0 = time.perf_counter()
         local_content = fallback_generator()
+        latency_ms = (time.perf_counter() - t0) * 1000.0
+        logger.info(f"[LLM Telemetry] provider=local_fallback model=rule_engine latency_ms={latency_ms:.1f} is_fallback=True")
         return local_content, "local_fallback", True
 
     if httpx is None:

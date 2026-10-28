@@ -1,11 +1,12 @@
 """
-AURA-JKN Phase 2: Model Training & Evaluation Pipeline
-======================================================
+AURA-JKN Phase 2: Model Training & Evaluation Pipeline (Mini-Batch Subgraph Edition)
+===================================================================================
 Architecture: Relational Graph Convolutional Network (R-GCN) via PyTorch Geometric
-Task: Fraud Detection on BPJS Kesehatan Healthcare Claims Graph
+Task: Fraud Detection on National-Scale BPJS Kesehatan Claims Graph
+Execution: Scalable Mini-Batch Subgraph Loading with Zero-OOM & Windows C++ Independence
 """
 
-import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -15,12 +16,39 @@ ROOT_DIR = CURRENT_DIR.parent if CURRENT_DIR.name == "scripts" else CURRENT_DIR
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+# Windows dynamic DLL resolution for torch/lib (must execute before numpy/sklearn)
+for p in sys.path:
+    torch_lib = os.path.join(p, "torch", "lib")
+    if os.path.isdir(torch_lib):
+        try:
+            os.add_dll_directory(torch_lib)
+        except Exception:
+            pass
+        break
+
+import argparse
+import time
+import warnings
 from typing import Any, Dict, List, Tuple
 
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch_geometric.data import HeteroData
+    TORCH_AVAILABLE = True
+except Exception as e:
+    print(f"[Import Notice] {type(e).__name__}: {e}")
+    torch = None
+    nn = None
+    F = None
+    HeteroData = None
+    TORCH_AVAILABLE = False
+
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from sklearn.metrics import (
     average_precision_score,
     confusion_matrix,
@@ -29,7 +57,6 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from torch_geometric.data import HeteroData
 
 from src.config import (
     CLASSIFIER_DROPOUT,
@@ -37,7 +64,6 @@ from src.config import (
     GRAPH_DATA_PATH,
     HIDDEN_CHANNELS,
     MODEL_CHECKPOINT_PATH,
-    NODE_INPUT_DIMS,
     RANDOM_SEED,
 )
 from src.models import AuraJKNRGCN
@@ -48,7 +74,8 @@ from src.models import AuraJKNRGCN
 CHECKPOINT_PATH = MODEL_CHECKPOINT_PATH
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
-MAX_EPOCHS = 200
+MAX_EPOCHS = 60
+DEFAULT_BATCH_SIZE = 1024
 EARLY_STOPPING_PATIENCE = 15
 DECISION_THRESHOLD = 0.5
 
@@ -56,6 +83,15 @@ SCENARIO_METADATA = {
     "A": "Fake Patient Cluster",
     "B": "Extreme Doctor Volume",
     "C": "Spatio-Temporal Conflict",
+}
+
+# Asymmetric neighbor fanout to prevent diagnosis supernode over-smoothing
+ASYMMETRIC_FANOUT: Dict[Tuple[str, str, str], List[int]] = {
+    ("claim", "has_diagnosis", "diagnosis"): [3, 2],
+    ("diagnosis", "rev_has_diagnosis", "claim"): [0, 0],  # Cut reverse ICD-10 edge
+    ("patient", "examined_by", "doctor"): [10, 5],
+    ("doctor", "authorized", "claim"): [15, 10],
+    ("patient", "referred_to", "facility"): [10, 5],
 }
 
 
@@ -79,19 +115,259 @@ def get_device() -> torch.device:
 
 
 # ==============================================================================
-# 1. Data Loading & Inspection
+# 1. Native Vectorized Hetero Batch Loader (Windows C++ Toolchain Independent)
 # ==============================================================================
-def load_hetero_graph(file_path: Path, device: torch.device) -> HeteroData:
+class VectorizedHeteroBatchLoader:
     """
-    Loads PyTorch Geometric HeteroData from disk and moves it to the target device.
-
-    Args:
-        file_path: Path to serialized PyG HeteroData file (.pt).
-        device: Target execution device (cuda or cpu).
-
-    Returns:
-        HeteroData object moved to device.
+    Vectorized Pure-PyTorch 2-Hop Subgraph Mini-Batch Loader.
+    
+    Architectural Guarantees:
+    1. Zero C++ compiler requirements (seamless execution on Windows without MSVC).
+    2. Strict Seed Ordering: Target batch claims strictly occupy indices 0 to batch_size - 1.
+    3. Asymmetric Fanout: Disables reverse message passing from ICD-10 diagnosis supernodes
+       to prevent inter-provincial over-smoothing.
+    4. Inductive Isolation: Message passing paths are contained strictly within batch subgraphs.
     """
+
+    def __init__(
+        self,
+        data: HeteroData,
+        seed_indices: torch.Tensor,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+        shuffle: bool = True,
+        device: torch.device = torch.device("cpu"),
+    ):
+        self.data = data
+        self.seed_indices = seed_indices.clone().long().cpu()
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.device = device
+
+        num_claims = data["claim"].num_nodes
+        num_doctors = data["doctor"].num_nodes
+        num_patients = data["patient"].num_nodes
+
+        # Pre-build vectorized lookup tensors for 1-hop expansions
+        # 1. claim -> doctor
+        edge_c_d = data["claim", "rev_authorized", "doctor"].edge_index.cpu()
+        self.claim_to_doc = torch.full((num_claims,), -1, dtype=torch.long)
+        self.claim_to_doc[edge_c_d[0]] = edge_c_d[1]
+
+        # 2. claim -> diagnosis
+        edge_c_diag = data["claim", "has_diagnosis", "diagnosis"].edge_index.cpu()
+        self.claim_to_diag = torch.full((num_claims,), -1, dtype=torch.long)
+        self.claim_to_diag[edge_c_diag[0]] = edge_c_diag[1]
+
+        # 3. doctor -> patient (pre-grouped with bounded fanout: max 5 patients per doctor to prevent exponential blowup)
+        edge_d_p = data["doctor", "rev_examined_by", "patient"].edge_index.cpu()
+        doc_pat_dict: Dict[int, List[int]] = {}
+        perm = torch.randperm(edge_d_p.size(1))
+        d_src = edge_d_p[0, perm].tolist()
+        p_dst = edge_d_p[1, perm].tolist()
+        for d, p in zip(d_src, p_dst):
+            cur = doc_pat_dict.get(d)
+            if cur is None:
+                doc_pat_dict[d] = [p]
+            elif len(cur) < 5:
+                cur.append(p)
+        self.doc_pat_dict = doc_pat_dict
+
+        # 4. patient -> facility (direct 1-hop tensor lookups)
+        edge_p_reg_f = data["patient", "registered_at", "facility"].edge_index.cpu()
+        self.pat_to_reg_f = torch.full((num_patients,), -1, dtype=torch.long)
+        self.pat_to_reg_f[edge_p_reg_f[0]] = edge_p_reg_f[1]
+
+        edge_p_ref_f = data["patient", "referred_to", "facility"].edge_index.cpu()
+        self.pat_to_ref_f = torch.full((num_patients,), -1, dtype=torch.long)
+        self.pat_to_ref_f[edge_p_ref_f[0]] = edge_p_ref_f[1]
+
+    def __len__(self) -> int:
+        return (len(self.seed_indices) + self.batch_size - 1) // self.batch_size
+
+    def __iter__(self):
+        if self.shuffle:
+            perm = torch.randperm(len(self.seed_indices))
+            seeds = self.seed_indices[perm]
+        else:
+            seeds = self.seed_indices
+
+        for start_idx in range(0, len(seeds), self.batch_size):
+            batch_seeds = seeds[start_idx : start_idx + self.batch_size]
+            sub_data = self._sample_batch(batch_seeds)
+            yield sub_data.to(self.device)
+
+    def _sample_batch(self, seed_claim_ids: torch.Tensor) -> HeteroData:
+        seed_claim_ids = seed_claim_ids.long()
+        batch_size = len(seed_claim_ids)
+
+        # 1. Doctors from seeds
+        doc_ids = self.claim_to_doc[seed_claim_ids]
+        doc_mask = doc_ids >= 0
+        unique_docs, local_d = torch.unique(doc_ids[doc_mask], return_inverse=True)
+
+        # 2. Diagnoses from seeds
+        diag_ids = self.claim_to_diag[seed_claim_ids]
+        diag_mask = diag_ids >= 0
+        unique_diags, local_diag = torch.unique(diag_ids[diag_mask], return_inverse=True)
+
+        # 3. Patients (from unique_docs via pre-indexed lookup, capped fanout)
+        d_p_src_list: List[int] = []
+        d_p_dst_list: List[int] = []
+        for loc_d_idx, d in enumerate(unique_docs.tolist()):
+            p_list = self.doc_pat_dict.get(d)
+            if p_list:
+                for p in p_list:
+                    d_p_src_list.append(loc_d_idx)
+                    d_p_dst_list.append(p)
+
+        if len(d_p_dst_list) > 0:
+            unique_pats, local_p = torch.unique(torch.tensor(d_p_dst_list, dtype=torch.long), return_inverse=True)
+            edge_d_p_src = torch.tensor(d_p_src_list, dtype=torch.long)
+            edge_d_p_dst = local_p
+        else:
+            unique_pats = torch.empty(0, dtype=torch.long)
+            edge_d_p_src = torch.empty(0, dtype=torch.long)
+            edge_d_p_dst = torch.empty(0, dtype=torch.long)
+
+        # 4. Facilities (from unique_pats via direct tensor lookups)
+        if len(unique_pats) > 0:
+            reg_f = self.pat_to_reg_f[unique_pats]
+            ref_f = self.pat_to_ref_f[unique_pats]
+            valid_reg = reg_f >= 0
+            valid_ref = ref_f >= 0
+
+            all_fac_ids = torch.cat([reg_f[valid_reg], ref_f[valid_ref]])
+            if len(all_fac_ids) > 0:
+                unique_facs, local_all_facs = torch.unique(all_fac_ids, return_inverse=True)
+                n_reg = int(valid_reg.sum().item())
+                local_reg_f = local_all_facs[:n_reg]
+                local_ref_f = local_all_facs[n_reg:]
+                src_reg_p = torch.where(valid_reg)[0]
+                src_ref_p = torch.where(valid_ref)[0]
+            else:
+                unique_facs = torch.empty(0, dtype=torch.long)
+                local_reg_f = torch.empty(0, dtype=torch.long)
+                local_ref_f = torch.empty(0, dtype=torch.long)
+                src_reg_p = torch.empty(0, dtype=torch.long)
+                src_ref_p = torch.empty(0, dtype=torch.long)
+        else:
+            unique_facs = torch.empty(0, dtype=torch.long)
+            local_reg_f = torch.empty(0, dtype=torch.long)
+            local_ref_f = torch.empty(0, dtype=torch.long)
+            src_reg_p = torch.empty(0, dtype=torch.long)
+            src_ref_p = torch.empty(0, dtype=torch.long)
+
+        # Subgraph HeteroData Construction
+        sub_data = HeteroData()
+
+        # Nodes
+        sub_data["claim"].x = self.data["claim"].x[seed_claim_ids]
+        sub_data["claim"].node_id = seed_claim_ids
+        sub_data["claim"].batch_size = batch_size
+        sub_data["claim"].y = self.data["claim"].y[seed_claim_ids]
+
+        sub_data["doctor"].x = self.data["doctor"].x[unique_docs]
+        sub_data["doctor"].node_id = unique_docs
+
+        sub_data["diagnosis"].x = self.data["diagnosis"].x[unique_diags]
+        sub_data["diagnosis"].node_id = unique_diags
+
+        sub_data["patient"].x = self.data["patient"].x[unique_pats]
+        sub_data["patient"].node_id = unique_pats
+
+        sub_data["facility"].x = self.data["facility"].x[unique_facs]
+        sub_data["facility"].node_id = unique_facs
+
+        # Re-index edges
+        # 1. claim <-> doctor
+        local_c = torch.arange(batch_size, dtype=torch.long)
+        sub_data["claim", "rev_authorized", "doctor"].edge_index = torch.stack([local_c, local_d])
+        sub_data["doctor", "authorized", "claim"].edge_index = torch.stack([local_d, local_c])
+
+        # 2. claim <-> diagnosis (ASYMMETRIC: diagnosis -> claim is cut to 0 to prevent supernode over-smoothing)
+        sub_data["claim", "has_diagnosis", "diagnosis"].edge_index = torch.stack([local_c, local_diag])
+        sub_data["diagnosis", "rev_has_diagnosis", "claim"].edge_index = torch.empty((2, 0), dtype=torch.long)
+
+        # 3. doctor <-> patient
+        if len(edge_d_p_src) > 0:
+            sub_data["doctor", "rev_examined_by", "patient"].edge_index = torch.stack([edge_d_p_src, edge_d_p_dst])
+            sub_data["patient", "examined_by", "doctor"].edge_index = torch.stack([edge_d_p_dst, edge_d_p_src])
+        else:
+            sub_data["doctor", "rev_examined_by", "patient"].edge_index = torch.empty((2, 0), dtype=torch.long)
+            sub_data["patient", "examined_by", "doctor"].edge_index = torch.empty((2, 0), dtype=torch.long)
+
+        # 4. patient <-> facility (registered_at)
+        if len(src_reg_p) > 0:
+            sub_data["patient", "registered_at", "facility"].edge_index = torch.stack([src_reg_p, local_reg_f])
+            sub_data["facility", "rev_registered_at", "patient"].edge_index = torch.stack([local_reg_f, src_reg_p])
+        else:
+            sub_data["patient", "registered_at", "facility"].edge_index = torch.empty((2, 0), dtype=torch.long)
+            sub_data["facility", "rev_registered_at", "patient"].edge_index = torch.empty((2, 0), dtype=torch.long)
+
+        # 5. patient <-> facility (referred_to)
+        if len(src_ref_p) > 0:
+            sub_data["patient", "referred_to", "facility"].edge_index = torch.stack([src_ref_p, local_ref_f])
+            sub_data["facility", "rev_referred_to", "patient"].edge_index = torch.stack([local_ref_f, src_ref_p])
+        else:
+            sub_data["patient", "referred_to", "facility"].edge_index = torch.empty((2, 0), dtype=torch.long)
+            sub_data["facility", "rev_referred_to", "patient"].edge_index = torch.empty((2, 0), dtype=torch.long)
+
+        # CRITICAL ASSERTION: Strict Seed Node Ordering
+        assert torch.equal(sub_data["claim"].node_id[:batch_size], seed_claim_ids), \
+            "Custom Sampler Error: Target seed claims are not placed at front indices!"
+
+        return sub_data
+
+
+_SAMPLER_LOGGED = False
+
+
+def create_hetero_loader(
+    data: HeteroData,
+    seed_indices: torch.Tensor,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    shuffle: bool = True,
+    device: torch.device = torch.device("cpu"),
+) -> Any:
+    """
+    Dual-Mode Loader Architecture:
+    Attempts to instantiate C++ accelerated PyG NeighborLoader.
+    If unavailable or missing C++ toolchain (Windows standard), cleanly falls back
+    to VectorizedHeteroBatchLoader.
+    """
+    global _SAMPLER_LOGGED
+    try:
+        from torch_geometric.loader import NeighborLoader
+        loader = NeighborLoader(
+            data,
+            num_neighbors=ASYMMETRIC_FANOUT,
+            batch_size=batch_size,
+            input_nodes=("claim", seed_indices),
+            shuffle=shuffle,
+        )
+        _ = next(iter(loader))
+        if not _SAMPLER_LOGGED:
+            print("[Sampler Engine] Using PyG NeighborLoader (C++ accelerated)")
+            _SAMPLER_LOGGED = True
+        return loader
+    except Exception:
+        if not _SAMPLER_LOGGED:
+            print("[Sampler Engine] Using VectorizedHeteroBatchLoader (Pure PyTorch Native, CPU Optimized)")
+            _SAMPLER_LOGGED = True
+        return VectorizedHeteroBatchLoader(
+            data=data,
+            seed_indices=seed_indices,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            device=device,
+        )
+
+
+# ==============================================================================
+# 2. Data Loading & Inspection
+# ==============================================================================
+def load_hetero_graph(file_path: Path) -> HeteroData:
+    """Loads PyTorch Geometric HeteroData from disk (keeps on CPU for streaming)."""
     if not file_path.exists():
         raise FileNotFoundError(
             f"HeteroData file not found at '{file_path.resolve()}'. "
@@ -101,7 +377,6 @@ def load_hetero_graph(file_path: Path, device: torch.device) -> HeteroData:
     print(f"\n[Data Loading] Loading HeteroData graph from: {file_path}")
     data = torch.load(file_path, weights_only=False)
 
-    # Validate required node type and split masks
     if "claim" not in data.node_types:
         raise KeyError("Target node type 'claim' is missing from HeteroData.")
 
@@ -110,8 +385,7 @@ def load_hetero_graph(file_path: Path, device: torch.device) -> HeteroData:
         if not hasattr(claim_node, mask_name):
             raise AttributeError(f"Attribute '{mask_name}' missing from 'claim' node.")
 
-    data = data.to(device)
-    print(f"[Data Loading] Graph loaded successfully on {device}.")
+    print(f"[Data Loading] Graph loaded successfully.")
     print(f"  - Node Types: {data.node_types}")
     print(f"  - Total Edge Relations: {len(data.edge_types)}")
     print(f"  - Claims Total: {data['claim'].num_nodes:,}")
@@ -132,20 +406,7 @@ def create_criterion_and_optimizer(
     weight_decay: float = WEIGHT_DECAY,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[nn.BCEWithLogitsLoss, torch.optim.Optimizer]:
-    """
-    Computes class imbalance pos_weight dynamically on the training split
-    and configures BCEWithLogitsLoss and AdamW optimizer.
-
-    Args:
-        model: AuraJKNRGCN neural network module.
-        data: HeteroData containing claim labels and train mask.
-        learning_rate: AdamW learning rate.
-        weight_decay: AdamW weight decay penalty.
-        device: Device to place pos_weight tensor on.
-
-    Returns:
-        Tuple of (criterion, optimizer).
-    """
+    """Computes class imbalance pos_weight dynamically on the training split."""
     claim_node = data["claim"]
     train_mask = claim_node.train_mask
     train_labels = claim_node.y[train_mask]
@@ -174,51 +435,90 @@ def create_criterion_and_optimizer(
 
 
 # ==============================================================================
-# 4. Training Loop & Validation Evaluation
+# 4. Training Loop & Validation Evaluation (Mini-Batch Subgraphs)
 # ==============================================================================
 def train_single_epoch(
     model: nn.Module,
-    data: HeteroData,
+    loader: Any,
     optimizer: torch.optim.Optimizer,
     criterion: nn.BCEWithLogitsLoss,
+    device: torch.device,
+    epoch: int = 1,
+    max_epochs: int = 1,
 ) -> float:
-    """Executes a single training epoch masked exclusively on train_mask claims."""
+    """Executes a single training epoch across mini-batch subgraphs with live progress."""
     model.train()
-    optimizer.zero_grad()
+    total_loss = 0.0
+    total_samples = 0
+    num_batches = len(loader)
+    t_start = time.time()
 
-    logits = model(data.x_dict, data.edge_index_dict)
+    for batch_idx, batch in enumerate(loader, 1):
+        batch = batch.to(device)
+        optimizer.zero_grad()
 
-    train_mask = data["claim"].train_mask
-    train_targets = data["claim"].y[train_mask].float()
-    train_logits = logits[train_mask]
+        logits = model(batch.x_dict, batch.edge_index_dict)
+        batch_size = batch["claim"].batch_size
 
-    loss = criterion(train_logits, train_targets)
-    loss.backward()
-    optimizer.step()
+        target_logits = logits[:batch_size]
+        target_labels = batch["claim"].y[:batch_size].float().to(device)
 
-    return loss.item()
+        loss = criterion(target_logits, target_labels)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item() * batch_size
+        total_samples += batch_size
+
+        if batch_idx % 20 == 0 or batch_idx == num_batches:
+            pct = (batch_idx / num_batches) * 100
+            avg_loss = total_loss / max(1, total_samples)
+            elapsed = time.time() - t_start
+            speed = batch_idx / max(0.001, elapsed)
+            eta = (num_batches - batch_idx) / max(0.001, speed)
+            print(
+                f"\r  -> Epoch {epoch:2d}/{max_epochs} | "
+                f"Batch {batch_idx:3d}/{num_batches} ({pct:5.1f}%) | "
+                f"Loss: {avg_loss:7.4f} | "
+                f"Speed: {speed:4.1f} b/s | "
+                f"ETA: {int(eta//60):02d}m{int(eta%60):02d}s",
+                end="",
+                flush=True,
+            )
+
+    return total_loss / max(1, total_samples)
 
 
 @torch.no_grad()
 def evaluate_validation(
     model: nn.Module,
-    data: HeteroData,
+    loader: Any,
+    device: torch.device,
     threshold: float = DECISION_THRESHOLD,
 ) -> Tuple[float, float]:
-    """
-    Evaluates model on val_mask claims to compute PR-AUC and F1-Score.
-
-    Returns:
-        Tuple of (pr_auc, f1_score).
-    """
+    """Evaluates model across validation mini-batches to compute PR-AUC and F1."""
     model.eval()
-    logits = model(data.x_dict, data.edge_index_dict)
+    all_targets: List[np.ndarray] = []
+    all_probs: List[np.ndarray] = []
+    num_batches = len(loader)
 
-    val_mask = data["claim"].val_mask
-    val_logits = logits[val_mask]
-    val_targets = data["claim"].y[val_mask].cpu().numpy()
+    for batch_idx, batch in enumerate(loader, 1):
+        batch = batch.to(device)
+        logits = model(batch.x_dict, batch.edge_index_dict)
+        batch_size = batch["claim"].batch_size
 
-    val_probs = torch.sigmoid(val_logits).cpu().numpy()
+        target_logits = logits[:batch_size]
+        probs = torch.sigmoid(target_logits).cpu().numpy()
+        targets = batch["claim"].y[:batch_size].cpu().numpy()
+
+        all_probs.append(probs)
+        all_targets.append(targets)
+
+        if batch_idx % 20 == 0 or batch_idx == num_batches:
+            print(f"\r  -> Validating: {batch_idx:3d}/{num_batches} batches...", end="", flush=True)
+
+    val_probs = np.concatenate(all_probs)
+    val_targets = np.concatenate(all_targets)
     val_preds = (val_probs >= threshold).astype(int)
 
     pr_auc = float(average_precision_score(val_targets, val_probs))
@@ -230,18 +530,16 @@ def evaluate_validation(
 def train_pipeline(
     model: nn.Module,
     data: HeteroData,
+    train_loader: Any,
+    val_loader: Any,
     optimizer: torch.optim.Optimizer,
     criterion: nn.BCEWithLogitsLoss,
+    device: torch.device,
     max_epochs: int = MAX_EPOCHS,
     patience: int = EARLY_STOPPING_PATIENCE,
     checkpoint_path: Path = CHECKPOINT_PATH,
 ) -> Dict[str, Any]:
-    """
-    Executes training loop with Early Stopping based on validation PR-AUC.
-
-    Returns:
-        Dictionary containing training history and best metrics.
-    """
+    """Executes mini-batch training with early stopping on validation PR-AUC."""
     best_val_pr_auc = -1.0
     best_val_f1 = -1.0
     best_epoch = 0
@@ -254,8 +552,14 @@ def train_pipeline(
         "val_f1": [],
     }
 
+    in_channels_dict = {nt: data[nt].x.size(1) for nt in data.node_types}
+
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=max_epochs, eta_min=1e-5
+    )
+
     print("\n" + "=" * 78)
-    print(f"{'AURA-JKN R-GCN TRAINING LOOP':^78}")
+    print(f"{'AURA-JKN R-GCN MINI-BATCH TRAINING LOOP (NATIONAL SCALE)':^78}")
     print("=" * 78)
     print(
         f"{'Epoch':^7} | {'Train Loss':^12} | {'Val PR-AUC':^12} | "
@@ -264,8 +568,11 @@ def train_pipeline(
     print("-" * 78)
 
     for epoch in range(1, max_epochs + 1):
-        loss = train_single_epoch(model, data, optimizer, criterion)
-        val_pr_auc, val_f1 = evaluate_validation(model, data)
+        loss = train_single_epoch(
+            model, train_loader, optimizer, criterion, device, epoch=epoch, max_epochs=max_epochs
+        )
+        val_pr_auc, val_f1 = evaluate_validation(model, val_loader, device)
+        scheduler.step()
 
         history["epoch"].append(epoch)
         history["train_loss"].append(loss)
@@ -279,26 +586,25 @@ def train_pipeline(
             best_epoch = epoch
             patience_counter = 0
 
-            # Checkpoint the best model parameters
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": model.state_dict(),
-                    "val_pr_auc": val_pr_auc,
-                    "val_f1": val_f1,
-                },
-                checkpoint_path,
-            )
+            ckpt_data = {
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "val_pr_auc": val_pr_auc,
+                "val_f1": val_f1,
+                "in_channels_dict": in_channels_dict,
+                "edge_types": data.edge_types,
+            }
+            torch.save(ckpt_data, checkpoint_path)
             status = "(*) Best Model Saved"
         else:
             patience_counter += 1
             status = f"Patience ({patience_counter}/{patience})"
 
-        if epoch % 5 == 0 or is_best or epoch == 1:
-            print(
-                f"{epoch:^7d} | {loss:^12.5f} | {val_pr_auc:^12.4f} | "
-                f"{val_f1:^10.4f} | {patience_counter:^10d} | {status}"
-            )
+        # Cleanly overwrite live progress line with table row
+        print(
+            f"\r{epoch:^7d} | {loss:^12.5f} | {val_pr_auc:^12.4f} | "
+            f"{val_f1:^10.4f} | {patience_counter:^10d} | {status}                                "
+        )
 
         if patience_counter >= patience:
             print("-" * 78)
@@ -329,20 +635,15 @@ def train_pipeline(
 @torch.no_grad()
 def evaluate_test_set(
     model: nn.Module,
+    test_loader: Any,
     data: HeteroData,
     checkpoint_path: Path = CHECKPOINT_PATH,
     device: torch.device = torch.device("cpu"),
     threshold: float = DECISION_THRESHOLD,
 ) -> Dict[str, Any]:
-    """
-    Restores the best model checkpoint and conducts comprehensive test evaluation.
-
-    Metrics Computed:
-    - ROC-AUC, PR-AUC, Precision, Recall, F1-Score, Confusion Matrix
-    - Breakdown of Recall per Fraud Scenario (A, B, C)
-    """
+    """Restores the best model checkpoint and conducts test evaluation via mini-batches."""
     print("=" * 78)
-    print(f"{'FINAL TEST EVALUATION ON UNSEEN CLAIMS':^78}")
+    print(f"{'FINAL TEST EVALUATION ON UNSEEN CLAIMS (MINI-BATCH)':^78}")
     print("=" * 78)
 
     # 1. Restore Best Checkpoint
@@ -351,14 +652,29 @@ def evaluate_test_set(
     model.eval()
     print(f"[Model Restore] Loaded weights from checkpoint (Epoch {checkpoint['epoch']}).")
 
-    # 2. Inference on Entire Graph & Filter Test Split
-    logits = model(data.x_dict, data.edge_index_dict)
-    test_mask = data["claim"].test_mask
+    # 2. Iterate over Test Mini-Batches
+    all_targets: List[np.ndarray] = []
+    all_probs: List[np.ndarray] = []
+    all_seed_ids: List[np.ndarray] = []
 
-    test_logits = logits[test_mask]
-    test_probs = torch.sigmoid(test_logits).cpu().numpy()
+    for batch in test_loader:
+        batch = batch.to(device)
+        logits = model(batch.x_dict, batch.edge_index_dict)
+        batch_size = batch["claim"].batch_size
+
+        target_logits = logits[:batch_size]
+        probs = torch.sigmoid(target_logits).cpu().numpy()
+        targets = batch["claim"].y[:batch_size].cpu().numpy()
+        seed_ids = batch["claim"].node_id[:batch_size].cpu().numpy()
+
+        all_probs.append(probs)
+        all_targets.append(targets)
+        all_seed_ids.append(seed_ids)
+
+    test_probs = np.concatenate(all_probs)
+    test_targets = np.concatenate(all_targets)
+    test_seed_ids = np.concatenate(all_seed_ids)
     test_preds = (test_probs >= threshold).astype(int)
-    test_targets = data["claim"].y[test_mask].cpu().numpy()
 
     # 3. Overall Performance Metrics
     roc_auc = float(roc_auc_score(test_targets, test_probs))
@@ -372,7 +688,7 @@ def evaluate_test_set(
     raw_scenarios = data["claim"].fraud_scenario
     if isinstance(raw_scenarios, torch.Tensor):
         raw_scenarios = raw_scenarios.cpu().numpy()
-    test_scenarios = np.array(raw_scenarios)[test_mask.cpu().numpy()]
+    test_scenarios = np.array(raw_scenarios)[test_seed_ids]
 
     scenario_metrics: Dict[str, Dict[str, Any]] = {}
     for code, desc in SCENARIO_METADATA.items():
@@ -393,7 +709,6 @@ def evaluate_test_set(
             "recall": scenario_recall,
         }
 
-    # Format and display test evaluation summary
     _display_test_results(
         roc_auc=roc_auc,
         pr_auc=pr_auc,
@@ -472,6 +787,7 @@ def _display_test_results(
 def parse_args():
     parser = argparse.ArgumentParser(description="AURA-JKN R-GCN Model Training Pipeline")
     parser.add_argument("--epochs", type=int, default=MAX_EPOCHS, help=f"Max training epochs (default: {MAX_EPOCHS})")
+    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE, help=f"Mini-batch size (default: {DEFAULT_BATCH_SIZE})")
     parser.add_argument("--patience", type=int, default=EARLY_STOPPING_PATIENCE, help=f"Early stopping patience (default: {EARLY_STOPPING_PATIENCE})")
     parser.add_argument("--lr", type=float, default=LEARNING_RATE, help=f"Learning rate (default: {LEARNING_RATE})")
     return parser.parse_args()
@@ -485,21 +801,25 @@ def main() -> None:
     args = parse_args()
 
     print("=" * 78)
-    print(f"{'AURA-JKN: PHASE 2 (R-GCN TRAINING & EVALUATION)':^78}")
+    print(f"{'AURA-JKN: PHASE 2 (R-GCN MINI-BATCH TRAINING & EVALUATION)':^78}")
     print("=" * 78)
-    print(f"Hyperparameters: Max Epochs={args.epochs}, Patience={args.patience}, LR={args.lr}")
+    print(f"Hyperparameters: Batch Size={args.batch_size}, Max Epochs={args.epochs}, Patience={args.patience}, LR={args.lr}")
 
     # 1. Determinism and Hardware Setup
     set_seed(RANDOM_SEED)
     device = get_device()
 
-    # 2. Load Graph Data
-    data = load_hetero_graph(GRAPH_DATA_PATH, device)
+    # 2. Load Graph Data (CPU Streamed)
+    data = load_hetero_graph(GRAPH_DATA_PATH)
 
     # 3. Model Architecture Instantiation
+    in_channels_dict = {
+        node_type: data[node_type].x.size(1)
+        for node_type in data.node_types
+    }
     model = AuraJKNRGCN(
         edge_types=data.edge_types,
-        in_channels_dict=NODE_INPUT_DIMS,
+        in_channels_dict=in_channels_dict,
         hidden_channels=HIDDEN_CHANNELS,
         classifier_dropout=CLASSIFIER_DROPOUT,
         conv_dropout=CONV_DROPOUT,
@@ -511,7 +831,21 @@ def main() -> None:
     print(f"  - Relations Handled: {len(data.edge_types)}")
     print(f"  - Total Trainable Parameters: {total_params:,}")
 
-    # 4. Loss & Optimizer Setup
+    # 4. Create Mini-Batch Subgraph DataLoaders
+    train_indices = torch.where(data["claim"].train_mask)[0]
+    val_indices = torch.where(data["claim"].val_mask)[0]
+    test_indices = torch.where(data["claim"].test_mask)[0]
+
+    print("\n[DataLoaders Initialization]")
+    print(f"  - Train Seed Claims: {len(train_indices):,} ({len(train_indices) // args.batch_size + 1} batches)")
+    print(f"  - Val Seed Claims  : {len(val_indices):,} ({len(val_indices) // args.batch_size + 1} batches)")
+    print(f"  - Test Seed Claims : {len(test_indices):,} ({len(test_indices) // args.batch_size + 1} batches)")
+
+    train_loader = create_hetero_loader(data, train_indices, batch_size=args.batch_size, shuffle=True, device=device)
+    val_loader = create_hetero_loader(data, val_indices, batch_size=args.batch_size, shuffle=False, device=device)
+    test_loader = create_hetero_loader(data, test_indices, batch_size=args.batch_size, shuffle=False, device=device)
+
+    # 5. Loss & Optimizer Setup
     criterion, optimizer = create_criterion_and_optimizer(
         model=model,
         data=data,
@@ -520,20 +854,24 @@ def main() -> None:
         device=device,
     )
 
-    # 5. Training Loop with Validation & Early Stopping
+    # 6. Mini-Batch Training Loop with Validation & Early Stopping
     train_results = train_pipeline(
         model=model,
         data=data,
+        train_loader=train_loader,
+        val_loader=val_loader,
         optimizer=optimizer,
         criterion=criterion,
+        device=device,
         max_epochs=args.epochs,
         patience=args.patience,
         checkpoint_path=CHECKPOINT_PATH,
     )
 
-    # 6. Final Evaluation on Test Set
+    # 7. Final Evaluation on Test Set via Mini-Batches
     test_results = evaluate_test_set(
         model=model,
+        test_loader=test_loader,
         data=data,
         checkpoint_path=CHECKPOINT_PATH,
         device=device,

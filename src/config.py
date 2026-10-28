@@ -41,9 +41,11 @@ DOCTORS_PARQUET = DATA_DIR / "doctors.parquet"
 PATIENTS_PARQUET = DATA_DIR / "patients.parquet"
 CLAIMS_PARQUET = DATA_DIR / "claims.parquet"
 
-# Pre-Payment Decision Gate Thresholds
-GATE_HIGH_RISK_THRESHOLD = 0.70
-GATE_WARNING_THRESHOLD = 0.40
+from typing import Dict
+
+# Pre-Payment Decision Gate Thresholds (Supports dynamic environment overrides)
+GATE_HIGH_RISK_THRESHOLD = float(os.environ.get("GATE_HIGH_RISK_THRESHOLD", "0.70"))
+GATE_WARNING_THRESHOLD = float(os.environ.get("GATE_WARNING_THRESHOLD", "0.40"))
 
 # Spatiotemporal Benchmark Thresholds
 DOCTOR_PEER_AVERAGE_DAILY_VOLUME = 25
@@ -52,14 +54,30 @@ DOCTOR_EXTREME_CAPACITY_LIMIT = 80  # >300% of peer avg
 SPATIAL_DISTANCE_KM_THRESHOLD = 400.0  # Impossible speed if > 400 km in 1 day
 SPATIAL_DEGREE_THRESHOLD = 4.5         # ~500 km across Indonesian regions
 
-# GNN Model Architecture Parameters
-NODE_INPUT_DIMS = {
-    "patient": 34,
-    "doctor": 6,
-    "facility": 4,
-    "claim": 23,
-    "diagnosis": 10,
-}
+# GNN Model Architecture Parameters (Dynamic dimension resolution)
+def get_node_input_dims() -> Dict[str, int]:
+    """Dynamically resolves node feature input dimensions from graph or defaults."""
+    dims = {
+        "patient": 8,
+        "doctor": 8,
+        "facility": 4,
+        "claim": 115,  # Fallback
+        "diagnosis": 690,
+    }
+    graph_p = get_graph_path()
+    if graph_p.exists():
+        try:
+            import torch
+            g = torch.load(graph_p, weights_only=False, map_location="cpu")
+            for nt in g.node_types:
+                if hasattr(g[nt], "x") and g[nt].x is not None:
+                    dims[nt] = int(g[nt].x.size(1))
+        except Exception:
+            pass
+    return dims
+
+
+NODE_INPUT_DIMS = get_node_input_dims()
 HIDDEN_CHANNELS = 64
 CLASSIFIER_DROPOUT = 0.3
 CONV_DROPOUT = 0.2
