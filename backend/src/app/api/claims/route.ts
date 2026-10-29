@@ -1,6 +1,7 @@
 import { prisma } from "../../../lib/prisma";
 import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../lib/auth";
 import { buildEvidenceChain, EvidenceChain } from "../../../lib/evidence-chain";
+import { AuditBriefPayload, buildLocalAuditBrief } from "../../../lib/llm-copilot";
 
 export interface ClaimApiRecord {
   claim_id: string;
@@ -46,6 +47,7 @@ export interface ClaimApiRecord {
       nodes: Array<{ id: string; type: string; label?: string }>;
       edges: Array<{ source: string; target: string; relation: string }>;
     };
+    audit_brief?: AuditBriefPayload;
   } | null;
   model_version?: string | null;
   evidence_chain?: EvidenceChain;
@@ -376,6 +378,28 @@ export async function GET(request: Request) {
     }
 
     const chain = buildEvidenceChain(c, ra, c.humanReviews, c.caseInvestigation);
+    const auditBrief = buildLocalAuditBrief({
+      claim_id: c.claimId,
+      patient_id: c.patientId,
+      doctor_id: c.doctorId,
+      facility_id: c.facilityId,
+      facility_class: c.facility?.facilityClass || "-",
+      specialty: c.doctor?.specialty || "-",
+      icd10_code: c.icd10Code,
+      service_date: c.serviceDate,
+      service_time: c.serviceTime,
+      ina_cbgs_tariff: c.inaCbgsTariff,
+      length_of_stay: c.lengthOfStay,
+      fraud_probability: analysisStatus === "ANALYSIS_SUCCESS" ? ra?.fraudProbability : null,
+      fraud_risk_index: analysisStatus === "ANALYSIS_SUCCESS" ? ra?.fraudRiskIndex : null,
+      risk_level: analysisStatus === "ANALYSIS_SUCCESS" ? (ra?.riskLevel ?? "LOW") : "UNASSESSED",
+      pre_payment_gate: analysisStatus === "ANALYSIS_SUCCESS" ? (ra?.prePaymentGate ?? "AUTO_APPROVE") : "PENDING_ASSESSMENT",
+      spatial_conflict_detected: Boolean(ra?.spatialConflictDetected),
+      doctor_daily_volume: Number(ra?.doctorDailyVolume || 0),
+      spatiotemporal_risk_score: Number(ra?.spatiotemporalRiskScore || 0),
+      primary_fraud_trigger: ra?.primaryFraudTrigger ?? "Tidak Ada Data Pemicu",
+      evidence_reasons: (ra?.evidenceReasons as unknown as string[]) ?? [],
+    });
 
     return {
       claim_id: c.claimId,
@@ -428,6 +452,7 @@ export async function GET(request: Request) {
                 nodes: [],
                 edges: [],
               },
+              audit_brief: auditBrief,
             }
           : analysisStatus === "ANALYSIS_UNAVAILABLE"
           ? {
@@ -437,6 +462,7 @@ export async function GET(request: Request) {
                 "Tidak ada skor risiko atau graf anomali yang dibuat-buat.",
               ],
               subgraph_evidence: { nodes: [], edges: [] },
+              audit_brief: auditBrief,
             }
           : null,
       model_version: ra?.modelVersion ?? null,
@@ -689,14 +715,43 @@ export async function POST(request: Request) {
     spatiotemporal_risk_score: 0,
   };
 
-  const xaiExplanation = aiResult?.xai_explanation ?? {
-    primary_fraud_trigger: "Asesmen AI Tidak Tersedia",
-    evidence_reasons: [
-      aiErrorReason || "Service AI tidak dapat dihubungi saat evaluasi klaim.",
-      "Sesuai Zero Mock Data Policy, tidak ada skor risiko atau bukti graf yang dibuat-buat.",
-    ],
-    subgraph_evidence: { nodes: [], edges: [] },
-  };
+  const fallbackAuditBrief = buildLocalAuditBrief({
+    claim_id: claimId,
+    patient_id: body.patient_id.trim(),
+    doctor_id: body.doctor_id.trim(),
+    facility_id: body.facility_id.trim(),
+    facility_class: body.facility_class || "FKRTL",
+    specialty: body.specialty || "Umum",
+    icd10_code: body.icd10_code.trim(),
+    service_date: body.service_date,
+    service_time: body.service_time,
+    ina_cbgs_tariff: tariff,
+    length_of_stay: los,
+    fraud_probability: assessmentStatus === "COMPLETED" ? fraudProbability : null,
+    fraud_risk_index: assessmentStatus === "COMPLETED" ? fraudRiskIndex : null,
+    risk_level: riskLevel,
+    pre_payment_gate: prePaymentGate,
+    spatial_conflict_detected: Boolean(spatiotemporalMetrics.spatial_conflict_detected),
+    doctor_daily_volume: Number(spatiotemporalMetrics.doctor_daily_volume || 0),
+    spatiotemporal_risk_score: Number(spatiotemporalMetrics.spatiotemporal_risk_score || 0),
+    primary_fraud_trigger: aiResult?.xai_explanation?.primary_fraud_trigger || "Evaluasi Pra-Pembayaran",
+    evidence_reasons: aiResult?.xai_explanation?.evidence_reasons || [],
+  });
+
+  const xaiExplanation = aiResult?.xai_explanation
+    ? {
+        ...aiResult.xai_explanation,
+        audit_brief: aiResult.xai_explanation.audit_brief || fallbackAuditBrief,
+      }
+    : {
+        primary_fraud_trigger: "Asesmen AI Tidak Tersedia",
+        evidence_reasons: [
+          aiErrorReason || "Service AI tidak dapat dihubungi saat evaluasi klaim.",
+          "Sesuai Zero Mock Data Policy, tidak ada skor risiko atau bukti graf yang dibuat-buat.",
+        ],
+        subgraph_evidence: { nodes: [], edges: [] },
+        audit_brief: fallbackAuditBrief,
+      };
 
   // --- 4. Atomic PostgreSQL Transaction ---
   try {

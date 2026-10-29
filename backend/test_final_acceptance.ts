@@ -10,6 +10,7 @@
 
 import { GET as getClaims, POST as postClaim } from "./src/app/api/claims/route";
 import { GET as getClaimDetail } from "./src/app/api/claims/[claimId]/route";
+import { POST as postClaimChat } from "./src/app/api/claims/[claimId]/chat/route";
 import { POST as postReview } from "./src/app/api/claims/[claimId]/review/route";
 import { GET as getCases, POST as postCaseAction } from "./src/app/api/cases/route";
 import { GET as getCaseDetail, POST as postCaseTransition } from "./src/app/api/cases/[caseId]/route";
@@ -229,7 +230,8 @@ async function runAcceptanceSuite() {
       threwError,
       "Security Target 4: getAuthSecret() throws fatal error in production when AUTH_SECRET is unset"
     );
-    process.env.AUTH_SECRET = savedSecret;
+    if (savedSecret !== undefined) process.env.AUTH_SECRET = savedSecret;
+    else delete process.env.AUTH_SECRET;
   } finally {
     process.env.NODE_ENV = prevEnv;
   }
@@ -583,6 +585,44 @@ async function runAcceptanceSuite() {
   assert(
     fbRes.status === 200 && fbJson.storage_source === "postgresql",
     "Stage I1: Feedback export reflects actual verified ground truth from PostgreSQL"
+  );
+
+  // --- Stage J: Generative AI Layer (Audit Brief & Copilot Chat) ---
+  console.log("\n[Stage J] Testing Generative AI Layer (Audit Brief & Copilot Chat)...");
+  const unauthChatRes = await postClaimChat(
+    new Request(`http://localhost:3001/api/claims/${testClaimId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_message: "Mengapa klaim ini berisiko?" }),
+    }),
+    { params: { claimId: testClaimId } }
+  );
+  assert(
+    unauthChatRes.status === 401,
+    "Stage J1: Unauthenticated POST /api/claims/[claimId]/chat returns 401 UNAUTHENTICATED"
+  );
+
+  const authChatRes = await postClaimChat(
+    new Request(`http://localhost:3001/api/claims/${testClaimId}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${verifierToken}`,
+      },
+      body: JSON.stringify({
+        user_message: "Cek konflik lokasi & kuota harian dokter pada klaim ini",
+        chat_history: [{ role: "user", content: "Halo Copilot" }],
+      }),
+    }),
+    { params: { claimId: testClaimId } }
+  );
+  const authChatJson = await authChatRes.json();
+  assert(
+    authChatRes.status === 200 &&
+      authChatJson.claim_id === testClaimId &&
+      typeof authChatJson.reply === "string" &&
+      authChatJson.reply.length > 10,
+    "Stage J2: Authenticated POST /api/claims/[claimId]/chat returns factual Copilot reply"
   );
 
   // Clean up test data

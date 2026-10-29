@@ -7,6 +7,7 @@ import {
   hasPermission,
 } from "@/lib/auth";
 import { buildEvidenceChain } from "@/lib/evidence-chain";
+import { buildLocalAuditBrief } from "@/lib/llm-copilot";
 
 export const dynamic = "force-dynamic";
 
@@ -140,6 +141,30 @@ export async function GET(
             model_version: ra.modelVersion,
             evaluated_at: ra.evaluatedAt,
             model_name: "PyTorch Geometric Hetero R-GCN",
+            audit_brief: claim
+              ? buildLocalAuditBrief({
+                  claim_id: claim.claimId,
+                  patient_id: claim.patientId,
+                  doctor_id: claim.doctorId,
+                  facility_id: claim.facilityId,
+                  facility_class: claim.facility?.facilityClass || "-",
+                  specialty: claim.doctor?.specialty || "-",
+                  icd10_code: claim.icd10Code,
+                  service_date: claim.serviceDate,
+                  service_time: claim.serviceTime,
+                  ina_cbgs_tariff: claim.inaCbgsTariff,
+                  length_of_stay: claim.lengthOfStay,
+                  fraud_probability: ra.fraudProbability,
+                  fraud_risk_index: ra.fraudRiskIndex,
+                  risk_level: ra.riskLevel || "LOW",
+                  pre_payment_gate: ra.prePaymentGate || "AUTO_APPROVE",
+                  spatial_conflict_detected: Boolean(ra.spatialConflictDetected),
+                  doctor_daily_volume: Number(ra.doctorDailyVolume || 0),
+                  spatiotemporal_risk_score: Number(ra.spatiotemporalRiskScore || 0),
+                  primary_fraud_trigger: ra.primaryFraudTrigger || "Evaluasi Pra-Pembayaran",
+                  evidence_reasons: Array.isArray(ra.evidenceReasons) ? (ra.evidenceReasons as string[]) : [],
+                })
+              : null,
           }
         : {
             _label: "Output Model AI",

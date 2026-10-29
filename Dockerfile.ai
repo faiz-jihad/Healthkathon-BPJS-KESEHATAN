@@ -15,10 +15,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy model artifacts, dataset, importer, and code
+# Copy model artifacts, dataset, importer, modular src, and code
 COPY app.py .
+COPY train_rgcn.py .
 COPY aura_jkn_hetero_graph.pt .
 COPY aura_jkn_rgcn_model.pt .
+COPY models/ ./models/
+COPY src/ ./src/
 COPY seed_parquet_to_db.py .
 COPY data/ ./data/
 

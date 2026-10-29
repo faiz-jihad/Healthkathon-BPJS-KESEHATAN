@@ -2,6 +2,7 @@ import { prisma } from "../../../../lib/prisma";
 import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../../lib/auth";
 import { ClaimApiRecord } from "../route";
 import { buildEvidenceChain } from "../../../../lib/evidence-chain";
+import { buildLocalAuditBrief } from "../../../../lib/llm-copilot";
 
 // ==============================================================================
 // GET /api/claims/[claimId]
@@ -103,6 +104,29 @@ export async function GET(
     else reviewStatus = "PENDING_REVIEW";
   }
 
+  const auditBrief = buildLocalAuditBrief({
+    claim_id: c.claimId,
+    patient_id: c.patientId,
+    doctor_id: c.doctorId,
+    facility_id: c.facilityId,
+    facility_class: c.facility?.facilityClass || "-",
+    specialty: c.doctor?.specialty || "-",
+    icd10_code: c.icd10Code,
+    service_date: c.serviceDate,
+    service_time: c.serviceTime,
+    ina_cbgs_tariff: c.inaCbgsTariff,
+    length_of_stay: c.lengthOfStay,
+    fraud_probability: analysisStatus === "ANALYSIS_SUCCESS" ? ra?.fraudProbability : null,
+    fraud_risk_index: analysisStatus === "ANALYSIS_SUCCESS" ? ra?.fraudRiskIndex : null,
+    risk_level: analysisStatus === "ANALYSIS_SUCCESS" ? (ra?.riskLevel ?? "LOW") : "UNASSESSED",
+    pre_payment_gate: analysisStatus === "ANALYSIS_SUCCESS" ? (ra?.prePaymentGate ?? "AUTO_APPROVE") : "PENDING_ASSESSMENT",
+    spatial_conflict_detected: Boolean(ra?.spatialConflictDetected),
+    doctor_daily_volume: Number(ra?.doctorDailyVolume || 0),
+    spatiotemporal_risk_score: Number(ra?.spatiotemporalRiskScore || 0),
+    primary_fraud_trigger: ra?.primaryFraudTrigger ?? "Tidak Ada Data Pemicu",
+    evidence_reasons: (ra?.evidenceReasons as unknown as string[]) ?? [],
+  });
+
   const responsePayload: ClaimApiRecord = {
     claim_id: c.claimId,
     patient_id: c.patientId,
@@ -152,6 +176,7 @@ export async function GET(
               nodes: [],
               edges: [],
             },
+            audit_brief: auditBrief,
           }
         : analysisStatus === "ANALYSIS_UNAVAILABLE"
         ? {
@@ -161,6 +186,7 @@ export async function GET(
               "Sesuai Zero Mock Data Policy, tidak ada skor atau bukti graf yang dibuat-buat.",
             ],
             subgraph_evidence: { nodes: [], edges: [] },
+            audit_brief: auditBrief,
           }
         : null,
     model_version: ra?.modelVersion ?? null,

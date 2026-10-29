@@ -19,6 +19,7 @@ import { ControlledFeedbackPanel } from "./components/ControlledFeedbackPanel";
 import { DesktopInstallModal } from "./components/DesktopInstallModal";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { LoginPage } from "./components/LoginPage";
+import { AuditCopilotChat } from "./components/AuditCopilotChat";
 import {
   SkeletonBox,
   SkeletonText,
@@ -1857,6 +1858,12 @@ export function App() {
                   <ShieldCheck size={13} style={{ display: "inline", marginRight: "6px", color: "var(--green)", verticalAlign: "-2px" }}/>{ec.ai_output?._legal_disclaimer || "Skor anomali adalah alat bantu penapisan pra-pembayaran. Keputusan akhir sepenuhnya berada di tangan petugas verifikator berwenang."}
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--muted)" }}>Model: {ec.ai_output?.model_name || "Sistem Skrining Relasi Heterogen"} v{ec.ai_output?.model_version || "1.0.0"} • {formatDate(ec.ai_output?.evaluated_at)}</div>
+                <AuditCopilotChat
+                  claimId={ec.case_summary?.claim_id || selectedCase.claim_id}
+                  backendUrl={BACKEND_URL}
+                  authToken={currentUser.token}
+                  auditBrief={ec.ai_output?.audit_brief || null}
+                />
               </div>
             </div>
 
@@ -2286,6 +2293,12 @@ export function App() {
                       </div>
                     ) : null;
                   })()}
+                  <AuditCopilotChat
+                    claimId={selectedClaim.claim_id}
+                    backendUrl={BACKEND_URL}
+                    authToken={currentUser.token}
+                    auditBrief={(selectedClaim.xai_explanation as any)?.audit_brief || null}
+                  />
                 </div>
               )}
 

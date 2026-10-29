@@ -1,15 +1,20 @@
 """
-AURA-JKN Phase 3: End-to-End FastAPI Inference & Decision Service
-==================================================================
+AURA-JKN Phase 3: End-to-End FastAPI Inference, Decision & Generative AI Service
+================================================================================
 Combines:
-  - Phase 2: PyTorch Geometric Relational GCN (R-GCN) Model
+  - Phase 2: PyTorch Geometric Relational GCN (R-GCN) Model (models/aura_jkn_rgcn_model.pt & root checkpoint)
   - Module 3: Spatiotemporal Risk Analysis (Spatial conflict & doctor volume anomaly)
   - Module 4: Explainable AI (XAI) & NetworkX Evidence Subgraph Generation
+  - Module 5: Generative AI Layer (Multi-tier Executive Audit Brief & Interactive Copilot Chat:
+              GroqCloud -> NVIDIA NIM -> Local Factual Rule Engine Fallback)
 """
 
+import asyncio
+import logging
 import math
 import os
 import sys
+import time as time_module
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time
 from pathlib import Path
@@ -22,14 +27,36 @@ from fastapi import FastAPI, HTTPException, Path as FastApiPath, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
+from src.services.llm_service import (
+    _build_local_fallback_brief,
+    chat_with_copilot,
+    generate_audit_brief,
+)
+
+audit_logger = logging.getLogger("aura_jkn.audit")
+
 # ==============================================================================
 # Configuration & Paths
 # ==============================================================================
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
+MODELS_DIR = BASE_DIR / "models"
 
-GRAPH_DATA_PATH = BASE_DIR / "aura_jkn_hetero_graph.pt"
-MODEL_CHECKPOINT_PATH = BASE_DIR / "aura_jkn_rgcn_model.pt"
+GRAPH_DATA_PATH = (
+    MODELS_DIR / "aura_jkn_hetero_graph.pt"
+    if (MODELS_DIR / "aura_jkn_hetero_graph.pt").exists() and (MODELS_DIR / "aura_jkn_hetero_graph.pt").stat().st_size > 0
+    else BASE_DIR / "aura_jkn_hetero_graph.pt"
+)
+MODEL_CHECKPOINT_PATH = (
+    MODELS_DIR / "aura_jkn_rgcn_model.pt"
+    if (MODELS_DIR / "aura_jkn_rgcn_model.pt").exists()
+    else BASE_DIR / "aura_jkn_rgcn_model.pt"
+)
 
 FACILITIES_PARQUET = DATA_DIR / "facilities.parquet"
 DOCTORS_PARQUET = DATA_DIR / "doctors.parquet"
@@ -37,8 +64,9 @@ PATIENTS_PARQUET = DATA_DIR / "patients.parquet"
 CLAIMS_PARQUET = DATA_DIR / "claims.parquet"
 
 # Thresholds for decision gate
-GATE_HIGH_RISK_THRESHOLD = 0.70
-GATE_WARNING_THRESHOLD = 0.40
+GATE_HIGH_RISK_THRESHOLD = float(os.environ.get("GATE_HIGH_RISK_THRESHOLD", "0.70"))
+GATE_WARNING_THRESHOLD = float(os.environ.get("GATE_WARNING_THRESHOLD", "0.40"))
+LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "3.0"))
 
 # Doctor volume benchmark thresholds
 DOCTOR_PEER_AVERAGE_DAILY_VOLUME = 25
@@ -72,6 +100,9 @@ class ClaimPredictionRequest(BaseModel):
     service_time: str = Field(..., description="Time of Service (HH:MM:SS)", examples=["09:30:00"])
     ina_cbgs_tariff: float = Field(..., description="Claim Tariff Amount in IDR", examples=[850000.0])
     length_of_stay: int = Field(0, description="Length of Inpatient Stay in Days", examples=[2])
+    fktp_referral_id: Optional[str] = Field(None, description="FKTP Referral Visit ID (if applicable)")
+    referral_facility_id: Optional[str] = Field(None, description="Referred FKTP Facility ID (if applicable)")
+    dati2: Optional[int] = Field(None, description="Kab/Kota Dati2 Code")
 
     @field_validator("claim_id", "patient_id", "doctor_id", "facility_id", "icd10_code")
     @classmethod
@@ -163,12 +194,21 @@ class SubgraphEvidence(BaseModel):
     edges: List[SubgraphEdge] = Field(default_factory=list)
 
 
+class AuditBrief(BaseModel):
+    """Generative AI Audit Narrative Summary."""
+
+    audit_narrative: str = Field(..., description="1-2 sentence executive audit brief")
+    llm_provider_used: str = Field(..., description="LLM provider name: groq, nvidia_nim, or local_fallback")
+    is_fallback: bool = Field(..., description="Whether fallback provider or local rule engine was used")
+
+
 class XAIExplanation(BaseModel):
-    """Explainable AI package from Module 4."""
+    """Explainable AI package from Module 4 & Module 5."""
 
     primary_fraud_trigger: str = Field(..., description="Dominant detected fraud pattern")
     evidence_reasons: List[str] = Field(..., description="Explicit text-based explanatory rationales")
     subgraph_evidence: SubgraphEvidence = Field(..., description="Relational neighborhood subgraph")
+    audit_brief: Optional[AuditBrief] = Field(None, description="Generative AI executive audit narrative")
 
 
 class ClaimPredictionResponse(BaseModel):
@@ -187,8 +227,38 @@ class ClaimPredictionResponse(BaseModel):
         ...,
         description="Automated gate screening recommendation: REJECT_FOR_HUMAN_REVIEW, FLAGGED_WARNING, AUTO_APPROVE, or PENDING_ASSESSMENT",
     )
+    applied_threshold: float = Field(default=0.70, description="Active High Risk threshold applied")
+    warning_threshold: float = Field(default=0.40, description="Active Warning threshold applied")
+    referral_distance_to_fktp: Optional[float] = Field(None, description="Imputed/measured Haversine distance to referral FKTP (km)")
+    referral_distance_missing: Optional[bool] = Field(None, description="Whether referral distance was missing/imputed")
     spatiotemporal_metrics: Optional[SpatiotemporalMetrics] = None
     xai_explanation: Optional[XAIExplanation] = None
+
+
+class ClaimChatMessage(BaseModel):
+    """Single message turn in the Audit Copilot conversation."""
+
+    role: str = Field(..., description="Role: 'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+
+
+class ClaimChatRequest(BaseModel):
+    """Input payload for interactive claim audit copilot chat."""
+
+    user_message: str = Field(..., description="Question or instruction from the BPJS auditor")
+    chat_history: List[ClaimChatMessage] = Field(
+        default_factory=list,
+        description="Conversation history (automatically truncated to last 5 turns)",
+    )
+
+
+class ClaimChatResponse(BaseModel):
+    """Response payload for interactive claim audit copilot conversation."""
+
+    claim_id: str = Field(..., description="Audited Claim Identifier")
+    reply: str = Field(..., description="Copilot's factual answer based on claim evidence")
+    provider_used: str = Field(..., description="groq | nvidia_nim | local_fallback")
+    is_fallback: bool = Field(..., description="Whether fallback provider or local engine was used")
 
 
 class HealthCheckResponse(BaseModel):
@@ -225,9 +295,9 @@ def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: fl
 # Service 1: Knowledge Registry & Dataset Provider
 # ==============================================================================
 class DatasetRegistry:
-    """Loads and indexes synthetic entity parquet stores for real-time querying."""
+    """Loads and indexes entity parquet stores for real-time querying."""
 
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path = DATA_DIR):
         self.data_dir = data_dir
         self.facilities_df: pd.DataFrame = pd.DataFrame()
         self.doctors_df: pd.DataFrame = pd.DataFrame()
@@ -279,6 +349,15 @@ class DatasetRegistry:
             f"{len(self.doctors_df):,} doctors, {len(self.facilities_df):,} facilities."
         )
 
+    def register_claim(self, record: Dict[str, Any]) -> None:
+        """Dynamically registers or updates a claim record in memory."""
+        cid = str(record.get("claim_id", ""))
+        if not cid:
+            return
+        record["service_date_str"] = str(record.get("service_date_str") or record.get("service_date", ""))
+        record["service_time_str"] = str(record.get("service_time_str") or record.get("service_time", ""))
+        self.claim_map[cid] = record
+
 
 # ==============================================================================
 # Service 2: Spatiotemporal Risk Analyzer (Proposal Module 3)
@@ -303,15 +382,6 @@ class SpatiotemporalRiskAnalyzer:
         patient_id: str,
         service_date: str,
     ) -> Tuple[SpatiotemporalMetrics, List[str], Optional[Dict[str, Any]]]:
-        """
-        Runs spatiotemporal audit for a claim encounter.
-
-        Returns:
-            Tuple of:
-            - SpatiotemporalMetrics
-            - List of explanatory textual observations
-            - Conflicting entity metadata if spatial anomaly exists
-        """
         evidence_notes: List[str] = []
         spatial_conflict = False
         conflicting_record: Optional[Dict[str, Any]] = None
@@ -326,7 +396,6 @@ class SpatiotemporalRiskAnalyzer:
         daily_claims = self.registry.doctor_claims_by_date.get(doc_key, [])
         volume_count = len(daily_claims)
 
-        # Include current request if it's a new or simulated transaction
         is_existing_in_day = any(c.get("claim_id") == claim_id for c in daily_claims)
         if not is_existing_in_day:
             volume_count += 1
@@ -344,7 +413,6 @@ class SpatiotemporalRiskAnalyzer:
             )
 
         # --- 2. Doctor Spatial Impossible Movement Check ---
-        # Safeguard: Validate that both current and past facility coordinates are non-zero to avoid Null Island false conflicts
         has_valid_current_coords = current_fac and not (abs(current_lat) < 0.001 and abs(current_lon) < 0.001)
         if has_valid_current_coords:
             for past_claim in daily_claims:
@@ -431,21 +499,14 @@ class XAIEvidenceService:
         spatio_notes: List[str],
         conflicting_record: Optional[Dict[str, Any]] = None,
     ) -> XAIExplanation:
-        """
-        Builds graph topology and clinical/operational explanatory narrative.
-        """
         evidence_reasons = list(spatio_notes)
 
-        # Check Referral and Facility Class Alignment
         fac_info = self.registry.facility_map.get(facility_id, {})
         doc_info = self.registry.doctor_map.get(doctor_id, {})
-        pat_info = self.registry.patient_map.get(patient_id, {})
 
         fac_class = fac_info.get("facility_class", "Faskes")
         doc_specialty = doc_info.get("specialty", "Umum")
-        home_region = pat_info.get("home_region", "Wilayah")
 
-        # Graph Neural Network Risk Rationale
         if fraud_proba >= GATE_HIGH_RISK_THRESHOLD:
             evidence_reasons.append(
                 f"Model R-GCN mendeteksi pola relasi anomali berbobot tinggi dengan "
@@ -457,7 +518,6 @@ class XAIEvidenceService:
                 f"peringatan ({fraud_proba * 100:.1f}%)."
             )
 
-        # Calibrate for low-risk approved claims
         if fraud_proba < GATE_WARNING_THRESHOLD:
             primary_trigger = "Normal / Low Risk"
             if not evidence_reasons:
@@ -465,7 +525,6 @@ class XAIEvidenceService:
                     "Parameter transaksi konsisten dengan profil wajar dan lolos verifikasi pra-pembayaran."
                 )
         else:
-            # Determine Primary Fraud Trigger Label for elevated risk
             if spatio_metrics.spatial_conflict_detected and spatio_metrics.doctor_daily_volume >= DOCTOR_EXTREME_CAPACITY_LIMIT:
                 primary_trigger = "Spatio-Temporal Conflict & Extreme Doctor Volume"
             elif spatio_metrics.spatial_conflict_detected:
@@ -480,40 +539,17 @@ class XAIEvidenceService:
         # --- NetworkX Subgraph Construction ---
         g = nx.DiGraph()
 
-        # Add Core Entities as Nodes
-        g.add_node(
-            claim_id,
-            type="claim",
-            label=f"Klaim {claim_id}",
-        )
-        g.add_node(
-            doctor_id,
-            type="doctor",
-            label=f"Dr. {doctor_id} ({doc_specialty})",
-        )
-        g.add_node(
-            facility_id,
-            type="facility",
-            label=f"{facility_id} ({fac_class})",
-        )
-        g.add_node(
-            patient_id,
-            type="patient",
-            label=f"Pasien {patient_id[:10]}...",
-        )
-        g.add_node(
-            icd10_code,
-            type="diagnosis",
-            label=f"ICD-10: {icd10_code}",
-        )
+        g.add_node(claim_id, type="claim", label=f"Klaim {claim_id}")
+        g.add_node(doctor_id, type="doctor", label=f"Dr. {doctor_id} ({doc_specialty})")
+        g.add_node(facility_id, type="facility", label=f"{facility_id} ({fac_class})")
+        g.add_node(patient_id, type="patient", label=f"Pasien {patient_id[:10]}...")
+        g.add_node(icd10_code, type="diagnosis", label=f"ICD-10: {icd10_code}")
 
-        # Add Relational Edges
         g.add_edge(doctor_id, claim_id, relation="authorized")
         g.add_edge(claim_id, icd10_code, relation="has_diagnosis")
         g.add_edge(patient_id, doctor_id, relation="examined_by")
         g.add_edge(patient_id, facility_id, relation="referred_to")
 
-        # If spatial conflict occurred, add conflicting facility to highlight trajectory
         if conflicting_record:
             other_fid = conflicting_record["conflicting_facility_id"]
             other_fac_info = self.registry.facility_map.get(other_fid, {})
@@ -526,7 +562,6 @@ class XAIEvidenceService:
             )
             g.add_edge(doctor_id, other_fid, relation="concurrent_practice_conflict")
 
-        # Convert to Output Subgraph Evidence Schema
         subgraph_nodes = [
             SubgraphNode(
                 id=node,
@@ -558,7 +593,8 @@ class XAIEvidenceService:
 class RGCNModelEngine:
     """
     Integrates the Phase 2 PyTorch Geometric Relational GCN checkpoint.
-    Precomputes or runs real-time inference on heterogeneous graph states.
+    Supports both models/aura_jkn_rgcn_model.pt and root aura_jkn_rgcn_model.pt
+    with automatic dimension resolution.
     """
 
     def __init__(self, checkpoint_path: Path, graph_path: Path):
@@ -569,8 +605,6 @@ class RGCNModelEngine:
         self.load_error: Optional[str] = None
         self.model: Optional[Any] = None
         self.hetero_data: Optional[Any] = None
-
-        # Genuine indexed prediction map evaluated directly from PyG R-GCN
         self.cached_predictions: Dict[str, float] = {}
 
     def initialize(self, registry: DatasetRegistry) -> None:
@@ -579,41 +613,77 @@ class RGCNModelEngine:
 
         try:
             import torch
-            import torch.nn as nn
-            import torch.nn.functional as F
 
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             print(f"[RGCNModelEngine] PyTorch runtime detected on device: {self.device}")
 
             if not self.graph_path.exists():
                 raise FileNotFoundError(f"Hetero graph data file not found at {self.graph_path}")
-            if not self.checkpoint_path.exists():
-                raise FileNotFoundError(f"Model checkpoint file not found at {self.checkpoint_path}")
 
             print(f"[RGCNModelEngine] Loading graph from {self.graph_path}...")
             self.hetero_data = torch.load(self.graph_path, weights_only=False, map_location=self.device)
 
-            print(f"[RGCNModelEngine] Loading model weights from {self.checkpoint_path}...")
-            from train_rgcn import AuraJKNRGCN
+            graph_dims = {
+                node_type: int(self.hetero_data[node_type].x.size(1))
+                for node_type in self.hetero_data.node_types
+                if hasattr(self.hetero_data[node_type], "x") and self.hetero_data[node_type].x is not None
+            }
 
-            model = AuraJKNRGCN(
-                edge_types=self.hetero_data.edge_types,
-                in_channels_dict=NODE_INPUT_DIMS,
-                hidden_channels=HIDDEN_CHANNELS,
-            ).to(self.device)
+            # Candidate checkpoints: try compatible checkpoint first
+            candidate_ckpts = [
+                self.checkpoint_path,
+                BASE_DIR / "aura_jkn_rgcn_model.pt",
+                MODELS_DIR / "aura_jkn_rgcn_model.pt",
+            ]
+            loaded_model = None
+            probs = None
+            last_exc: Optional[Exception] = None
 
-            ckpt = torch.load(self.checkpoint_path, map_location=self.device, weights_only=False)
-            state_dict = ckpt.get("model_state_dict", ckpt)
-            model.load_state_dict(state_dict)
-            model.eval()
-            self.model = model
+            try:
+                from src.models.rgcn import AuraJKNRGCN
+            except ImportError:
+                from train_rgcn import AuraJKNRGCN
 
-            # Compute genuine inference across all graph claim nodes
-            with torch.no_grad():
-                logits = model(self.hetero_data.x_dict, self.hetero_data.edge_index_dict)
-                probs = torch.sigmoid(logits).cpu().numpy()
+            for ckpt_p in candidate_ckpts:
+                if not ckpt_p.exists():
+                    continue
+                try:
+                    ckpt = torch.load(ckpt_p, map_location=self.device, weights_only=False)
+                    state_dict = ckpt.get("model_state_dict", ckpt) if isinstance(ckpt, dict) else ckpt
 
-            # Align predictions with authoritative claim_ids in registry
+                    in_channels = dict(graph_dims or NODE_INPUT_DIMS)
+                    if isinstance(ckpt, dict) and isinstance(ckpt.get("in_channels_dict"), dict):
+                        in_channels.update(ckpt["in_channels_dict"])
+                    elif isinstance(state_dict, dict):
+                        for nt in list(in_channels.keys()):
+                            w_key = f"projection.{nt}.weight"
+                            if w_key in state_dict and hasattr(state_dict[w_key], "shape"):
+                                in_channels[nt] = int(state_dict[w_key].shape[1])
+
+                    m = AuraJKNRGCN(
+                        edge_types=self.hetero_data.edge_types,
+                        in_channels_dict=in_channels,
+                        hidden_channels=HIDDEN_CHANNELS,
+                    ).to(self.device)
+                    m.load_state_dict(state_dict)
+                    m.eval()
+
+                    with torch.no_grad():
+                        logits = m(self.hetero_data.x_dict, self.hetero_data.edge_index_dict)
+                        probs = torch.sigmoid(logits).cpu().numpy()
+
+                    loaded_model = m
+                    print(f"[RGCNModelEngine] Loaded and verified R-GCN checkpoint from {ckpt_p}")
+                    break
+                except Exception as inner_e:
+                    last_exc = inner_e
+                    continue
+
+            if loaded_model is None or probs is None:
+                raise RuntimeError(f"Could not load compatible R-GCN checkpoint: {last_exc}")
+
+            self.model = loaded_model
+
             if not registry.claims_df.empty:
                 for idx, cid in enumerate(registry.claims_df["claim_id"]):
                     if idx < len(probs):
@@ -637,14 +707,87 @@ class RGCNModelEngine:
             )
 
     def predict_claim_probability(self, claim_id: str) -> Optional[float]:
-        """
-        Retrieves graph inference probability for an existing graph claim.
-        Returns None if claim is not present in the evaluated HeteroData graph topology.
-        Zero Mock Policy: Never generates arbitrary heuristic synthetic probabilities.
-        """
         if claim_id in self.cached_predictions:
             return self.cached_predictions[claim_id]
         return None
+
+
+# ==============================================================================
+# Helper: Attach Generative AI Executive Audit Brief
+# ==============================================================================
+async def _attach_audit_brief(
+    payload: ClaimPredictionRequest,
+    fraud_prob: float,
+    risk_level: str,
+    pre_payment_gate: str,
+    spatio_metrics: SpatiotemporalMetrics,
+    xai_explanation: XAIExplanation,
+    client: Optional[Any] = None,
+) -> None:
+    """Populates xai_explanation.audit_brief using multi-tier LLM (Groq -> NVIDIA NIM -> Local Rule Engine)."""
+    claim_data = {
+        "claim_id": payload.claim_id,
+        "patient_id": payload.patient_id,
+        "doctor_id": payload.doctor_id,
+        "facility_id": payload.facility_id,
+        "icd10_code": payload.icd10_code,
+        "service_date": payload.service_date,
+        "service_time": payload.service_time,
+        "ina_cbgs_tariff": payload.ina_cbgs_tariff,
+        "length_of_stay": payload.length_of_stay,
+    }
+    try:
+        brief = await generate_audit_brief(
+            claim_data=claim_data,
+            fraud_prob=fraud_prob,
+            risk_level=risk_level,
+            pre_payment_gate=pre_payment_gate,
+            spatio_metrics=spatio_metrics.model_dump(),
+            evidence_reasons=xai_explanation.evidence_reasons,
+            client=client,
+        )
+        xai_explanation.audit_brief = AuditBrief(
+            audit_narrative=brief.audit_narrative,
+            llm_provider_used=brief.llm_provider_used,
+            is_fallback=brief.is_fallback,
+        )
+    except Exception:
+        try:
+            narrative = _build_local_fallback_brief(
+                claim_data=claim_data,
+                fraud_prob=fraud_prob,
+                risk_level=risk_level,
+                pre_payment_gate=pre_payment_gate,
+                spatio_metrics=spatio_metrics.model_dump(),
+                evidence_reasons=xai_explanation.evidence_reasons,
+            )
+            xai_explanation.audit_brief = AuditBrief(
+                audit_narrative=narrative,
+                llm_provider_used="local_fallback",
+                is_fallback=True,
+            )
+        except Exception:
+            pass
+
+
+def _resolve_referral_metadata(payload: ClaimPredictionRequest) -> Tuple[float, bool]:
+    """Resolves referral distance to FKTP and whether it was imputed."""
+    rec = registry.claim_map.get(payload.claim_id)
+    if rec and "referral_distance_to_fktp" in rec and pd.notna(rec["referral_distance_to_fktp"]):
+        return float(rec["referral_distance_to_fktp"]), bool(rec.get("referral_distance_missing", False))
+    if payload.referral_facility_id:
+        fac_rec = registry.facility_map.get(payload.referral_facility_id)
+        if fac_rec and "latitude" in fac_rec:
+            p_lat, p_lon = -6.2088, 106.8456
+            if payload.dati2:
+                try:
+                    from src.data.bpjs_sample_etl import get_centroid, haversine_distance
+                    p_lat, p_lon, _ = get_centroid(payload.dati2)
+                    return round(haversine_distance(p_lat, p_lon, fac_rec["latitude"], fac_rec["longitude"]), 2), False
+                except Exception:
+                    pass
+            return round(calculate_haversine_distance(p_lat, p_lon, float(fac_rec["latitude"]), float(fac_rec["longitude"])), 2), False
+    return 12.5, True
 
 
 # ==============================================================================
@@ -658,13 +801,20 @@ model_engine = RGCNModelEngine(MODEL_CHECKPOINT_PATH, GRAPH_DATA_PATH)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initializes models and datasets on startup."""
+    """Initializes models, HTTP client pool, and datasets on startup."""
     print("=================================================================")
     print("      Starting AURA-JKN Phase 3 Decision & Inference API         ")
     print("=================================================================")
+    if httpx is not None:
+        app.state.http_client = httpx.AsyncClient(timeout=LLM_TIMEOUT)
+    else:
+        app.state.http_client = None
+
     registry.load_data()
     model_engine.initialize(registry)
     yield
+    if hasattr(app.state, "http_client") and app.state.http_client is not None and not app.state.http_client.is_closed:
+        await app.state.http_client.aclose()
     print("[Shutdown] Cleaning up AURA-JKN resources...")
 
 
@@ -676,7 +826,8 @@ app = FastAPI(
     description=(
         "Production-grade End-to-End API Service for BPJS Kesehatan Fraud Detection. "
         "Integrates Relational Graph Convolutional Network (R-GCN), Spatiotemporal Risk "
-        "Analysis (Module 3), and Explainable AI Subgraph Generation (Module 4)."
+        "Analysis (Module 3), Explainable AI Subgraph Generation (Module 4), and "
+        "Generative AI Audit Copilot (Module 5)."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -720,20 +871,17 @@ def get_health_status() -> HealthCheckResponse:
     response_model=ClaimPredictionResponse,
     status_code=status.HTTP_200_OK,
     tags=["Claim Risk Assessment"],
-    summary="Predict Claim Fraud Risk with Spatiotemporal & XAI Evidence",
+    summary="Predict Claim Fraud Risk with Spatiotemporal, XAI Evidence & Generative Audit Brief",
 )
-def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
+async def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
     """
     Zero Mock Data Phase 3 Automated Verification Pipeline:
     1. Verifies model & graph readiness. If model is offline, raises 503 ANALYSIS_UNAVAILABLE.
     2. Evaluates Spatiotemporal constraints from genuine registry records.
     3. Executes R-GCN Graph inference. If claim is not indexed in HeteroData graph,
        returns NOT_ANALYZED honestly without fabricating probability or risk score.
-    4. Categorizes Pre-Payment Gate action for analyzed claims:
-       - >= 0.70: REJECT_FOR_HUMAN_REVIEW (Screening recommendation, not legal adjudication)
-       - 0.40 - 0.69: FLAGGED_WARNING
-       - < 0.40: AUTO_APPROVE
-    5. Generates NetworkX Explainability (XAI) Subgraph grounded strictly in real entities.
+    4. Categorizes Pre-Payment Gate action for analyzed claims.
+    5. Generates NetworkX Explainability (XAI) Subgraph & Generative AI Audit Brief.
     """
     if not model_engine.is_loaded:
         raise HTTPException(
@@ -743,6 +891,9 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
                 "message": f"Engine inferensi model AI tidak aktif atau artefak model tidak tersedia: {model_engine.load_error}. Sesuai Zero Mock Data Policy, sistem menolak pembuatan skor tiruan.",
             },
         )
+
+    http_cli = getattr(app.state, "http_client", None)
+    ref_dist, ref_missing = _resolve_referral_metadata(payload)
 
     # 1. Spatiotemporal Risk Analysis (Computed from genuine records)
     spatio_metrics, spatio_notes, conflict_record = spatio_analyzer.analyze(
@@ -777,6 +928,31 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
         xai_explanation.evidence_reasons.append(
             "Klaim ini belum dikonstruksi ke dalam topologi subgraf PyTorch Geometric heterogen. Status: NOT_ANALYZED (skor probabilitas fraud tidak direkayasa)."
         )
+        await _attach_audit_brief(
+            payload=payload,
+            fraud_prob=0.0,
+            risk_level="UNASSESSED",
+            pre_payment_gate="PENDING_ASSESSMENT",
+            spatio_metrics=spatio_metrics,
+            xai_explanation=xai_explanation,
+            client=http_cli,
+        )
+        registry.register_claim({
+            "claim_id": payload.claim_id,
+            "patient_id": payload.patient_id,
+            "doctor_id": payload.doctor_id,
+            "facility_id": payload.facility_id,
+            "icd10_code": payload.icd10_code,
+            "service_date": payload.service_date,
+            "service_time": payload.service_time,
+            "service_date_str": str(payload.service_date),
+            "service_time_str": str(payload.service_time),
+            "ina_cbgs_tariff": payload.ina_cbgs_tariff,
+            "length_of_stay": payload.length_of_stay,
+            "fraud_probability": None,
+            "risk_level": "UNASSESSED",
+            "pre_payment_gate": "PENDING_ASSESSMENT",
+        })
 
         return ClaimPredictionResponse(
             claim_id=payload.claim_id,
@@ -784,6 +960,10 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
             fraud_probability=None,
             risk_level="UNASSESSED",
             pre_payment_gate="PENDING_ASSESSMENT",
+            applied_threshold=GATE_HIGH_RISK_THRESHOLD,
+            warning_threshold=GATE_WARNING_THRESHOLD,
+            referral_distance_to_fktp=ref_dist,
+            referral_distance_missing=ref_missing,
             spatiotemporal_metrics=spatio_metrics,
             xai_explanation=xai_explanation,
         )
@@ -811,6 +991,31 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
         spatio_notes=spatio_notes,
         conflicting_record=conflict_record,
     )
+    await _attach_audit_brief(
+        payload=payload,
+        fraud_prob=fraud_prob,
+        risk_level=risk_level,
+        pre_payment_gate=pre_payment_gate,
+        spatio_metrics=spatio_metrics,
+        xai_explanation=xai_explanation,
+        client=http_cli,
+    )
+    registry.register_claim({
+        "claim_id": payload.claim_id,
+        "patient_id": payload.patient_id,
+        "doctor_id": payload.doctor_id,
+        "facility_id": payload.facility_id,
+        "icd10_code": payload.icd10_code,
+        "service_date": payload.service_date,
+        "service_time": payload.service_time,
+        "service_date_str": str(payload.service_date),
+        "service_time_str": str(payload.service_time),
+        "ina_cbgs_tariff": payload.ina_cbgs_tariff,
+        "length_of_stay": payload.length_of_stay,
+        "fraud_probability": round(fraud_prob, 3),
+        "risk_level": risk_level,
+        "pre_payment_gate": pre_payment_gate,
+    })
 
     return ClaimPredictionResponse(
         claim_id=payload.claim_id,
@@ -818,6 +1023,10 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
         fraud_probability=round(fraud_prob, 3),
         risk_level=risk_level,
         pre_payment_gate=pre_payment_gate,
+        applied_threshold=GATE_HIGH_RISK_THRESHOLD,
+        warning_threshold=GATE_WARNING_THRESHOLD,
+        referral_distance_to_fktp=ref_dist,
+        referral_distance_missing=ref_missing,
         spatiotemporal_metrics=spatio_metrics,
         xai_explanation=xai_explanation,
     )
@@ -829,13 +1038,10 @@ def predict_claim(payload: ClaimPredictionRequest) -> ClaimPredictionResponse:
     tags=["Claim Risk Assessment"],
     summary="Query and Audit an Existing Claim by ID",
 )
-def get_claim_by_id(
+async def get_claim_by_id(
     claim_id: str = FastApiPath(..., description="Target Claim ID to audit", examples=["CLM00010650"])
 ) -> ClaimPredictionResponse:
-    """
-    Convenience endpoint for analytical dashboards.
-    Looks up stored claim attributes from the registry and routes through the Phase 3 pipeline.
-    """
+    """Looks up stored claim attributes from the registry and routes through the Phase 3 pipeline."""
     record = registry.claim_map.get(claim_id)
     if not record:
         raise HTTPException(
@@ -843,7 +1049,6 @@ def get_claim_by_id(
             detail=f"Claim '{claim_id}' not found in registry. Use POST /api/v1/predict-claim for ad-hoc claims.",
         )
 
-    # Map stored record into prediction request
     request_payload = ClaimPredictionRequest(
         claim_id=claim_id,
         patient_id=str(record["patient_id"]),
@@ -854,9 +1059,109 @@ def get_claim_by_id(
         service_time=str(record["service_time_str"]),
         ina_cbgs_tariff=float(record["ina_cbgs_tariff"]),
         length_of_stay=int(record["length_of_stay"]),
+        fktp_referral_id=str(record.get("fktp_referral_id", "")) if pd.notna(record.get("fktp_referral_id")) else None,
+        referral_facility_id=str(record.get("referral_facility_id", "")) if pd.notna(record.get("referral_facility_id")) else None,
+        dati2=int(record["dati2"]) if pd.notna(record.get("dati2")) else None,
     )
 
-    return predict_claim(request_payload)
+    return await predict_claim(request_payload)
+
+
+@app.post(
+    "/api/v1/claims/{claim_id}/chat",
+    response_model=ClaimChatResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Audit Copilot Interactive Chat"],
+    summary="Interactive AI Audit Copilot Chat for Specific Claim",
+)
+async def chat_claim_copilot(
+    claim_id: str = FastApiPath(..., description="Target Claim ID to chat about", examples=["CLM00010650"]),
+    payload: ClaimChatRequest = ...,
+) -> ClaimChatResponse:
+    """
+    Interactive AI Audit Copilot Chat:
+    - Context Isolation: Injects complete transaction data, spatiotemporal metrics, R-GCN probability, and XAI evidence.
+    - Sliding Window: Preserves the last 5 conversation messages.
+    - Multi-tier LLM fallback: GroqCloud -> NVIDIA NIM -> Local Factual Rule Engine.
+    """
+    record = registry.claim_map.get(claim_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Claim '{claim_id}' not found in registry.",
+        )
+
+    spatio_metrics, spatio_notes, conflict_record = spatio_analyzer.analyze(
+        claim_id=claim_id,
+        doctor_id=str(record["doctor_id"]),
+        facility_id=str(record["facility_id"]),
+        patient_id=str(record["patient_id"]),
+        service_date=str(record["service_date_str"]),
+    )
+
+    fraud_prob = model_engine.predict_claim_probability(claim_id=claim_id) or 0.0
+    if fraud_prob >= GATE_HIGH_RISK_THRESHOLD or spatio_metrics.spatial_conflict_detected:
+        pre_payment_gate = "REJECT_FOR_HUMAN_REVIEW"
+        risk_level = "HIGH"
+    elif fraud_prob >= GATE_WARNING_THRESHOLD:
+        pre_payment_gate = "FLAGGED_WARNING"
+        risk_level = "MEDIUM"
+    else:
+        pre_payment_gate = "AUTO_APPROVE"
+        risk_level = "LOW"
+
+    xai_explanation = xai_service.generate_explanation(
+        claim_id=claim_id,
+        patient_id=str(record["patient_id"]),
+        doctor_id=str(record["doctor_id"]),
+        facility_id=str(record["facility_id"]),
+        icd10_code=str(record["icd10_code"]),
+        fraud_proba=fraud_prob,
+        spatio_metrics=spatio_metrics,
+        spatio_notes=spatio_notes,
+        conflicting_record=conflict_record,
+    )
+
+    claim_context = {
+        "claim_id": claim_id,
+        "patient_id": str(record["patient_id"]),
+        "doctor_id": str(record["doctor_id"]),
+        "facility_id": str(record["facility_id"]),
+        "icd10_code": str(record["icd10_code"]),
+        "service_date": str(record["service_date_str"]),
+        "service_time": str(record["service_time_str"]),
+        "ina_cbgs_tariff": float(record["ina_cbgs_tariff"]),
+        "length_of_stay": int(record["length_of_stay"]),
+        "fraud_probability": round(fraud_prob, 3),
+        "risk_level": risk_level,
+        "pre_payment_gate": pre_payment_gate,
+        "spatiotemporal_metrics": spatio_metrics.model_dump(),
+        "primary_fraud_trigger": xai_explanation.primary_fraud_trigger,
+        "evidence_reasons": xai_explanation.evidence_reasons,
+    }
+
+    http_cli = getattr(app.state, "http_client", None)
+    history_dicts = [m.model_dump() for m in payload.chat_history] if payload.chat_history else []
+
+    t0 = time_module.perf_counter()
+    chat_res = await chat_with_copilot(
+        claim_context=claim_context,
+        user_message=payload.user_message,
+        chat_history=history_dicts,
+        client=http_cli,
+    )
+    latency_ms = (time_module.perf_counter() - t0) * 1000.0
+    audit_logger.info(
+        f"[Copilot Telemetry] claim_id={claim_id} provider={chat_res.provider_used} "
+        f"is_fallback={chat_res.is_fallback} latency_ms={latency_ms:.1f}"
+    )
+
+    return ClaimChatResponse(
+        claim_id=chat_res.claim_id,
+        reply=chat_res.reply,
+        provider_used=chat_res.provider_used,
+        is_fallback=chat_res.is_fallback,
+    )
 
 
 @app.get("/", tags=["System & Monitoring"])
@@ -864,16 +1169,14 @@ def root_info() -> Dict[str, Any]:
     """Provides service description and quick documentation links."""
     return {
         "title": "AURA-JKN Phase 3 REST API",
-        "description": "Healthcare Fraud Detection Engine using R-GCN, Spatiotemporal Analysis, and XAI",
+        "description": "Healthcare Fraud Detection Engine using R-GCN, Spatiotemporal Analysis, XAI, and Generative AI Copilot",
         "documentation": "/docs",
         "health_check": "/health",
         "predict_endpoint": "/api/v1/predict-claim",
+        "copilot_chat_endpoint": "/api/v1/claims/{claim_id}/chat",
     }
 
 
-# ==============================================================================
-# Direct Execution Entry Point
-# ==============================================================================
 if __name__ == "__main__":
     import uvicorn
 

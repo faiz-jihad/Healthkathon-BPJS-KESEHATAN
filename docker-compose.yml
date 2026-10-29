@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. Python R-GCN & Spatiotemporal AI Service (Port 8000)
+  # 2. Python R-GCN, Spatiotemporal & LLM AI Service (Port 8000)
   ai-service:
     build:
       context: .
@@ -31,6 +31,11 @@ services:
       - PORT=8000
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://aura_user:aura_password@postgres:5432/aura_jkn_db
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-auto}
+      - NVIDIA_MODEL=${NVIDIA_MODEL:-auto}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-3.0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,6 +54,11 @@ services:
       AI_SERVICE_URL: "http://ai-service:8000"
       PORT: 3001
       AUTH_SECRET: ${AUTH_SECRET:-aura-jkn-production-auth-secret-healthkathon-2026-bpjs-secure-token-vault}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-auto}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-auto}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-3.0}
     depends_on:
       postgres:
         condition: service_healthy
