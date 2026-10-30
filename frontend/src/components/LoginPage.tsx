@@ -3,20 +3,15 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  Info,
   Check,
   CheckCircle2,
   ShieldCheck,
   Sparkles,
   AlertCircle,
   ArrowRight,
-  Lock,
-  User,
-  Activity,
-  Network,
-  Database,
-  FileCheck,
-  Building2,
   Shield,
+  Lock,
 } from "lucide-react";
 
 interface LoginPageProps {
@@ -38,9 +33,6 @@ const PRESET_ACCOUNTS = [
     password: "verifier_password_2026",
     fullName: "dr. Andi Pratama, Sp.PD",
     desc: "Verifikasi pra-pembayaran klaim & audit berkas INA-CBG",
-    color: "#0369a1",
-    bg: "#e0f2fe",
-    border: "#bae6fd",
   },
   {
     role: "INVESTIGATOR",
@@ -49,9 +41,6 @@ const PRESET_ACCOUNTS = [
     password: "investigator_password_2026",
     fullName: "Budi Santoso, S.H.",
     desc: "Analisis jejaring graf relasi faskes-dokter & sindikat",
-    color: "#b45309",
-    bg: "#fef3c7",
-    border: "#fde68a",
   },
   {
     role: "SUPERVISOR",
@@ -60,9 +49,6 @@ const PRESET_ACCOUNTS = [
     password: "supervisor_password_2026",
     fullName: "Dra. Siti Rahmawati, M.Kes",
     desc: "Persetujuan eskalasi, pemantauan SLA 24 jam & beban tim",
-    color: "#098a58",
-    bg: "#e6efe6",
-    border: "#cbe3d7",
   },
   {
     role: "DATA_ANALYST",
@@ -71,22 +57,197 @@ const PRESET_ACCOUNTS = [
     password: "analyst_password_2026",
     fullName: "Rendra Kurniawan, M.Kom",
     desc: "Evaluasi model AI Graph RGCN & kalibrasi ambang batas",
-    color: "#1e3a5f",
-    bg: "#eaf0f6",
-    border: "#cbd5e1",
   },
   {
     role: "ADMINISTRATOR",
-    label: "Administrator Sistem",
+    label: "Administrator Keamanan",
     username: "admin_aura",
     password: "admin_password_2026",
     fullName: "Admin Sistem AURA-JKN",
     desc: "Manajemen akun RBAC, jejak audit & integritas sistem",
-    color: "#334155",
-    bg: "#f1f5f9",
-    border: "#e2e8f0",
   },
 ];
+
+/**
+ * Geometric Bauhaus / Neo-Constructivist Vector Art
+ * Precision-scaled SVG vector mosaic replicating the exact green geometric tiles from the design.
+ */
+const GeometricBauhausArt: React.FC = () => {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        maxWidth: "460px",
+        aspectRatio: "1 / 1",
+        borderRadius: "20px",
+        overflow: "hidden",
+        backgroundColor: "#224A1E",
+        boxShadow: "0 12px 30px -8px rgba(34, 74, 30, 0.25)",
+      }}
+    >
+      {/* Floating mini badge logo at top-left matching design */}
+      <div
+        style={{
+          position: "absolute",
+          top: "16px",
+          left: "16px",
+          zIndex: 5,
+          width: "36px",
+          height: "36px",
+          borderRadius: "10px",
+          backgroundColor: "#84CC16",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+        }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M5 5C13 5 19 11 19 19H12C12 15.13 8.87 12 5 12V5Z"
+            fill="#1E3E1A"
+          />
+          <circle cx="9" cy="9" r="2.5" fill="#A3E635" />
+        </svg>
+      </div>
+
+      <svg
+        viewBox="0 0 400 400"
+        style={{ width: "100%", height: "100%", display: "block" }}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <defs>
+          <clipPath id="tile-clip">
+            <rect width="400" height="400" rx="20" />
+          </clipPath>
+        </defs>
+
+        <g clipPath="url(#tile-clip)">
+          {/* Base Background Grid */}
+          <rect width="400" height="400" fill="#224A1E" />
+
+          {/* ========================================================= */}
+          {/* ROW 1 (y: 0 - 133) */}
+          {/* ========================================================= */}
+          {/* Tile (0,0): Deep Green base with quarter-circle cuts */}
+          <rect x="0" y="0" width="133" height="133" fill="#2B5523" />
+          <path
+            d="M 0,0 L 60,0 C 60,60 120,60 120,133 L 0,133 Z"
+            fill="#1E3E1A"
+          />
+          <path
+            d="M 60,0 C 60,70 0,70 0,133 L 133,133 L 133,0 Z"
+            fill="#3F762E"
+            opacity="0.9"
+          />
+
+          {/* Tile (1,0): Bright Lime diagonal triangles & quarter circle */}
+          <rect x="133" y="0" width="134" height="133" fill="#1E3E1A" />
+          <polygon points="133,0 267,0 267,60" fill="#84CC16" />
+          <polygon points="133,0 267,60 190,133 133,133" fill="#A3E635" />
+          <polygon points="190,133 267,60 267,133" fill="#2B5523" />
+
+          {/* Tile (2,0): Deep olive corner blocks */}
+          <rect x="267" y="0" width="133" height="133" fill="#1C3817" />
+          <path
+            d="M 400,0 C 326,0 267,59 267,133 L 400,133 Z"
+            fill="#346624"
+          />
+          <path
+            d="M 400,0 C 350,0 310,40 310,90 L 400,90 Z"
+            fill="#1C3817"
+          />
+
+          {/* ========================================================= */}
+          {/* ROW 2 (y: 133 - 267) */}
+          {/* ========================================================= */}
+          {/* Tile (0,1): Massive curved quarter band (Left Road) */}
+          <rect x="0" y="133" width="133" height="134" fill="#1C3817" />
+          <path
+            d="M 133,133 C 59,133 0,192 0,267 L 50,267 C 50,221 87,183 133,183 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 133,183 C 87,183 50,221 50,267 L 133,267 Z"
+            fill="#152B11"
+          />
+
+          {/* Tile (1,1): The iconic central leaf / petal in vibrant lime */}
+          <rect x="133" y="133" width="134" height="134" fill="#1C3817" />
+          <path
+            d="M 133,267 C 133,193 200,133 267,133 C 267,207 200,267 133,267 Z"
+            fill="#A3E635"
+          />
+          <path
+            d="M 160,267 C 160,210 215,160 267,160 C 267,215 215,267 160,267 Z"
+            fill="#BEF264"
+            opacity="0.8"
+          />
+
+          {/* Tile (2,1): Large Concentric Target Bullseye with Square Cutout */}
+          <rect x="267" y="133" width="133" height="134" fill="#1C3817" />
+          {/* Outer Lime Ring */}
+          <circle cx="334" cy="200" r="66" fill="#84CC16" />
+          {/* Inner Dark Green Ring */}
+          <circle cx="334" cy="200" r="46" fill="#1E3E1A" />
+          {/* Center Lime Core */}
+          <circle cx="334" cy="200" r="24" fill="#A3E635" />
+          {/* Inset square notch cutting through bottom-left quadrant of target */}
+          <rect x="267" y="200" width="67" height="67" fill="#84CC16" />
+          <path
+            d="M 267,200 L 334,200 L 334,267 L 267,267 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 300,200 L 334,200 L 334,234 L 300,234 Z"
+            fill="#A3E635"
+          />
+
+          {/* ========================================================= */}
+          {/* ROW 3 (y: 267 - 400) */}
+          {/* ========================================================= */}
+          {/* Tile (0,2): Bottom Left Concentric Band Arcs */}
+          <rect x="0" y="267" width="133" height="133" fill="#2B5523" />
+          <path
+            d="M 0,267 L 50,267 C 50,313 87,350 133,350 L 133,400 C 59,400 0,341 0,267 Z"
+            fill="#1E3E1A"
+          />
+          <path
+            d="M 0,334 C 36,334 66,364 66,400 L 0,400 Z"
+            fill="#A3E635"
+          />
+
+          {/* Tile (1,2): Diagonal curved fan segments */}
+          <rect x="133" y="267" width="134" height="133" fill="#224A1E" />
+          <path
+            d="M 133,267 C 207,267 267,327 267,400 L 133,400 Z"
+            fill="#3F762E"
+          />
+          <path
+            d="M 133,334 C 170,334 200,364 200,400 L 133,400 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 133,367 C 151,367 167,383 167,400 L 133,400 Z"
+            fill="#A3E635"
+          />
+
+          {/* Tile (2,2): Bottom Right Geometric Quarter Cut */}
+          <rect x="267" y="267" width="133" height="133" fill="#1C3817" />
+          <path
+            d="M 400,267 C 326,267 267,326 267,400 L 334,400 C 334,363 363,334 400,334 Z"
+            fill="#84CC16"
+          />
+          <path
+            d="M 400,334 C 363,334 334,363 334,400 L 400,400 Z"
+            fill="#A3E635"
+          />
+        </g>
+      </svg>
+    </div>
+  );
+};
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl }) => {
   const [username, setUsername] = useState("verifier_aura");
@@ -97,6 +258,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [welcomeUser, setWelcomeUser] = useState<{
     fullName: string;
     username: string;
@@ -116,6 +278,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
 
     setLoading(true);
     setErrorMsg(null);
+    setSuccessMsg(null);
 
     try {
       const res = await fetch(`${backendUrl}/api/auth/login`, {
@@ -154,7 +317,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
             role: json.user.role,
             token: json.token,
           });
-        }, 1100);
+        }, 1300);
       } else {
         const defaultErr = res.status >= 500
           ? `Layanan backend sedang memproses ulang (HTTP ${res.status}). Silakan coba beberapa detik lagi.`
@@ -191,223 +354,120 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "var(--surface, #f5f6f2)",
+        backgroundColor: "#F9FAF8",
         padding: "32px 16px",
+        position: "relative",
+        overflow: "hidden",
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
     >
-      {/* Main Elevated Enterprise Card */}
+      {/* ========================================================================= */}
+      {/* Decorative Floating Lime Orbs (Matching the Exact Visual Atmosphere)     */}
+      {/* ========================================================================= */}
+      {/* Top-Right Big Lime Orb */}
+      <div
+        className="floating-orb-a"
+        style={{
+          position: "absolute",
+          top: "40px",
+          right: "40px",
+          width: "120px",
+          height: "120px",
+          borderRadius: "50%",
+          backgroundColor: "#A3E635",
+          opacity: 0.9,
+          pointerEvents: "none",
+        }}
+      />
+      {/* Top-Right Small Lime Orb */}
+      <div
+        className="floating-orb-b"
+        style={{
+          position: "absolute",
+          top: "20px",
+          right: "180px",
+          width: "36px",
+          height: "36px",
+          borderRadius: "50%",
+          backgroundColor: "#A3E635",
+          opacity: 0.85,
+          pointerEvents: "none",
+        }}
+      />
+      {/* Bottom-Left Big Lime Orb */}
+      <div
+        className="floating-orb-a"
+        style={{
+          position: "absolute",
+          bottom: "-50px",
+          left: "-30px",
+          width: "200px",
+          height: "200px",
+          borderRadius: "50%",
+          backgroundColor: "#A3E635",
+          opacity: 0.85,
+          pointerEvents: "none",
+        }}
+      />
+      {/* Bottom-Left Small Lime Orb */}
+      <div
+        className="floating-orb-b"
+        style={{
+          position: "absolute",
+          bottom: "80px",
+          left: "140px",
+          width: "44px",
+          height: "44px",
+          borderRadius: "50%",
+          backgroundColor: "#A3E635",
+          opacity: 0.9,
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* ========================================================================= */}
+      {/* Main Elevated Card Container (White with Rounded Corners & Subtly Spaced) */}
+      {/* ========================================================================= */}
       <div
         className="login-card-animated"
         style={{
           width: "100%",
-          maxWidth: "1040px",
-          backgroundColor: "#ffffff",
-          borderRadius: "24px",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 20px 45px -10px rgba(15, 23, 42, 0.08), 0 8px 16px -4px rgba(15, 23, 42, 0.03)",
-          overflow: "hidden",
-          display: "grid",
-          gridTemplateColumns: "minmax(340px, 440px) 1fr",
+          maxWidth: "1080px",
+          backgroundColor: "#FFFFFF",
+          borderRadius: "28px",
+          boxShadow:
+            "0 30px 70px -15px rgba(34, 74, 30, 0.08), 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03)",
+          padding: "48px 52px",
+          position: "relative",
+          zIndex: 10,
         }}
       >
-        {/* ========================================================= */}
-        {/* LEFT COLUMN: Institutional Branding & Architecture        */}
-        {/* ========================================================= */}
         <div
           style={{
-            background: "linear-gradient(155deg, #076641 0%, #098a58 65%, #054e33 100%)",
-            color: "#ffffff",
-            padding: "48px 40px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            position: "relative",
+            display: "grid",
+            gridTemplateColumns: "minmax(320px, 440px) 1fr",
+            gap: "56px",
+            alignItems: "center",
           }}
+          className="login-grid-container"
         >
-          {/* Subtle Background Pattern */}
+          {/* ------------------------------------------------------------- */}
+          {/* Left Column: Geometric Bauhaus Mosaic Graphic                 */}
+          {/* ------------------------------------------------------------- */}
           <div
             style={{
-              position: "absolute",
-              inset: 0,
-              backgroundImage: "radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 40%), radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.06) 0%, transparent 50%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* Top: Brand Identity */}
-          <div style={{ position: "relative", zIndex: 2 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "28px" }}>
-              <div
-                style={{
-                  width: "44px",
-                  height: "44px",
-                  borderRadius: "12px",
-                  background: "rgba(255, 255, 255, 0.16)",
-                  border: "1px solid rgba(255, 255, 255, 0.25)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.12)",
-                }}
-              >
-                <ShieldCheck size={26} strokeWidth={2.4} color="#ffffff" />
-              </div>
-              <div>
-                <div style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.5px", lineHeight: 1.1 }}>
-                  AURA<span style={{ color: "#a7f3d0", marginLeft: "2px" }}>JKN</span>
-                </div>
-                <div style={{ fontSize: "11px", letterSpacing: "1px", textTransform: "uppercase", color: "#d1fae5", fontWeight: 600 }}>
-                  BPJS Kesehatan
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "inline-block",
-                padding: "4px 12px",
-                borderRadius: "9999px",
-                background: "rgba(255, 255, 255, 0.14)",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "#d1fae5",
-                letterSpacing: "0.5px",
-                marginBottom: "16px",
-              }}
-            >
-              INSTRUMEN PENGAWASAN KLAIM JKN
-            </div>
-
-            <h1
-              style={{
-                fontSize: "24px",
-                fontWeight: 800,
-                lineHeight: 1.3,
-                margin: "0 0 12px 0",
-                letterSpacing: "-0.4px",
-                color: "#ffffff",
-              }}
-            >
-              Sistem Skrining & Integritas Klaim Terpadu
-            </h1>
-
-            <p
-              style={{
-                fontSize: "13px",
-                lineHeight: 1.6,
-                color: "#d1fae5",
-                margin: "0 0 32px 0",
-                opacity: 0.92,
-              }}
-            >
-              Platform kecerdasan buatan terpadu untuk menapis anomali, mendeteksi sindikat klaim fiktif, serta melindungi dana jaminan kesehatan nasional secara objektif dan akuntabel.
-            </p>
-
-            {/* Feature Cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div
-                style={{
-                  background: "rgba(255, 255, 255, 0.09)",
-                  border: "1px solid rgba(255, 255, 255, 0.16)",
-                  borderRadius: "14px",
-                  padding: "12px 14px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "12px",
-                  backdropFilter: "blur(6px)",
-                }}
-              >
-                <div style={{ padding: "6px", borderRadius: "8px", background: "rgba(255, 255, 255, 0.16)", color: "#ffffff" }}>
-                  <FileCheck size={16} />
-                </div>
-                <div>
-                  <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
-                    Pre-Payment Gate Skrining
-                  </div>
-                  <div style={{ fontSize: "11.5px", color: "#d1fae5", marginTop: "2px", lineHeight: 1.4 }}>
-                    Penyaringan otomatis berkas klaim berisiko tinggi sebelum otorisasi pencairan.
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  background: "rgba(255, 255, 255, 0.09)",
-                  border: "1px solid rgba(255, 255, 255, 0.16)",
-                  borderRadius: "14px",
-                  padding: "12px 14px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "12px",
-                  backdropFilter: "blur(6px)",
-                }}
-              >
-                <div style={{ padding: "6px", borderRadius: "8px", background: "rgba(255, 255, 255, 0.16)", color: "#ffffff" }}>
-                  <Network size={16} />
-                </div>
-                <div>
-                  <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
-                    Heterogeneous Graph R-GCN
-                  </div>
-                  <div style={{ fontSize: "11.5px", color: "#d1fae5", marginTop: "2px", lineHeight: 1.4 }}>
-                    Analisis jejaring multi-entitas dokter, faskes, dan riwayat pasien berbasis grafik relasi.
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  background: "rgba(255, 255, 255, 0.09)",
-                  border: "1px solid rgba(255, 255, 255, 0.16)",
-                  borderRadius: "14px",
-                  padding: "12px 14px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "12px",
-                  backdropFilter: "blur(6px)",
-                }}
-              >
-                <div style={{ padding: "6px", borderRadius: "8px", background: "rgba(255, 255, 255, 0.16)", color: "#ffffff" }}>
-                  <Database size={16} />
-                </div>
-                <div>
-                  <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#ffffff" }}>
-                    Zero Mock Policy
-                  </div>
-                  <div style={{ fontSize: "11.5px", color: "#d1fae5", marginTop: "2px", lineHeight: 1.4 }}>
-                    Seluruh kalkulasi dan inferensi terhubung live ke pangkalan data PostgreSQL operasional.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Security Footer */}
-          <div
-            style={{
-              position: "relative",
-              zIndex: 2,
-              marginTop: "32px",
-              paddingTop: "18px",
-              borderTop: "1px solid rgba(255, 255, 255, 0.16)",
               display: "flex",
+              justifyContent: "center",
               alignItems: "center",
-              gap: "8px",
-              fontSize: "11.5px",
-              color: "#d1fae5",
+              width: "100%",
             }}
           >
-            <Lock size={13} style={{ flexShrink: 0, opacity: 0.8 }} />
-            <span>Kepatuhan Keamanan Informasi & UU Perlindungan Data Pribadi (UU PDP No. 27/2022)</span>
+            <GeometricBauhausArt />
           </div>
-        </div>
 
-        {/* ========================================================= */}
-        {/* RIGHT COLUMN: Executive Authentication Form               */}
-        {/* ========================================================= */}
-        <div style={{ padding: "48px 44px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          {/* ------------------------------------------------------------- */}
+          {/* Right Column: Clean Minimalist Form or Welcome Celebration    */}
+          {/* ------------------------------------------------------------- */}
           {welcomeUser ? (
             <div
               className="login-welcome-box"
@@ -416,99 +476,109 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                 flexDirection: "column",
                 alignItems: "center",
                 textAlign: "center",
-                padding: "24px 12px",
-                gap: "18px",
+                padding: "36px 18px",
+                gap: "20px",
               }}
             >
+              {/* Animated Success Checkmark Badge */}
               <div
                 className="welcome-check-pulse"
                 style={{
-                  width: "68px",
-                  height: "68px",
+                  width: "78px",
+                  height: "78px",
                   borderRadius: "50%",
-                  backgroundColor: "#ecfdf5",
-                  border: "2px solid #098a58",
+                  backgroundColor: "#ECFDF5",
+                  border: "2.5px solid #10B981",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  boxShadow: "0 10px 24px -4px rgba(9, 138, 88, 0.25)",
-                  color: "#098a58",
+                  boxShadow: "0 12px 28px -6px rgba(16, 185, 129, 0.35)",
+                  color: "#059669",
                 }}
               >
-                <CheckCircle2 size={38} strokeWidth={2.4} />
+                <CheckCircle2 size={44} strokeWidth={2.4} />
               </div>
 
+              {/* Greeting Headings */}
               <div>
                 <span
                   style={{
                     display: "inline-block",
                     fontSize: "11px",
                     fontWeight: 800,
-                    letterSpacing: "0.06em",
+                    letterSpacing: "0.08em",
                     textTransform: "uppercase",
-                    color: "#076641",
-                    backgroundColor: "#e6efe6",
-                    padding: "3px 12px",
+                    color: "#047857",
+                    backgroundColor: "#D1FAE5",
+                    padding: "4px 14px",
                     borderRadius: "9999px",
-                    marginBottom: "10px",
+                    marginBottom: "12px",
                   }}
                 >
                   Autentikasi Kedinasan Terverifikasi
                 </span>
                 <h2
                   style={{
-                    fontSize: "24px",
+                    fontSize: "28px",
                     fontWeight: 800,
-                    color: "#0f172a",
+                    color: "#0F172A",
                     margin: 0,
-                    letterSpacing: "-0.4px",
+                    letterSpacing: "-0.03em",
                   }}
                 >
-                  Selamat Datang Kembali
+                  Selamat Datang Kembali!
                 </h2>
                 <p
                   style={{
-                    fontSize: "16px",
+                    fontSize: "18px",
                     fontWeight: 700,
-                    color: "#098a58",
-                    marginTop: "6px",
-                    marginBottom: "2px",
+                    color: "#059669",
+                    marginTop: "8px",
+                    marginBottom: 0,
                   }}
                 >
                   {welcomeUser.fullName}
                 </p>
                 <p
                   style={{
-                    fontSize: "12.5px",
-                    color: "#64748b",
-                    margin: 0,
+                    fontSize: "13px",
+                    color: "#64748B",
+                    marginTop: "4px",
+                    marginBottom: 0,
                     fontWeight: 500,
                   }}
                 >
-                  {welcomeUser.roleLabel} • ID: {welcomeUser.username}
+                  {welcomeUser.roleLabel} • NIP / ID: {welcomeUser.username}
                 </p>
               </div>
 
-              <div style={{ width: "100%", maxWidth: "320px", marginTop: "4px" }}>
+              {/* Progress & Transition Indicator */}
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "340px",
+                  marginTop: "8px",
+                }}
+              >
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    fontSize: "11.5px",
-                    color: "#64748b",
+                    fontSize: "12px",
+                    color: "#64748B",
                     marginBottom: "6px",
                     fontWeight: 600,
                   }}
                 >
-                  <span>Membuka Ruang Kerja AURA-JKN...</span>
-                  <span style={{ color: "#098a58", fontWeight: 700 }}>100%</span>
+                  <span>Mempersiapkan Ruang Kerja AURA-JKN...</span>
+                  <span style={{ color: "#059669", fontWeight: 700 }}>100%</span>
                 </div>
                 <div
                   style={{
                     width: "100%",
-                    height: "6px",
-                    backgroundColor: "#e2e8f0",
+                    height: "7px",
+                    backgroundColor: "#E2E8F0",
                     borderRadius: "9999px",
                     overflow: "hidden",
                   }}
@@ -523,79 +593,255 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                   />
                 </div>
               </div>
+
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#94A3B8",
+                  margin: 0,
+                }}
+              >
+                Mengalihkan ke dasbor audit & analitik integritas klaim BPJS Kesehatan...
+              </p>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-              {/* Form Title */}
-              <div>
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: "#076641",
-                    backgroundColor: "#e6efe6",
-                    padding: "3px 10px",
-                    borderRadius: "6px",
-                    letterSpacing: "0.5px",
-                    textTransform: "uppercase",
-                    marginBottom: "10px",
-                  }}
-                >
-                  <Building2 size={12} />
-                  PORTAL KEDINASAN RESMI
-                </div>
-                <h2
-                  style={{
-                    fontSize: "26px",
-                    fontWeight: 800,
-                    color: "#0f172a",
-                    letterSpacing: "-0.5px",
-                    margin: "0 0 6px 0",
-                  }}
-                >
-                  Masuk ke Ruang Kerja
-                </h2>
-                <p
-                  style={{
-                    fontSize: "13px",
-                    color: "#64748b",
-                    margin: 0,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Silakan pilih peran akun uji atau masukkan NIP petugas resmi untuk mengakses instrumen audit.
-                </p>
-              </div>
-
-              {/* Quick Preset Selector */}
-              <div
+            {/* Form Title & Subtitle */}
+            <div>
+              <h1
                 style={{
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "14px",
-                  padding: "12px 14px",
+                  fontSize: "30px",
+                  fontWeight: 800,
+                  color: "#1E293B",
+                  letterSpacing: "-0.03em",
+                  margin: 0,
+                  lineHeight: 1.2,
                 }}
               >
+                Masuk ke Akun
+              </h1>
+              <p
+                style={{
+                  fontSize: "13.5px",
+                  color: "#64748B",
+                  marginTop: "6px",
+                  marginBottom: 0,
+                  fontWeight: 500,
+                }}
+              >
+                Portal Masuk Petugas & Verifikator Resmi BPJS Kesehatan
+              </p>
+            </div>
+
+            {/* Error Notification Banner */}
+            {errorMsg && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  backgroundColor: "#FEF2F2",
+                  border: "1px solid #FCA5A5",
+                  color: "#DC2626",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                }}
+              >
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* Success Notification Banner */}
+            {successMsg && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  backgroundColor: "#F0FDF4",
+                  border: "1px solid #86EFAC",
+                  color: "#16A34A",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                }}
+              >
+                <Check size={16} style={{ flexShrink: 0 }} />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            {/* Form Fields (Login Only) */}
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Field 1: Email / Username */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    color: "#64748B",
+                  }}
+                >
+                  Email address / NIP Petugas
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="verifier_aura / nama@bpjs-kesehatan.go.id"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "8px 0",
+                    border: "none",
+                    borderBottom: "1.5px solid #E2E8F0",
+                    fontSize: "15px",
+                    color: "#1E293B",
+                    fontWeight: 500,
+                    outline: "none",
+                    backgroundColor: "transparent",
+                    transition: "border-color 0.2s ease",
+                  }}
+                  onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
+                  onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
+                />
+              </div>
+
+              {/* Field 2: Password with Eye Toggle */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                    Password
+                  </label>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "#64748B",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                    onClick={() => setErrorMsg("Untuk reset kredensial kedinasan, silakan hubungi Administrator IT Keamanan BPJS Kesehatan.")}
+                  >
+                    Lupa sandi?
+                  </span>
+                </div>
+                <div style={{ position: "relative", width: "100%" }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••••••"
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "8px 32px 8px 0",
+                      border: "none",
+                      borderBottom: "1.5px solid #E2E8F0",
+                      fontSize: "15px",
+                      color: "#1E293B",
+                      fontWeight: 500,
+                      outline: "none",
+                      backgroundColor: "transparent",
+                      transition: "border-color 0.2s ease",
+                    }}
+                    onFocus={(e) => (e.target.style.borderBottomColor = "#65A30D")}
+                    onBlur={(e) => (e.target.style.borderBottomColor = "#E2E8F0")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "0",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94A3B8",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "4px",
+                      cursor: "pointer",
+                    }}
+                    title={showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Field 3: Unit Kerja / Peran Kedinasan */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 500, color: "#64748B" }}>
+                  Unit Kerja / Peran Kedinasan
+                </label>
+                <div style={{ position: "relative" }}>
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => handleRoleDropdownChange(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 24px 8px 0",
+                      border: "none",
+                      borderBottom: "1.5px solid #E2E8F0",
+                      fontSize: "14px",
+                      color: "#1E293B",
+                      fontWeight: 600,
+                      backgroundColor: "transparent",
+                      outline: "none",
+                      appearance: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {PRESET_ACCOUNTS.map((acc) => (
+                      <option key={acc.role} value={acc.role}>
+                        {acc.label} ({acc.fullName})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={15}
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#64748B",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Selector for Healthkathon Judges */}
+              <div style={{ marginTop: "2px" }}>
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: "#475569",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                    marginBottom: "10px",
+                    justifyContent: "space-between",
+                    marginBottom: "8px",
                   }}
                 >
-                  <Sparkles size={13} style={{ color: "var(--green, #098a58)" }} />
-                  Akses Cepat Pengujian (1-Klik):
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#64748B",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                  >
+                    <Sparkles size={12} style={{ color: "#65A30D" }} /> Akses Demo Juri (1-Klik):
+                  </span>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {PRESET_ACCOUNTS.map((acc) => {
                     const isSelected = username === acc.username;
                     return (
@@ -604,22 +850,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                         type="button"
                         onClick={() => handleSelectPreset(acc)}
                         style={{
-                          padding: "5px 11px",
-                          borderRadius: "8px",
+                          padding: "6px 12px",
+                          borderRadius: "9999px",
                           fontSize: "12px",
                           fontWeight: 600,
-                          backgroundColor: isSelected ? acc.bg : "#ffffff",
-                          color: isSelected ? acc.color : "#475569",
-                          border: isSelected ? `1.5px solid ${acc.color}` : "1px solid #e2e8f0",
+                          backgroundColor: isSelected ? "#F0FDF4" : "#F8FAFC",
+                          color: isSelected ? "#15803D" : "#475569",
+                          border: isSelected ? "1.5px solid #84CC16" : "1px solid #E2E8F0",
                           cursor: "pointer",
                           display: "inline-flex",
                           alignItems: "center",
                           gap: "5px",
                           transition: "all 0.15s ease",
-                          boxShadow: isSelected ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
                         }}
                       >
-                        {isSelected && <Check size={12} strokeWidth={2.5} />}
+                        {isSelected && <Check size={12} />}
                         {acc.label.replace("Petugas ", "")}
                       </button>
                     );
@@ -627,277 +872,95 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                 </div>
               </div>
 
-              {/* Error Message */}
-              {errorMsg && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "10px 14px",
-                    borderRadius: "10px",
-                    backgroundColor: "#fef2f2",
-                    border: "1px solid #fecaca",
-                    color: "#dc2626",
-                    fontSize: "12.5px",
-                    fontWeight: 500,
-                  }}
+              {/* Remember Me Checkbox */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ accentColor: "#65A30D", cursor: "pointer" }}
+                />
+                <label
+                  htmlFor="rememberMe"
+                  style={{ fontSize: "12.5px", color: "#64748B", cursor: "pointer", userSelect: "none" }}
                 >
-                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
+                  Ingat sesi verifikator pada browser ini
+                </label>
+              </div>
 
-              {/* Login Form */}
-              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {/* Field 1: Username / NIP */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "12.5px", fontWeight: 600, color: "#334155" }}>
-                    NIP / Nama Pengguna Kedinasan
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Contoh: verifier_aura"
-                      required
-                      style={{
-                        width: "100%",
-                        padding: "10px 12px 10px 36px",
-                        borderRadius: "10px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "13.5px",
-                        color: "#0f172a",
-                        backgroundColor: "#f8fafc",
-                        outline: "none",
-                        transition: "all 0.2s ease",
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = "#098a58";
-                        e.target.style.boxShadow = "0 0 0 3px rgba(9, 138, 88, 0.12)";
-                        e.target.style.backgroundColor = "#ffffff";
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = "#cbd5e1";
-                        e.target.style.boxShadow = "none";
-                        e.target.style.backgroundColor = "#f8fafc";
-                      }}
-                    />
-                    <User
-                      size={15}
-                      style={{
-                        position: "absolute",
-                        left: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#64748b",
-                        pointerEvents: "none",
-                      }}
-                    />
-                  </div>
-                </div>
+              {/* Disclaimer / Terms text */}
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#94A3B8",
+                  lineHeight: 1.5,
+                  margin: "4px 0 0 0",
+                }}
+              >
+                Dengan masuk ke sistem, Anda tunduk pada Kebijakan Keamanan Informasi BPJS Kesehatan dan UU Perlindungan Data Pribadi (UU PDP No. 27/2022). Akses dicatat dalam jejak audit digital.
+              </p>
 
-                {/* Field 2: Password */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <label style={{ fontSize: "12.5px", fontWeight: 600, color: "#334155" }}>
-                      Kata Sandi
-                    </label>
-                    <span
-                      style={{
-                        fontSize: "11.5px",
-                        color: "#098a58",
-                        cursor: "pointer",
-                        fontWeight: 600,
-                      }}
-                      onClick={() => setErrorMsg("Untuk reset kredensial, hubungi Administrator Keamanan TI BPJS Kesehatan.")}
-                    >
-                      Bantuan Sandi?
-                    </span>
-                  </div>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••••••"
-                      required
-                      style={{
-                        width: "100%",
-                        padding: "10px 38px 10px 36px",
-                        borderRadius: "10px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "13.5px",
-                        color: "#0f172a",
-                        backgroundColor: "#f8fafc",
-                        outline: "none",
-                        transition: "all 0.2s ease",
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = "#098a58";
-                        e.target.style.boxShadow = "0 0 0 3px rgba(9, 138, 88, 0.12)";
-                        e.target.style.backgroundColor = "#ffffff";
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = "#cbd5e1";
-                        e.target.style.boxShadow = "none";
-                        e.target.style.backgroundColor = "#f8fafc";
-                      }}
-                    />
-                    <Lock
-                      size={15}
-                      style={{
-                        position: "absolute",
-                        left: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#64748b",
-                        pointerEvents: "none",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{
-                        position: "absolute",
-                        right: "10px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#64748b",
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        padding: "4px",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Field 3: Unit Kerja / Peran Kedinasan */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "12.5px", fontWeight: 600, color: "#334155" }}>
-                    Peran Operasional
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <select
-                      value={selectedRole}
-                      onChange={(e) => handleRoleDropdownChange(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "10px 32px 10px 12px",
-                        borderRadius: "10px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "13px",
-                        color: "#0f172a",
-                        fontWeight: 600,
-                        backgroundColor: "#f8fafc",
-                        outline: "none",
-                        appearance: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {PRESET_ACCOUNTS.map((acc) => (
-                        <option key={acc.role} value={acc.role}>
-                          {acc.label} — {acc.fullName}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={15}
-                      style={{
-                        position: "absolute",
-                        right: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#64748b",
-                        pointerEvents: "none",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Remember Me */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    style={{ accentColor: "#098a58", cursor: "pointer", width: "15px", height: "15px" }}
-                  />
-                  <label
-                    htmlFor="rememberMe"
-                    style={{ fontSize: "12px", color: "#64748b", cursor: "pointer", userSelect: "none" }}
-                  >
-                    Ingat sesi autentikasi pada perangkat ini
-                  </label>
-                </div>
-
-                {/* Submit Button */}
+              {/* Submit Button (Pill Button bottom-right aligned matching design) */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginTop: "6px",
+                }}
+              >
                 <button
                   type="submit"
                   disabled={loading}
                   style={{
-                    backgroundColor: "#098a58",
-                    color: "#ffffff",
-                    fontSize: "13.5px",
+                    backgroundColor: "#65A30D",
+                    color: "#FFFFFF",
+                    fontSize: "14px",
                     fontWeight: 700,
-                    padding: "12px 24px",
-                    borderRadius: "10px",
-                    border: "1px solid #076641",
-                    boxShadow: "0 2px 8px rgba(9, 138, 88, 0.28)",
-                    display: "flex",
+                    padding: "12px 36px",
+                    borderRadius: "9999px",
+                    boxShadow: "0 8px 20px -4px rgba(101, 163, 13, 0.4)",
+                    display: "inline-flex",
                     alignItems: "center",
-                    justifyContent: "center",
                     gap: "8px",
                     cursor: loading ? "wait" : "pointer",
-                    transition: "all 0.18s ease",
-                    marginTop: "6px",
+                    transition: "all 0.2s ease",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#076641";
-                    e.currentTarget.style.borderColor = "#054e33";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#098a58";
-                    e.currentTarget.style.borderColor = "#076641";
-                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#4D7C0F")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#65A30D")}
                 >
-                  {loading ? "Memverifikasi Kredensial..." : "Masuk ke Ruang Kerja"}
+                  {loading ? "Memverifikasi..." : "Sign in"}
                   <ArrowRight size={16} />
                 </button>
-              </form>
-
-              {/* Security Notice Footnote */}
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: "#94a3b8",
-                  lineHeight: 1.5,
-                  textAlign: "center",
-                  borderTop: "1px solid #f1f5f9",
-                  paddingTop: "14px",
-                  margin: 0,
-                }}
-              >
-                Dilindungi otentikasi kriptografis HMAC-SHA256 & TLS 1.3. Setiap aktivitas verifikasi klaim dicatat dalam buku catatan audit digital kedinasan BPJS Kesehatan.
               </div>
-            </div>
+            </form>
+          </div>
           )}
+        </div>
+
+        {/* Footer Note */}
+        <div
+          style={{
+            marginTop: "36px",
+            paddingTop: "20px",
+            borderTop: "1px solid #F1F5F9",
+            textAlign: "center",
+            fontSize: "12px",
+            color: "#94A3B8",
+          }}
+        >
+          Protected by reCAPTCHA & BPJS Kesehatan Identity Security and subject to{" "}
+          <span style={{ color: "#0284C7", cursor: "pointer" }}>Privacy Policy</span> and{" "}
+          <span style={{ color: "#0284C7", cursor: "pointer" }}>Terms of Service</span>.
         </div>
       </div>
 
       {/* Responsive Stacking CSS */}
       <style>{`
         @media (max-width: 860px) {
-          .login-card-animated {
+          .login-grid-container {
             grid-template-columns: 1fr !important;
-            max-width: 520px !important;
+            gap: 32px !important;
           }
         }
       `}</style>
