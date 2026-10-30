@@ -517,9 +517,21 @@ export function App() {
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       params.set("limit", "200");
       const res = await fetch(`${BACKEND_URL}/api/claims?${params}`, { headers: authHeaders() });
-      const json = await res.json();
-      if (!res.ok || json.status === "DATA_SOURCE_UNAVAILABLE") {
-        setDataSourceError(json.error || "Database tidak dapat dihubungi. Sesuai Zero Mock Policy, data tiruan tidak ditampilkan.");
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try {
+          json = await res.json();
+        } catch {
+          json = null;
+        }
+      }
+
+      if (!res.ok || !json || json.status === "DATA_SOURCE_UNAVAILABLE") {
+        const defaultErr = res.status >= 500
+          ? `Layanan database atau backend sedang memuat ulang (HTTP ${res.status}).`
+          : "Database tidak dapat dihubungi. Sesuai Zero Mock Policy, data tiruan tidak ditampilkan.";
+        setDataSourceError(json?.error || defaultErr);
         setData(null); return;
       }
       setData(json);
@@ -639,16 +651,23 @@ export function App() {
     setUserMgmtError(null);
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/users`, { headers: authHeaders() });
-      const json = await res.json();
-      if (res.ok && json.users) setManagedUsers(json.users);
-      else setUserMgmtError(json.error || "Gagal memuat pengguna.");
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try { json = await res.json(); } catch { json = null; }
+      }
+      if (res.ok && json?.users) setManagedUsers(json.users);
+      else setUserMgmtError(json?.error || `Gagal memuat pengguna (HTTP ${res.status}).`);
     } catch { setUserMgmtError("Koneksi gagal."); } finally { setUsersLoading(false); }
   };
 
   const fetchHealth = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/health`);
-      if (res.ok) { const json = await res.json(); setHealthStatus(json); }
+      if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+        const json = await res.json();
+        setHealthStatus(json);
+      }
     } catch {}
   };
 
@@ -666,14 +685,18 @@ export function App() {
         headers: authHeaders(),
         body: JSON.stringify(payload),
       });
-      const json = await res.json();
-      if (res.ok) {
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try { json = await res.json(); } catch { json = null; }
+      }
+      if (res.ok && json) {
         setCaseActionResult({ success: true, message: `Berhasil: ${json.from_status} → ${json.to_status}` });
         setCaseNotes(""); setCaseAction("");
         await fetchCases();
         await fetchCaseDetail(selectedCase.id);
       } else {
-        setCaseActionResult({ success: false, message: json.error || "Aksi gagal dijalankan." });
+        setCaseActionResult({ success: false, message: json?.error || `Aksi gagal dijalankan (HTTP ${res.status}).` });
       }
     } catch (e: any) {
       setCaseActionResult({ success: false, message: `Koneksi gagal: ${e.message}` });
@@ -695,8 +718,12 @@ export function App() {
           notes: caseNotes.trim() || `Penugasan kasus oleh ${currentUser.fullName}`,
         }),
       });
-      const json = await res.json();
-      if (res.ok) {
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try { json = await res.json(); } catch { json = null; }
+      }
+      if (res.ok && json) {
         setCaseActionResult({
           success: true,
           message: `Kasus berhasil ditugaskan kepada ${json.assigned_to} (${json.assigned_role}).`,
@@ -704,7 +731,7 @@ export function App() {
         await fetchCases();
         await fetchCaseDetail(selectedCase.id);
       } else {
-        setCaseActionResult({ success: false, message: json.error || "Gagal menugaskan kasus." });
+        setCaseActionResult({ success: false, message: json?.error || `Gagal menugaskan kasus (HTTP ${res.status}).` });
       }
     } catch (e: any) {
       setCaseActionResult({ success: false, message: `Koneksi gagal: ${e.message}` });
@@ -720,12 +747,16 @@ export function App() {
         headers: authHeaders(),
         body: JSON.stringify({ claim_id: claimId }),
       });
-      const json = await res.json();
-      if (res.ok) {
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try { json = await res.json(); } catch { json = null; }
+      }
+      if (res.ok && json) {
         setReviewBanner({ success: true, message: `Kasus ${json.case_number} berhasil dibuat dari klaim ${claimId}` });
         setTimeout(() => setActiveSection("investigation"), 1500);
       } else {
-        setReviewBanner({ success: false, message: json.error || "Gagal membuat kasus." });
+        setReviewBanner({ success: false, message: json?.error || `Gagal membuat kasus (HTTP ${res.status}).` });
       }
     } catch (e: any) {
       setReviewBanner({ success: false, message: `Koneksi gagal: ${e.message}` });
@@ -743,13 +774,17 @@ export function App() {
         headers: authHeaders(),
         body: JSON.stringify({ decision, notes }),
       });
-      const json = await res.json();
-      if (res.ok && json.status === "REVIEW_SAVED") {
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try { json = await res.json(); } catch { json = null; }
+      }
+      if (res.ok && json?.status === "REVIEW_SAVED") {
         setReviewNotes("");
         setReviewBanner({ success: true, message: `Keputusan [${decision}] untuk klaim ${selectedClaim.claim_id} tersimpan ke PostgreSQL & Audit Log.` });
         await fetchClaims();
       } else {
-        setReviewBanner({ success: false, message: `Gagal: ${json.error || "Transaksi dibatalkan."}` });
+        setReviewBanner({ success: false, message: `Gagal: ${json?.error || `Transaksi dibatalkan (HTTP ${res.status}).`}` });
       }
     } catch (e: any) {
       setReviewBanner({ success: false, message: `Kegagalan jaringan: ${e?.message}` });
@@ -764,9 +799,16 @@ export function App() {
         method: "POST", headers: authHeaders(),
         body: JSON.stringify({ username: newUsername, fullName: newFullName, password: newPassword, role: newRole }),
       });
-      const json = await res.json();
-      if (res.ok) { setUserMgmtSuccess(`Pengguna '${newUsername}' berhasil didaftarkan!`); setNewUsername(""); setNewFullName(""); setNewPassword(""); fetchUsers(); }
-      else setUserMgmtError(json.error || "Gagal mendaftarkan pengguna.");
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try { json = await res.json(); } catch { json = null; }
+      }
+      if (res.ok && json) {
+        setUserMgmtSuccess(`Pengguna '${newUsername}' berhasil didaftarkan!`); setNewUsername(""); setNewFullName(""); setNewPassword(""); fetchUsers();
+      } else {
+        setUserMgmtError(json?.error || `Gagal mendaftarkan pengguna (HTTP ${res.status}).`);
+      }
     } catch { setUserMgmtError("Galat jaringan."); }
   };
 

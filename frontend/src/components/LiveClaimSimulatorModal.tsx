@@ -163,13 +163,27 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
         }),
       });
 
-      const json = await res.json();
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try {
+          json = await res.json();
+        } catch {
+          json = null;
+        }
+      }
+
       if (!res.ok) {
-        const detailText = Array.isArray(json.details) ? ` (${json.details.join(" ")})` : "";
-        setErrorMsg(`${json.error || "Gagal memproses klaim baru."}${detailText}`);
-      } else {
+        const detailText = Array.isArray(json?.details) ? ` (${json.details.join(" ")})` : "";
+        const defaultErr = res.status >= 500
+          ? `Layanan AI Backend sedang memproses ulang (HTTP ${res.status}).`
+          : "Gagal memproses klaim baru.";
+        setErrorMsg(`${json?.error || defaultErr}${detailText}`);
+      } else if (json) {
         setSimResult(json);
         onClaimCreated(json.claim_id);
+      } else {
+        setErrorMsg("Respon server tidak valid.");
       }
     } catch (err: any) {
       setErrorMsg(

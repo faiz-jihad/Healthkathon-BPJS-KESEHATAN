@@ -290,9 +290,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
         }),
       });
 
-      const json = await res.json();
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try {
+          json = await res.json();
+        } catch {
+          json = null;
+        }
+      }
 
-      if (res.ok && json.token && json.user) {
+      if (res.ok && json?.token && json?.user) {
         sessionStorage.setItem("aura_token", json.token);
         const rLabel = PRESET_ACCOUNTS.find((a) => a.role === json.user.role)?.label || json.user.role;
         setWelcomeUser({
@@ -311,7 +319,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
           });
         }, 1300);
       } else {
-        setErrorMsg(json.error || "Gagal masuk: kredensial tidak valid.");
+        const defaultErr = res.status >= 500
+          ? `Layanan backend sedang memproses ulang (HTTP ${res.status}). Silakan coba beberapa detik lagi.`
+          : "Gagal masuk: kredensial tidak valid.";
+        setErrorMsg(json?.error || defaultErr);
       }
     } catch (err: any) {
       setErrorMsg(`Koneksi ke backend gagal: ${err?.message || "Server tidak dapat dihubungi"}`);

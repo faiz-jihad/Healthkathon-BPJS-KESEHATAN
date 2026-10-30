@@ -23,11 +23,25 @@ export const ControlledFeedbackPanel: React.FC<ControlledFeedbackPanelProps> = (
       const res = await fetch(`${backendUrl}/api/feedback-export`, {
         headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       });
-      const json = await res.json();
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      let json: any = null;
+      if (isJson) {
+        try {
+          json = await res.json();
+        } catch {
+          json = null;
+        }
+      }
+
       if (!res.ok) {
-        setError(json.error || "Gagal memuat data Controlled Feedback Loop.");
-      } else {
+        const defaultErr = res.status >= 500
+          ? `Layanan sedang memuat ulang data telaah (HTTP ${res.status}). Silakan coba sesaat lagi.`
+          : "Gagal memuat data Controlled Feedback Loop.";
+        setError(json?.error || defaultErr);
+      } else if (json) {
         setFeedbackData(json);
+      } else {
+        setError("Format data dari server tidak valid.");
       }
     } catch (err: any) {
       setError(`Koneksi ke backend gagal: ${err?.message || "Terputus"}`);
