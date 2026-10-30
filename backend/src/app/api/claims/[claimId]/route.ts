@@ -8,7 +8,9 @@ import { buildLocalAuditBrief } from "../../../../lib/llm-copilot";
 // GET /api/claims/[claimId]
 // Zero Mock Data Policy: Queries only authoritative PostgreSQL.
 // Rejects fabricated/mock entity lookups.
-// ==============================================================================
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(
   request: Request,
   { params }: { params: { claimId: string } }

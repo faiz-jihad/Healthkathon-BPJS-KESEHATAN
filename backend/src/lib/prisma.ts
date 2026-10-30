@@ -11,9 +11,12 @@ const globalForPrisma = globalThis as unknown as {
   prisma: ExtendedPrismaClient | undefined;
 };
 
+const datasourceUrl = process.env.DATABASE_URL;
+
 export const prisma: ExtendedPrismaClient =
   globalForPrisma.prisma ??
   (new PrismaClient({
+    ...(datasourceUrl ? { datasources: { db: { url: datasourceUrl } } } : {}),
     log: ["error", "warn"],
   }) as ExtendedPrismaClient);
 

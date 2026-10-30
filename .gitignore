@@ -36,4 +36,9 @@ npm-debug.log*
 # Temporary templates & scratch scripts
 template-extracted/
 *.zip
-scratch_*.py
+scratch_*
+ask_*
+*.exe
+ssh_runner.*
+vps_exec.*
+console.error*

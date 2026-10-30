@@ -3,6 +3,9 @@ import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../lib/a
 import { buildEvidenceChain, EvidenceChain } from "../../../lib/evidence-chain";
 import { AuditBriefPayload, buildLocalAuditBrief } from "../../../lib/llm-copilot";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export interface ClaimApiRecord {
   claim_id: string;
   patient_id: string;

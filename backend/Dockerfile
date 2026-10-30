@@ -17,6 +17,12 @@ RUN npx prisma generate
 # Copy source code and build
 COPY . .
 RUN mkdir -p /app/public
+
+ENV NODE_ENV=production
+ENV DATABASE_URL="postgresql://aura_user:aura_password@postgres:5432/aura_jkn_db?schema=public"
+ENV AI_SERVICE_URL="http://ai-service:8000"
+ENV AUTH_SECRET="aura-jkn-production-auth-secret-healthkathon-2026-bpjs-secure-token-vault"
+
 RUN npm run build
 
 # Production runtime stage
