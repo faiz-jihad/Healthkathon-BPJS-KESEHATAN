@@ -274,7 +274,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             type="button"
             onClick={() => applyPreset("C")}
             className="button button-secondary"
-            style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
+            style={{ minHeight: "28px", padding: "4px 11px", fontSize: "11.5px", borderRadius: "8px", border: "1.5px solid #cbd5e1", fontWeight: 600, color: "#1e293b" }}
           >
             Skenario C: Konflik Lokasi &amp; Waktu (Klaim Fiktif)
           </button>
@@ -282,7 +282,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             type="button"
             onClick={() => applyPreset("B")}
             className="button button-secondary"
-            style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
+            style={{ minHeight: "28px", padding: "4px 11px", fontSize: "11.5px", borderRadius: "8px", border: "1.5px solid #cbd5e1", fontWeight: 600, color: "#1e293b" }}
           >
             Skenario B: Beban Layanan Ekstrem (Upcoding)
           </button>
@@ -290,7 +290,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             type="button"
             onClick={() => applyPreset("A")}
             className="button button-secondary"
-            style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
+            style={{ minHeight: "28px", padding: "4px 11px", fontSize: "11.5px", borderRadius: "8px", border: "1.5px solid #cbd5e1", fontWeight: 600, color: "#1e293b" }}
           >
             Skenario A: Anomali Rujukan Berulang (Doctor Shopping)
           </button>
@@ -298,7 +298,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
             type="button"
             onClick={() => applyPreset("NORMAL")}
             className="button button-secondary"
-            style={{ minHeight: "28px", padding: "4px 10px", fontSize: "11px", borderRadius: "14px" }}
+            style={{ minHeight: "28px", padding: "4px 11px", fontSize: "11.5px", borderRadius: "8px", border: "1.5px solid #cbd5e1", fontWeight: 600, color: "#1e293b" }}
           >
             Klaim Wajar &amp; Sesuai Prosedur (Lolos Otomatis)
           </button>
@@ -506,7 +506,7 @@ export const LiveClaimSimulatorModal: React.FC<LiveClaimSimulatorModalProps> = (
               type="submit"
               disabled={submitting}
               className="button button-primary"
-              style={{ width: "100%", marginTop: "4px", borderRadius: "24px", fontSize: "13px" }}
+              style={{ width: "100%", marginTop: "6px", borderRadius: "10px", fontSize: "13px", minHeight: "42px", fontWeight: 700, border: "1px solid var(--dark-green)" }}
             >
               {submitting ? (
                 <>

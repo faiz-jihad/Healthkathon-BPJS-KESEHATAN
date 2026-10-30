@@ -1171,19 +1171,76 @@ export function App() {
 
   const RoleBadge = ({ role }: { role: string }) => {
     const cfg = ROLE_CONFIG[role] || { label: role, color: "#64748b", bg: "#f1f5f9" };
-    return <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "20px", background: cfg.bg, color: cfg.color }}>{cfg.label}</span>;
+    return (
+      <span
+        style={{
+          fontSize: "10.5px",
+          fontWeight: 700,
+          padding: "3px 9px",
+          borderRadius: "6px",
+          background: cfg.bg,
+          color: cfg.color,
+          border: `1px solid ${cfg.color}33`,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "4px",
+          letterSpacing: "0.02em",
+          lineHeight: 1.3,
+        }}
+      >
+        {cfg.label}
+      </span>
+    );
   };
 
   const StatusBadge = ({ status }: { status: string }) => {
     const cfg = STATUS_CONFIG[status] || { label: status, color: "#64748b", bg: "#f1f5f9", icon: null };
-    return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600, padding: "3px 10px", borderRadius: "20px", background: cfg.bg, color: cfg.color }}>{cfg.icon}{cfg.label}</span>;
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "5px",
+          fontSize: "11px",
+          fontWeight: 600,
+          padding: "3px 9px",
+          borderRadius: "6px",
+          background: cfg.bg,
+          color: cfg.color,
+          border: `1px solid ${cfg.color}33`,
+          whiteSpace: "nowrap",
+          lineHeight: 1.3,
+        }}
+      >
+        {cfg.icon}
+        {cfg.label}
+      </span>
+    );
   };
 
   const PriorityBadge = ({ priority }: { priority: string }) => {
     const cfg = PRIORITY_CONFIG[priority] || PRIORITY_CONFIG.LOW;
-    return <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "12px", background: cfg.bg, color: cfg.color }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }}/>{cfg.label || priority}
-    </span>;
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "5px",
+          fontSize: "11px",
+          fontWeight: 700,
+          padding: "3px 8px",
+          borderRadius: "6px",
+          background: cfg.bg,
+          color: cfg.color,
+          border: `1px solid ${cfg.color}33`,
+          whiteSpace: "nowrap",
+          lineHeight: 1.3,
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }} />
+        {cfg.label || priority}
+      </span>
+    );
   };
 
   const MetricCard = ({ title, value, subtitle, color, icon, className = "" }: { title: string; value: string | number | null; subtitle?: string; color?: string; icon: React.ReactNode; className?: string }) => (
@@ -1211,6 +1268,7 @@ export function App() {
               height: "32px",
               borderRadius: "8px",
               background: color ? `${color}14` : "rgba(9, 138, 88, 0.1)",
+              border: `1px solid ${color ? `${color}28` : "rgba(9, 138, 88, 0.2)"}`,
               color: color || "var(--green, #098a58)",
               display: "flex",
               alignItems: "center",
@@ -1751,7 +1809,7 @@ export function App() {
               </div>
               <button
                 className="button button-secondary"
-                style={{ fontSize: "11.5px", padding: "4px 12px", minHeight: "28px", borderRadius: "8px", border: "1px solid #e2e8f0", fontWeight: 600 }}
+                style={{ fontSize: "11.5px", padding: "5px 12px", minHeight: "30px", borderRadius: "8px", border: "1.5px solid #cbd5e1", fontWeight: 600, color: "#1e293b" }}
                 onClick={() => { setActiveSection("investigation"); fetchCases(); }}
               >
                 Lihat Semua Berkas →
@@ -1769,13 +1827,13 @@ export function App() {
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      padding: "9px 12px",
+                      padding: "10px 14px",
                       borderRadius: "10px",
                       background: "#f8fafc",
-                      border: "1px solid #f1f5f9",
+                      border: "1px solid #e2e8f0",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600, color: "#334155" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600, color: "#1e293b" }}>
                       <span style={{ color: cfg.color }}>{cfg.icon}</span>
                       <span>{cfg.label}</span>
                     </div>
@@ -1787,6 +1845,7 @@ export function App() {
                         borderRadius: "6px",
                         background: cfg.bg,
                         color: cfg.color,
+                        border: `1px solid ${cfg.color}33`,
                       }}
                     >
                       {count.toLocaleString("id-ID")}
@@ -1815,11 +1874,11 @@ export function App() {
               </div>
               <button
                 className="button button-secondary"
-                style={{ fontSize: "11px", padding: "4px 10px", minHeight: "28px", borderRadius: "8px", border: "1px solid #e2e8f0" }}
+                style={{ fontSize: "11.5px", padding: "5px 10px", minHeight: "30px", borderRadius: "8px", border: "1.5px solid #cbd5e1", color: "#1e293b" }}
                 onClick={fetchHealth}
                 title="Segarkan status kesiapan"
               >
-                <RefreshCw size={12} />
+                <RefreshCw size={13} />
               </button>
             </div>
 
@@ -1828,7 +1887,7 @@ export function App() {
                 {[
                   { name: "Pangkalan Data Resmi BPJS (PostgreSQL)", desc: `${data?.summary.total_claims ? data.summary.total_claims.toLocaleString("id-ID") + " klaim aktif" : "Port 5433"}`, status: isDbConnected ? "SIAP & AKTIF" : "KENDALA KONEKSI" },
                   { name: "Layanan Skrining Cerdas Anti-Fraud (FastAPI)", desc: "PyTorch Heterogeneous R-GCN Live", status: isAiConnected ? "SIAP & AKTIF" : "SIAGA (STANDBY)" },
-                  { name: "Gerbang Keamanan & Autentikasi RBAC", desc: "HMAC-SHA256 Token Vault", status: "SIAP & AKTIF" },
+                  { name: "Gerbang Keamanan & Autentikasi RBAC", desc: "HMAC-SHA256 Token Vault • 5 Tupoksi Akun", status: "SIAP & AKTIF" },
                 ].map((svc) => (
                   <div
                     key={svc.name}
@@ -1837,24 +1896,25 @@ export function App() {
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      padding: "9px 12px",
+                      padding: "10px 14px",
                       borderRadius: "10px",
                       background: "#f8fafc",
-                      border: "1px solid #f1f5f9",
+                      border: "1px solid #e2e8f0",
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>{svc.name}</div>
-                      <div style={{ fontSize: "11px", color: "#64748b" }}>{svc.desc}</div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>{svc.name}</div>
+                      <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>{svc.desc}</div>
                     </div>
                     <span
                       style={{
                         fontSize: "10px",
                         fontWeight: 700,
-                        padding: "2px 8px",
+                        padding: "3px 9px",
                         borderRadius: "6px",
+                        border: `1px solid ${svc.status.includes("AKTIF") ? "#a7f3d0" : svc.status.includes("SIAGA") ? "#fde68a" : "#fecaca"}`,
                         background: svc.status.includes("AKTIF") ? "#d1fae5" : svc.status.includes("SIAGA") ? "#fef3c7" : "#fee2e2",
-                        color: svc.status.includes("AKTIF") ? "#059669" : svc.status.includes("SIAGA") ? "#d97706" : "#dc2626",
+                        color: svc.status.includes("AKTIF") ? "#047857" : svc.status.includes("SIAGA") ? "#b45309" : "#dc2626",
                       }}
                     >
                       {svc.status}
@@ -3196,7 +3256,7 @@ export function App() {
             ["graph", "Peta Jejaring Faskes & Dokter", <Network size={16}/>],
           ] as const).map(([view, label, icon]) => (
             <button key={view} onClick={() => setInvestigationView(view as InvestigationView)}
-              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: investigationView === view ? "#e6efe6" : "transparent", color: investigationView === view ? "var(--dark-green)" : "#475569", fontWeight: investigationView === view ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
+              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", border: `1px solid ${investigationView === view ? "#bbf7d0" : "transparent"}`, background: investigationView === view ? "#eef7f2" : "transparent", color: investigationView === view ? "var(--dark-green)" : "#475569", fontWeight: investigationView === view ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.16s ease" }}>
               <span style={{ color: investigationView === view ? "var(--green)" : "var(--muted)" }}>{icon}</span>{label}
             </button>
           ))}
@@ -3290,7 +3350,7 @@ export function App() {
         <div className="card subnav-card">
           {([["ingestion", "Penerimaan Berkas", <Database size={16}/>], ["quality", "Validasi Mutu Berkas", <CheckSquare size={16}/>], ["alert_explorer", "Penyaringan Klaim", <AlertCircle size={16}/>], ["model_eval", "Akurasi Skrining", <Zap size={16}/>]] as const).map(([v, l, ic]) => (
             <button key={v} onClick={() => setDataView(v as DataView)}
-              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: dataView === v ? "#e6efe6" : "transparent", color: dataView === v ? "var(--dark-green)" : "#475569", fontWeight: dataView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
+              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", border: `1px solid ${dataView === v ? "#bbf7d0" : "transparent"}`, background: dataView === v ? "#eef7f2" : "transparent", color: dataView === v ? "var(--dark-green)" : "#475569", fontWeight: dataView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.16s ease" }}>
               <span style={{ color: dataView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
             </button>
           ))}
@@ -3393,7 +3453,7 @@ export function App() {
         <div className="card subnav-card">
           {([["performance", "Kinerja Operasional", <BarChart3 size={16}/>], ["outcomes", "Hasil Putusan Berkas", <Award size={16}/>], ["model", "Akurasi Skrining", <Zap size={16}/>], ["audit", "Buku Log Audit", <History size={16}/>]] as const).map(([v, l, ic]) => (
             <button key={v} onClick={() => setReportsView(v as ReportsView)}
-              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: reportsView === v ? "#e6efe6" : "transparent", color: reportsView === v ? "var(--dark-green)" : "#475569", fontWeight: reportsView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
+              style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", border: `1px solid ${reportsView === v ? "#bbf7d0" : "transparent"}`, background: reportsView === v ? "#eef7f2" : "transparent", color: reportsView === v ? "var(--dark-green)" : "#475569", fontWeight: reportsView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.16s ease" }}>
               <span style={{ color: reportsView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
             </button>
           ))}
@@ -3536,7 +3596,7 @@ export function App() {
             <div className="card subnav-card">
               {([["users", "Kelola Akun Petugas", <Users size={16}/>], ["health", "Kondisi Infrastruktur", <Activity size={16}/>], ["audit_trail", "Buku Log Audit", <History size={16}/>]] as const).map(([v, l, ic]) => (
                 <button key={v} onClick={() => setAdminView(v as AdminView)}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "14px", border: "none", background: adminView === v ? "#e6efe6" : "transparent", color: adminView === v ? "var(--dark-green)" : "#475569", fontWeight: adminView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.18s" }}>
+                  style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "10px", border: `1px solid ${adminView === v ? "#bbf7d0" : "transparent"}`, background: adminView === v ? "#eef7f2" : "transparent", color: adminView === v ? "var(--dark-green)" : "#475569", fontWeight: adminView === v ? 700 : 500, fontSize: "13px", cursor: "pointer", textAlign: "left", transition: "all 0.16s ease" }}>
                   <span style={{ color: adminView === v ? "var(--green)" : "var(--muted)" }}>{ic}</span>{l}
                 </button>
               ))}

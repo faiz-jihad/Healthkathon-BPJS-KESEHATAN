@@ -848,19 +848,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, backendUrl
                     fontSize: "13.5px",
                     fontWeight: 700,
                     padding: "12px 24px",
-                    borderRadius: "12px",
-                    border: "none",
-                    boxShadow: "0 4px 14px rgba(9, 138, 88, 0.3)",
+                    borderRadius: "10px",
+                    border: "1px solid #076641",
+                    boxShadow: "0 2px 8px rgba(9, 138, 88, 0.28)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
                     cursor: loading ? "wait" : "pointer",
-                    transition: "all 0.2s ease",
+                    transition: "all 0.18s ease",
                     marginTop: "6px",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#076641")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#098a58")}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#076641";
+                    e.currentTarget.style.borderColor = "#054e33";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#098a58";
+                    e.currentTarget.style.borderColor = "#076641";
+                  }}
                 >
                   {loading ? "Memverifikasi Kredensial..." : "Masuk ke Ruang Kerja"}
                   <ArrowRight size={16} />
