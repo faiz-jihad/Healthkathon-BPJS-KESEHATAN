@@ -790,6 +790,8 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE, help=f"Mini-batch size (default: {DEFAULT_BATCH_SIZE})")
     parser.add_argument("--patience", type=int, default=EARLY_STOPPING_PATIENCE, help=f"Early stopping patience (default: {EARLY_STOPPING_PATIENCE})")
     parser.add_argument("--lr", type=float, default=LEARNING_RATE, help=f"Learning rate (default: {LEARNING_RATE})")
+    parser.add_argument("--eval-only", action="store_true", help="Skip training and directly evaluate saved checkpoint on the test set")
+    parser.add_argument("--threshold", type=float, default=DECISION_THRESHOLD, help=f"Decision threshold (default: {DECISION_THRESHOLD})")
     return parser.parse_args()
 
 
@@ -830,6 +832,25 @@ def main() -> None:
     print(f"  - Hidden Channels: {HIDDEN_CHANNELS}")
     print(f"  - Relations Handled: {len(data.edge_types)}")
     print(f"  - Total Trainable Parameters: {total_params:,}")
+
+    # Direct Evaluation Fast-Path (skips training if --eval-only is specified)
+    if args.eval_only:
+        print("\n" + "=" * 78)
+        print(f"{'[EVALUATION ONLY] EVALUATING TEST SET DIRECTLY FROM CHECKPOINT':^78}")
+        print("=" * 78)
+        test_indices = torch.where(data["claim"].test_mask)[0]
+        print(f"\n[DataLoader] Initializing Test Loader for {len(test_indices):,} Unseen Test Claims ({len(test_indices) // args.batch_size + 1} batches)...")
+        test_loader = create_hetero_loader(data, test_indices, batch_size=args.batch_size, shuffle=False, device=device)
+        test_results = evaluate_test_set(
+            model=model,
+            test_loader=test_loader,
+            data=data,
+            checkpoint_path=CHECKPOINT_PATH,
+            device=device,
+            threshold=args.threshold,
+        )
+        print("[Done] Phase 2 Test Evaluation completed successfully!")
+        return
 
     # 4. Create Mini-Batch Subgraph DataLoaders
     train_indices = torch.where(data["claim"].train_mask)[0]

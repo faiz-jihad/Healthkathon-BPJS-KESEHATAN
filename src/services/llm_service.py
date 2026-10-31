@@ -288,23 +288,30 @@ async def generate_audit_brief(
 
     # Local fallback narrative generator
     def _local_brief_generator() -> str:
-        first_reason = evidence_reasons[0] if evidence_reasons else "Transaksi telah diperiksa melalui sistem verifikasi."
+        # Extract meaningful root cause without repeating probability percentages
+        meaningful_reasons = [
+            r for r in evidence_reasons
+            if not ("probabilitas" in r.lower() or "model r-gcn" in r.lower())
+        ]
+        specific_cause = meaningful_reasons[0] if meaningful_reasons else ""
         prob_pct = f"{fraud_prob * 100:.1f}%"
 
         if pre_payment_gate == "REJECT_FOR_HUMAN_REVIEW" or risk_level == "HIGH":
+            detail = f" Indikasi anomali: {specific_cause}." if specific_cause else " Terdeteksi deviasi topologi multi-relasi berisiko tinggi."
             return (
-                f"Klaim {claim_id} ditandai RISIKO TINGGI (Putusan: REJECT FOR HUMAN REVIEW) dengan probabilitas anomali {prob_pct}. "
-                f"Ditemukan indikasi penyimpangan kritis: {first_reason} sehingga klaim ditangguhkan untuk audit investigatif medis."
+                f"Klaim {claim_id} ditandai RISIKO TINGGI (Putusan: REJECT FOR HUMAN REVIEW) dengan skor kecurangan {prob_pct}.{detail} "
+                f"Pencairan dana ditangguhkan sementara untuk audit investigatif medis BPJS Kesehatan."
             )
         elif pre_payment_gate == "FLAGGED_WARNING" or risk_level == "MEDIUM":
+            detail = f" Catatan verifikasi: {specific_cause}." if specific_cause else " Terdeteksi beban operasional di atas batas normal."
             return (
-                f"Klaim {claim_id} berstatus PERINGATAN (Putusan: FLAGGED WARNING) dengan skor anomali {prob_pct}. "
-                f"Terdeteksi catatan verifikasi operasional ({first_reason}) yang memerlukan konfirmasi sebelum pencairan dana."
+                f"Klaim {claim_id} berstatus PERINGATAN (Putusan: FLAGGED WARNING) dengan skor anomali {prob_pct}.{detail} "
+                f"Pembayaran diproses dengan syarat verifikasi berkala (post-audit sampling)."
             )
         else:
             return (
-                f"Klaim {claim_id} terverifikasi BERSIH (Putusan: AUTO APPROVE) dengan probabilitas risiko {prob_pct}. "
-                f"Seluruh parameter klinis dan operasional dokter maupun faskes memenuhi standar kewajaran BPJS Kesehatan."
+                f"Klaim {claim_id} terverifikasi BERSIH (Putusan: AUTO APPROVE) dengan skor risiko rendah {prob_pct}. "
+                f"Seluruh parameter klinis dan operasional memenuhi standar kewajaran BPJS Kesehatan."
             )
 
     # Prepare prompt messages

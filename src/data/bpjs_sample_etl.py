@@ -35,8 +35,7 @@ try:
     import torch_geometric.transforms as T
     from torch_geometric.data import HeteroData
     TORCH_AVAILABLE = True
-except Exception as e:
-    print(f"[Import Notice] {type(e).__name__}: {e}")
+except Exception:
     torch = None
     T = None
     HeteroData = None

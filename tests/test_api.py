@@ -102,9 +102,10 @@ async def run_tests():
         )
         sim_res = await predict_claim(sample_payload)
         print(f"    Claim ID: {sim_res.claim_id}")
-        print(f"    Fraud Probability: {sim_res.fraud_probability:.3f} | Gate: {sim_res.pre_payment_gate}")
-        print(f"    Risk Level: {sim_res.risk_level}")
-        print(f"    Referral Distance: {sim_res.referral_distance_to_fktp} km (Missing: {sim_res.referral_distance_missing})")
+        print(f"    Decision Gate: {sim_res.pre_payment_gate} (Risk Level: {sim_res.risk_level})")
+        print(f"    Fraud Probability: {sim_res.fraud_probability:.3f} | Threshold Active: {sim_res.applied_threshold}")
+        print(f"    Referral Geo-Distance: {sim_res.referral_distance_to_fktp:.1f} km (Imputed: {sim_res.referral_distance_missing})")
+        print(f"    Primary Fraud Trigger: {sim_res.xai_explanation.primary_fraud_trigger}")
         assert sim_res.applied_threshold == 0.70
         assert sim_res.warning_threshold == 0.40
         assert sim_res.referral_distance_to_fktp is not None
@@ -112,10 +113,10 @@ async def run_tests():
         assert sim_res.xai_explanation.audit_brief is not None
         sim_brief = sim_res.xai_explanation.audit_brief
         print(f"    [Audit Brief] Provider: {sim_brief.llm_provider_used} (is_fallback={sim_brief.is_fallback})")
-        print(f"    [Audit Brief] Narrative: {sim_brief.audit_narrative}")
+        print(f"    [Audit Brief] Executive Summary: {sim_brief.audit_narrative}")
 
         # 5. Test POST /api/v1/claims/{claim_id}/chat (Copilot Interactive Chat)
-        print(f"\n[5] Testing POST /api/v1/claims/{{claim_id}}/chat on ({fraud_c_cid}) ...")
+        print(f"\n[5] Testing POST /api/v1/claims/{{claim_id}}/chat (Interactive AI Copilot on {fraud_c_cid}) ...")
         chat_req = ClaimChatRequest(
             user_message="Apakah ada indikasi konflik spasial atau phantom billing pada klaim ini?",
             chat_history=[
@@ -124,9 +125,10 @@ async def run_tests():
             ],
         )
         chat_res = await chat_claim_copilot(fraud_c_cid, chat_req)
-        print(f"    Claim ID: {chat_res.claim_id}")
-        print(f"    Provider Used: {chat_res.provider_used} | is_fallback: {chat_res.is_fallback}")
-        print(f"    Copilot Reply:\n    \"{chat_res.reply}\"")
+        print(f"    Target Claim ID : {chat_res.claim_id}")
+        print(f"    LLM Provider    : {chat_res.provider_used} (is_fallback={chat_res.is_fallback})")
+        print(f"    Auditor Question: \"{chat_req.user_message}\"")
+        print(f"    Copilot Answer  : \"{chat_res.reply}\"")
         assert chat_res.claim_id == fraud_c_cid
         assert len(chat_res.reply) > 10
 
