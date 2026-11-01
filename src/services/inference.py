@@ -20,6 +20,10 @@ except (ImportError, OSError):
     torch = None
     TORCH_AVAILABLE = False
 
+# Backward compatibility alias for checkpoints referencing 'train_rgcn'
+from src.models import rgcn
+sys.modules.setdefault("train_rgcn", rgcn)
+
 
 from src.config import (
     DOCTOR_EXTREME_CAPACITY_LIMIT,

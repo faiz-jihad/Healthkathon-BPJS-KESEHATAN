@@ -5,11 +5,25 @@ Controller layer providing RESTful endpoints for real-time claim fraud risk asse
 """
 
 import logging
+import sys
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, Optional
 import pandas as pd
 from sqlalchemy import text
+
+# Dynamic path resolution and unpickling backward compatibility
+ROOT_DIR = Path(__file__).resolve().parent
+SCRIPTS_DIR = ROOT_DIR / "scripts"
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+# Register train_rgcn alias in sys.modules to prevent unpickling failure
+from src.models import rgcn
+sys.modules.setdefault("train_rgcn", rgcn)
 
 try:
     import httpx
