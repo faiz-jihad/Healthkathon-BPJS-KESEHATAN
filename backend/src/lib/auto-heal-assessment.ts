@@ -247,11 +247,11 @@ export async function evaluateAndHealClaim(
         byDate.set(dKey, list);
       }
       let bestList: any[] = effectiveDayClaims;
-      for (const [, list] of byDate.entries()) {
+      byDate.forEach((list) => {
         if (list.length > bestList.length) {
           bestList = list;
         }
-      }
+      });
       effectiveDayClaims = bestList;
     }
 
