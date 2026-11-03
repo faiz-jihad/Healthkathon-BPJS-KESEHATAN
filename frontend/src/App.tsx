@@ -254,6 +254,235 @@ const DEFAULT_ACCOUNTS: Record<AppRole, { username: string; defaultPassword: str
 // MAIN APP
 // ============================================================
 
+
+// ============================================================
+// STABLE PRESENTATIONAL COMPONENTS (MOVED TO TOP-LEVEL TO PREVENT UNMOUNT ON STATE UPDATE)
+// ============================================================
+
+const RoleBadge = React.memo(function RoleBadge({ role }: { role: string }) {
+  const cfg = ROLE_CONFIG[role] || { label: role, color: "#64748b", bg: "#f1f5f9" };
+  return (
+    <span
+      style={{
+        fontSize: "10.5px",
+        fontWeight: 700,
+        padding: "3px 9px",
+        borderRadius: "6px",
+        background: cfg.bg,
+        color: cfg.color,
+        border: `1px solid ${cfg.color}33`,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "4px",
+        letterSpacing: "0.02em",
+        lineHeight: 1.3,
+      }}
+    >
+      {cfg.label}
+    </span>
+  );
+});
+
+const StatusBadge = React.memo(function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] || { label: status, color: "#64748b", bg: "#f1f5f9", icon: null };
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        fontSize: "11px",
+        fontWeight: 600,
+        padding: "3px 9px",
+        borderRadius: "6px",
+        background: cfg.bg,
+        color: cfg.color,
+        border: `1px solid ${cfg.color}33`,
+        whiteSpace: "nowrap",
+        lineHeight: 1.3,
+      }}
+    >
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+});
+
+const PriorityBadge = React.memo(function PriorityBadge({ priority }: { priority: string }) {
+  const cfg = PRIORITY_CONFIG[priority] || PRIORITY_CONFIG.LOW;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        fontSize: "11px",
+        fontWeight: 700,
+        padding: "3px 8px",
+        borderRadius: "6px",
+        background: cfg.bg,
+        color: cfg.color,
+        border: `1px solid ${cfg.color}33`,
+        whiteSpace: "nowrap",
+        lineHeight: 1.3,
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }} />
+      {cfg.label || priority}
+    </span>
+  );
+});
+
+const MetricCard = React.memo(function MetricCard({
+  title,
+  value,
+  subtitle,
+  color,
+  icon,
+  className = "",
+}: {
+  title: string;
+  value: string | number | null;
+  subtitle?: string;
+  color?: string;
+  icon: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`card card-interactive animate-fade-in ${className}`}
+      style={{
+        padding: "18px 20px",
+        borderRadius: "16px",
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+      }}
+    >
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#64748b" }}>
+            {title}
+          </span>
+          <span
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
+              background: color ? `${color}14` : "rgba(9, 138, 88, 0.1)",
+              border: `1px solid ${color ? `${color}28` : "rgba(9, 138, 88, 0.2)"}`,
+              color: color || "var(--green, #098a58)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </span>
+        </div>
+        <div style={{ fontSize: "25px", fontWeight: 800, letterSpacing: "-0.5px", color: color || "#0f172a", lineHeight: 1.2 }}>
+          {value !== null && value !== undefined ? value : <span style={{ fontSize: "14px", color: "var(--muted)", fontWeight: 500 }}>Belum Tersedia</span>}
+        </div>
+      </div>
+      {subtitle && (
+        <div style={{ fontSize: "11.5px", color: "#64748b", marginTop: "10px", lineHeight: 1.4, borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
+          {subtitle}
+        </div>
+      )}
+    </div>
+  );
+});
+
+const SectionHeader = React.memo(function SectionHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+      <div>
+        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h1>
+        {subtitle && <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--muted)" }}>{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  );
+});
+
+const EmptyState = React.memo(function EmptyState({
+  icon,
+  message,
+  sub,
+  action,
+}: {
+  icon: React.ReactNode;
+  message: string;
+  sub?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div
+      className="card empty-state-container animate-fade-in"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: "48px 24px",
+        margin: "12px 0",
+        borderRadius: "16px",
+        background: "#ffffff",
+        border: "1px dashed var(--border, #d1d5db)",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        className="empty-state-icon"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "14px",
+          opacity: 0.6,
+          color: "var(--green)",
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)", marginBottom: "6px" }}>{message}</div>
+      {sub && <div style={{ fontSize: "13px", maxWidth: "480px", lineHeight: 1.5, color: "var(--muted)" }}>{sub}</div>}
+      {action && <div style={{ marginTop: "16px" }}>{action}</div>}
+    </div>
+  );
+});
+
+const LoadingSpinner = () => (
+  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px" }}>
+    <RefreshCw size={24} className="animate-spin" style={{ color: "var(--green)" }} />
+  </div>
+);
+
+const DataSourceBanner = React.memo(function DataSourceBanner({ error }: { error: string }) {
+  return (
+    <div className="card" style={{ background: "#faecec", borderColor: "#eec5c5", color: "#a53e3e", marginBottom: "16px", padding: "14px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: 700, fontSize: "13px" }}>
+        <AlertTriangle size={16}/> Sumber Data Tidak Tersedia (Prinsip Integritas Data)
+      </div>
+      <p style={{ marginTop: "6px", fontSize: "12px", marginBottom: 0 }}>{error}</p>
+    </div>
+  );
+});
+
 export function App() {
   const NAV_ITEMS: Array<{ key: NavSection; label: string; icon: React.ReactNode; roles: string[] }> = [
     { key: "overview", label: "Beranda Utama", icon: <LayoutGrid size={20}/>, roles: ["all"] },
@@ -1196,175 +1425,7 @@ export function App() {
     healthStatus?.ai_engine?.connected === true || healthStatus?.ai_service === "connected"
   );
 
-  const RoleBadge = ({ role }: { role: string }) => {
-    const cfg = ROLE_CONFIG[role] || { label: role, color: "#64748b", bg: "#f1f5f9" };
-    return (
-      <span
-        style={{
-          fontSize: "10.5px",
-          fontWeight: 700,
-          padding: "3px 9px",
-          borderRadius: "6px",
-          background: cfg.bg,
-          color: cfg.color,
-          border: `1px solid ${cfg.color}33`,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "4px",
-          letterSpacing: "0.02em",
-          lineHeight: 1.3,
-        }}
-      >
-        {cfg.label}
-      </span>
-    );
-  };
-
-  const StatusBadge = ({ status }: { status: string }) => {
-    const cfg = STATUS_CONFIG[status] || { label: status, color: "#64748b", bg: "#f1f5f9", icon: null };
-    return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "5px",
-          fontSize: "11px",
-          fontWeight: 600,
-          padding: "3px 9px",
-          borderRadius: "6px",
-          background: cfg.bg,
-          color: cfg.color,
-          border: `1px solid ${cfg.color}33`,
-          whiteSpace: "nowrap",
-          lineHeight: 1.3,
-        }}
-      >
-        {cfg.icon}
-        {cfg.label}
-      </span>
-    );
-  };
-
-  const PriorityBadge = ({ priority }: { priority: string }) => {
-    const cfg = PRIORITY_CONFIG[priority] || PRIORITY_CONFIG.LOW;
-    return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "5px",
-          fontSize: "11px",
-          fontWeight: 700,
-          padding: "3px 8px",
-          borderRadius: "6px",
-          background: cfg.bg,
-          color: cfg.color,
-          border: `1px solid ${cfg.color}33`,
-          whiteSpace: "nowrap",
-          lineHeight: 1.3,
-        }}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.dot, display: "inline-block" }} />
-        {cfg.label || priority}
-      </span>
-    );
-  };
-
-  const MetricCard = ({ title, value, subtitle, color, icon, className = "" }: { title: string; value: string | number | null; subtitle?: string; color?: string; icon: React.ReactNode; className?: string }) => (
-    <div
-      className={`card card-interactive animate-fade-in ${className}`}
-      style={{
-        padding: "18px 20px",
-        borderRadius: "16px",
-        background: "#ffffff",
-        border: "1px solid #e2e8f0",
-        boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-      }}
-    >
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#64748b" }}>
-            {title}
-          </span>
-          <span
-            style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "8px",
-              background: color ? `${color}14` : "rgba(9, 138, 88, 0.1)",
-              border: `1px solid ${color ? `${color}28` : "rgba(9, 138, 88, 0.2)"}`,
-              color: color || "var(--green, #098a58)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </span>
-        </div>
-        <div style={{ fontSize: "25px", fontWeight: 800, letterSpacing: "-0.5px", color: color || "#0f172a", lineHeight: 1.2 }}>
-          {value !== null && value !== undefined ? value : <span style={{ fontSize: "14px", color: "var(--muted)", fontWeight: 500 }}>Belum Tersedia</span>}
-        </div>
-      </div>
-      {subtitle && (
-        <div style={{ fontSize: "11.5px", color: "#64748b", marginTop: "10px", lineHeight: 1.4, borderTop: "1px solid #f1f5f9", paddingTop: "8px" }}>
-          {subtitle}
-        </div>
-      )}
-    </div>
-  );
-
-  const SectionHeader = ({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) => (
-    <div className="animate-fade-in" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
-      <div>
-        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800 }}>{title}</h1>
-        {subtitle && <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--muted)" }}>{subtitle}</p>}
-      </div>
-      {action}
-    </div>
-  );
-
-  const EmptyState = ({ icon, message, sub, action }: { icon: React.ReactNode; message: string; sub?: string; action?: React.ReactNode }) => (
-    <div
-      className="card empty-state-container animate-fade-in"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center",
-        padding: "48px 24px",
-        margin: "12px 0",
-        borderRadius: "16px",
-        background: "#ffffff",
-        border: "1px dashed var(--border, #d1d5db)",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        className="empty-state-icon"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: "14px",
-          opacity: 0.6,
-          color: "var(--green)",
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)", marginBottom: "6px" }}>{message}</div>
-      {sub && <div style={{ fontSize: "13px", maxWidth: "480px", lineHeight: 1.5, color: "var(--muted)" }}>{sub}</div>}
-      {action && <div style={{ marginTop: "16px" }}>{action}</div>}
-    </div>
-  );
-
+  // Badges & SectionHeader moved to top-level for performance and input focus stability
   const getEffectiveSubgraph = useCallback((claim: ClaimRecord | null): { nodes: SubgraphNode[]; edges: SubgraphEdge[] } => {
     if (!claim) return { nodes: [], edges: [] };
     const existingNodes = claim.xai_explanation?.subgraph_evidence?.nodes || [];
@@ -1426,20 +1487,8 @@ export function App() {
     return { nodes, edges };
   }, []);
 
-  const LoadingSpinner = () => (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px" }}>
-      <RefreshCw size={24} className="animate-spin" style={{ color: "var(--green)" }} />
-    </div>
-  );
+  // LoadingSpinner & DataSourceBanner moved to top-level
 
-  const DataSourceBanner = ({ error }: { error: string }) => (
-    <div className="card" style={{ background: "#faecec", borderColor: "#eec5c5", color: "#a53e3e", marginBottom: "16px", padding: "14px 18px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: 700, fontSize: "13px" }}>
-        <AlertTriangle size={16}/> Sumber Data Tidak Tersedia (Prinsip Integritas Data)
-      </div>
-      <p style={{ marginTop: "6px", fontSize: "12px", marginBottom: 0 }}>{error}</p>
-    </div>
-  );
 
   // ============================================================
   // SECTION: OVERVIEW
