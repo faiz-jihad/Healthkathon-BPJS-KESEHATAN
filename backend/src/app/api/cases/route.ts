@@ -159,10 +159,7 @@ export async function GET(request: Request) {
         OR: [{ assignedTo: null }, { assignedTo: user.username }],
       });
     }
-
     // statusFilter applied to where clause (pipeline summary counts all stages within base scope)
-
-    }
     if (priorityFilter && priorityFilter !== "ALL") {
       baseConditions.push({ priority: priorityFilter });
     }
