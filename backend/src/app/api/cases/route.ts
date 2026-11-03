@@ -140,7 +140,7 @@ export async function GET(request: Request) {
   const priorityFilter = url.searchParams.get("priority"); // HIGH | MEDIUM | LOW
   const assignedTo = url.searchParams.get("assigned_to"); // username
   const search = (url.searchParams.get("search") || "").toLowerCase().trim();
-  const sortBy = url.searchParams.get("sort_by") || "priority_desc"; // priority_desc | created_asc | created_desc | sla_asc
+  const sortBy = url.searchParams.get("sort_by") || "created_desc"; // created_desc | priority_desc | created_asc | sla_asc
   const format = (url.searchParams.get("format") || "json").toLowerCase();
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
   const limit = Math.min(
@@ -149,47 +149,63 @@ export async function GET(request: Request) {
   );
 
   try {
-    const andConditions: any[] = [];
+    const baseConditions: any[] = [];
 
     // Supervisor and Admin see all cases; others see only assigned to them (or unassigned in their queue)
     const canViewAll = hasPermission(user!.role, PERMISSIONS.VIEW_ALL_CASES);
     if (!canViewAll && user && (!assignedTo || assignedTo === "ALL")) {
       // Verifikator/Investigator see: unassigned OR assigned to them
-      andConditions.push({
+      baseConditions.push({
         OR: [{ assignedTo: null }, { assignedTo: user.username }],
       });
     }
 
-    if (statusFilter && statusFilter !== "ALL") {
-      andConditions.push({ status: statusFilter });
+    // statusFilter applied to where clause (pipeline summary counts all stages within base scope)
+
     }
     if (priorityFilter && priorityFilter !== "ALL") {
-      andConditions.push({ priority: priorityFilter });
+      baseConditions.push({ priority: priorityFilter });
     }
     if (assignedTo && assignedTo !== "ALL") {
       if (assignedTo === "UNASSIGNED") {
-        andConditions.push({ assignedTo: null });
+        baseConditions.push({ assignedTo: null });
       } else {
-        andConditions.push({ assignedTo });
+        baseConditions.push({ assignedTo });
       }
     }
     if (search) {
-      andConditions.push({
+      baseConditions.push({
         OR: [
           { caseNumber: { contains: search, mode: "insensitive" } },
           { claimId: { contains: search, mode: "insensitive" } },
           { assignedTo: { contains: search, mode: "insensitive" } },
+          { claim: { doctorId: { contains: search, mode: "insensitive" } } },
+          { claim: { doctor: { specialty: { contains: search, mode: "insensitive" } } } },
+          { claim: { facilityId: { contains: search, mode: "insensitive" } } },
+          { claim: { facility: { facilityClass: { contains: search, mode: "insensitive" } } } },
+          { claim: { patientId: { contains: search, mode: "insensitive" } } },
+          { claim: { patient: { homeRegion: { contains: search, mode: "insensitive" } } } },
+          { claim: { icd10Code: { contains: search, mode: "insensitive" } } },
+          { outcome: { contains: search, mode: "insensitive" } },
+          { outcomeNotes: { contains: search, mode: "insensitive" } },
         ],
       });
     }
 
+    const summaryWhere: any = baseConditions.length > 0 ? { AND: baseConditions } : undefined;
+    const andConditions = [...baseConditions];
+    if (statusFilter && statusFilter !== "ALL") {
+      andConditions.push({ status: statusFilter });
+    }
     const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
     let orderBy: any = [
+      { createdAt: "desc" },
       { priorityScore: "desc" },
-      { createdAt: "asc" },
     ];
-    if (sortBy === "created_asc") {
+    if (sortBy === "priority_desc") {
+      orderBy = [{ priorityScore: "desc" }, { createdAt: "desc" }];
+    } else if (sortBy === "created_asc") {
       orderBy = { createdAt: "asc" };
     } else if (sortBy === "created_desc") {
       orderBy = { createdAt: "desc" };
@@ -362,19 +378,31 @@ export async function GET(request: Request) {
     const [queueStats] = await Promise.all([
       db.caseInvestigation.groupBy({
         by: ["status"],
+        where: summaryWhere,
         _count: { id: true },
       }),
     ]);
 
-    const statusCounts: Record<string, number> = {};
+    const statusCounts: Record<string, number> = {
+      NEW: 0,
+      FLAGGED_FOR_REVIEW: 0,
+      UNDER_REVIEW: 0,
+      AWAITING_EVIDENCE: 0,
+      ESCALATED: 0,
+      RESOLVED: 0,
+      CLOSED: 0,
+    };
+    let totalInQueue = 0;
     for (const row of queueStats) {
       statusCounts[row.status] = row._count.id;
+      totalInQueue += row._count.id;
     }
 
     return Response.json({
       status: "SUCCESS",
       pagination: { page, limit, total, total_pages: Math.ceil(total / limit) },
       queue_summary: statusCounts,
+      total_in_queue: totalInQueue,
       cases: mappedCases,
     });
   } catch (dbErr: any) {

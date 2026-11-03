@@ -357,7 +357,8 @@ export function App() {
   const [reviewStatusFilter, setReviewStatusFilter] = useState<string>("ALL");
   const [gateFilter, setGateFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [sortBy, setSortBy] = useState<string>("fri_desc");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("newest");
   const [loading, setLoading] = useState<boolean>(true);
   const [dataSourceError, setDataSourceError] = useState<string | null>(null);
 
@@ -370,7 +371,8 @@ export function App() {
   const [caseStatusFilter, setCaseStatusFilter] = useState("ALL");
   const [casePriorityFilter, setCasePriorityFilter] = useState("ALL");
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
-  const [caseSortBy, setCaseSortBy] = useState("priority_desc");
+  const [debouncedCaseSearch, setDebouncedCaseSearch] = useState("");
+  const [caseSortBy, setCaseSortBy] = useState("created_desc");
   const [caseQueueSummary, setCaseQueueSummary] = useState<Record<string, number>>({});
   const [caseAction, setCaseAction] = useState("");
   const [caseOutcome, setCaseOutcome] = useState("REFERRED_FOR_ACTION");
@@ -392,6 +394,7 @@ export function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditSearchQuery, setAuditSearchQuery] = useState("");
+  const [debouncedAuditSearch, setDebouncedAuditSearch] = useState("");
   const [auditActionFilter, setAuditActionFilter] = useState("ALL");
 
   // Users management
@@ -431,6 +434,22 @@ export function App() {
     "Content-Type": "application/json",
     ...(currentUser.token ? { Authorization: `Bearer ${currentUser.token}` } : {}),
   }), [currentUser.token]);
+
+  // Debounced search queries for smooth real-time searching without spamming requests
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCaseSearch(caseSearchQuery), 300);
+    return () => clearTimeout(t);
+  }, [caseSearchQuery]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAuditSearch(auditSearchQuery), 300);
+    return () => clearTimeout(t);
+  }, [auditSearchQuery]);
 
   // ============================================================
   // API FUNCTIONS
@@ -504,19 +523,20 @@ export function App() {
     setRoleMenuOpen(false);
   };
 
-  const fetchClaims = useCallback(async () => {
+  const fetchClaims = useCallback(async (queryOverride?: string | unknown) => {
     setLoading(true);
     setDataSourceError(null);
     try {
+      const q = typeof queryOverride === "string" ? queryOverride : debouncedSearchQuery;
       const params = new URLSearchParams();
       if (riskFilter !== "ALL") params.set("risk_level", riskFilter);
       if (scenarioFilter !== "ALL") params.set("scenario", scenarioFilter);
       if (reviewStatusFilter !== "ALL") params.set("review_status", reviewStatusFilter);
       if (gateFilter !== "ALL") params.set("pre_payment_gate", gateFilter);
       if (sortBy) params.set("sort_by", sortBy);
-      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (q && q.trim()) params.set("search", q.trim());
       params.set("limit", "200");
-      const res = await fetch(`${BACKEND_URL}/api/claims?${params}`, { headers: authHeaders() });
+      const res = await fetch(`${BACKEND_URL}/api/claims?${params.toString()}`, { headers: authHeaders() });
       const isJson = res.headers.get("content-type")?.includes("application/json");
       let json: any = null;
       if (isJson) {
@@ -540,27 +560,29 @@ export function App() {
       setDataSourceError("Koneksi ke API Gateway Backend gagal. Pastikan layanan aktif.");
       setData(null);
     } finally { setLoading(false); }
-  }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, searchQuery, authHeaders]);
+  }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, debouncedSearchQuery, authHeaders, selectedClaim]);
 
-  const fetchCases = useCallback(async () => {
+  const fetchCases = useCallback(async (queryOverride?: string | unknown) => {
     setCasesLoading(true);
     try {
+      const q = typeof queryOverride === "string" ? queryOverride : debouncedCaseSearch;
       const params = new URLSearchParams();
       if (caseStatusFilter !== "ALL") params.set("status", caseStatusFilter);
       if (casePriorityFilter !== "ALL") params.set("priority", casePriorityFilter);
-      if (caseSearchQuery.trim()) params.set("search", caseSearchQuery.trim());
+      if (q && q.trim()) params.set("search", q.trim());
       if (caseSortBy) params.set("sort_by", caseSortBy);
       if (investigationView === "my_cases") {
         params.set("assigned_to", currentUser.username);
       }
-      const res = await fetch(`${BACKEND_URL}/api/cases?${params}&limit=50`, { headers: authHeaders() });
+      params.set("limit", "50");
+      const res = await fetch(`${BACKEND_URL}/api/cases?${params.toString()}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         setCases(json.cases || []);
         setCaseQueueSummary(json.queue_summary || {});
       }
     } catch {} finally { setCasesLoading(false); }
-  }, [caseStatusFilter, casePriorityFilter, caseSearchQuery, caseSortBy, investigationView, currentUser.username, authHeaders]);
+  }, [caseStatusFilter, casePriorityFilter, debouncedCaseSearch, caseSortBy, investigationView, currentUser.username, authHeaders]);
 
   const fetchCaseDetail = async (caseId: string) => {
     setCaseDetailLoading(true);
@@ -586,14 +608,15 @@ export function App() {
     } catch {} finally { setIngestionLoading(false); }
   };
 
-  const fetchAuditLogs = useCallback(async () => {
+  const fetchAuditLogs = useCallback(async (queryOverride?: string | unknown) => {
     setAuditLoading(true);
     try {
+      const q = typeof queryOverride === "string" ? queryOverride : debouncedAuditSearch;
       const params = new URLSearchParams();
       params.set("limit", "100");
       if (auditActionFilter !== "ALL") params.set("action", auditActionFilter);
-      if (auditSearchQuery.trim()) params.set("search", auditSearchQuery.trim());
-      const res = await fetch(`${BACKEND_URL}/api/audit-logs?${params}`, { headers: authHeaders() });
+      if (q && q.trim()) params.set("search", q.trim());
+      const res = await fetch(`${BACKEND_URL}/api/audit-logs?${params.toString()}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         setAuditLogs(
@@ -605,7 +628,7 @@ export function App() {
         );
       }
     } catch {} finally { setAuditLoading(false); }
-  }, [auditActionFilter, auditSearchQuery, authHeaders]);
+  }, [auditActionFilter, debouncedAuditSearch, authHeaders]);
 
   const exportCasesCsv = async () => {
     try {
@@ -614,7 +637,11 @@ export function App() {
       if (caseStatusFilter !== "ALL") params.set("status", caseStatusFilter);
       if (casePriorityFilter !== "ALL") params.set("priority", casePriorityFilter);
       if (caseSearchQuery.trim()) params.set("search", caseSearchQuery.trim());
-      const res = await fetch(`${BACKEND_URL}/api/cases?${params}`, { headers: authHeaders() });
+      if (caseSortBy) params.set("sort_by", caseSortBy);
+      if (investigationView === "my_cases") {
+        params.set("assigned_to", currentUser.username);
+      }
+      const res = await fetch(`${BACKEND_URL}/api/cases?${params.toString()}`, { headers: authHeaders() });
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -633,7 +660,7 @@ export function App() {
       params.set("format", "csv");
       if (auditActionFilter !== "ALL") params.set("action", auditActionFilter);
       if (auditSearchQuery.trim()) params.set("search", auditSearchQuery.trim());
-      const res = await fetch(`${BACKEND_URL}/api/audit-logs?${params}`, { headers: authHeaders() });
+      const res = await fetch(`${BACKEND_URL}/api/audit-logs?${params.toString()}`, { headers: authHeaders() });
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -1138,9 +1165,9 @@ export function App() {
       }
     }
   }, [data?.claims, selectedClaim]);
-  useEffect(() => { fetchClaims(); }, [riskFilter, scenarioFilter, reviewStatusFilter, gateFilter, sortBy, currentUser.token]);
-  useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, investigationView, caseStatusFilter, casePriorityFilter, caseSortBy, currentUser.token]);
-  useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); fetchCases(); } }, [activeSection, currentUser.token]);
+  useEffect(() => { fetchClaims(); }, [fetchClaims]);
+  useEffect(() => { if (activeSection === "investigation") fetchCases(); }, [activeSection, fetchCases]);
+  useEffect(() => { if (activeSection === "overview") { fetchPerformance(); fetchHealth(); fetchCases(); } }, [activeSection, fetchCases]);
   useEffect(() => {
     if (activeSection === "data_intelligence") {
       if (dataView === "ingestion") fetchIngestion();
@@ -1152,8 +1179,8 @@ export function App() {
       if (reportsView === "performance" || reportsView === "outcomes" || reportsView === "model") fetchPerformance();
       if (reportsView === "audit") fetchAuditLogs();
     }
-  }, [activeSection, reportsView, auditActionFilter, currentUser.token]);
-  useEffect(() => { if (activeSection === "administration") { if (adminView === "users") fetchUsers(); if (adminView === "audit_trail") fetchAuditLogs(); if (adminView === "health") fetchHealth(); } }, [activeSection, adminView, auditActionFilter, currentUser.token]);
+  }, [activeSection, reportsView, fetchAuditLogs]);
+  useEffect(() => { if (activeSection === "administration") { if (adminView === "users") fetchUsers(); if (adminView === "audit_trail") fetchAuditLogs(); if (adminView === "health") fetchHealth(); } }, [activeSection, adminView, fetchAuditLogs, currentUser.token]);
   useEffect(() => { if (selectedCase && investigationView === "evidence_center") fetchCaseDetail(selectedCase.id); }, [selectedCase, investigationView]);
 
   // ============================================================
@@ -1949,7 +1976,9 @@ export function App() {
   // SECTION: INVESTIGATION
   // ============================================================
 
-  const renderInvestigationQueue = (onlyMine = false) => (
+  const renderInvestigationQueue = (onlyMine = false) => {
+    const totalInQueue = Object.values(caseQueueSummary).reduce((acc, count) => acc + Number(count || 0), 0);
+    return (
     <div>
       <SectionHeader
         title={onlyMine ? `Tugas Berkas Saya (${currentUser.username})` : "Antrean Berkas Pemeriksaan"}
@@ -1960,10 +1989,32 @@ export function App() {
         }
         action={
           <div className="toolbar-filter-row">
-            <div style={{ position: "relative" }}>
-              <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
-              <input value={caseSearchQuery} onChange={e => setCaseSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchCases()} placeholder="Cari nomor berkas, klaim, petugas…"
-                style={{ padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "210px" }}/>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => fetchCases(caseSearchQuery)}
+                title="Cari Berkas"
+                style={{ position: "absolute", left: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: caseSearchQuery ? "var(--green)" : "var(--muted)", display: "flex", alignItems: "center" }}
+              >
+                <Search size={14} />
+              </button>
+              <input
+                value={caseSearchQuery}
+                onChange={e => setCaseSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && fetchCases(caseSearchQuery)}
+                placeholder="Cari nomor berkas, klaim, dokter, faskes…"
+                style={{ padding: "6px 28px 6px 30px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "230px" }}
+              />
+              {caseSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => { setCaseSearchQuery(""); fetchCases(""); }}
+                  title="Hapus pencarian"
+                  style={{ position: "absolute", right: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "var(--muted)", display: "flex", alignItems: "center" }}
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
             <select value={caseStatusFilter} onChange={e => setCaseStatusFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
               <option value="ALL">Semua Status Berkas</option>
@@ -1976,15 +2027,15 @@ export function App() {
               <option value="LOW">Prioritas Wajar</option>
             </select>
             <select value={caseSortBy} onChange={e => setCaseSortBy(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
+              <option value="created_desc">Berkas Terbaru (Paling Baru)</option>
               <option value="priority_desc">Urgensi Anomali Tertinggi</option>
               <option value="sla_asc">Batas Waktu (SLA) Terdekat</option>
-              <option value="created_desc">Berkas Terbaru</option>
               <option value="created_asc">Berkas Terlama</option>
             </select>
             <button className="button button-secondary" onClick={exportCasesCsv} title="Unduh Rekap Berkas (CSV)">
               <Download size={14}/> CSV
             </button>
-            <button className="button button-secondary" onClick={fetchCases} disabled={casesLoading}><RefreshCw size={14} className={casesLoading ? "animate-spin" : ""}/></button>
+            <button className="button button-secondary" onClick={() => fetchCases()} disabled={casesLoading}><RefreshCw size={14} className={casesLoading ? "animate-spin" : ""}/></button>
           </div>
         }
       />
@@ -2023,7 +2074,7 @@ export function App() {
           >
             <span>Semua Tahapan</span>
             <strong style={{ padding: "1px 7px", borderRadius: "10px", background: caseStatusFilter === "ALL" ? "var(--green)" : "#f1f5f9", color: caseStatusFilter === "ALL" ? "#ffffff" : "#475569", fontSize: "10.5px" }}>
-              {cases.length}
+              {caseStatusFilter === "ALL" ? cases.length : totalInQueue}
             </strong>
           </button>
         </div>
@@ -2065,6 +2116,25 @@ export function App() {
             );
           })}
         </div>
+
+        {caseStatusFilter !== "ALL" && (
+          <div style={{ marginTop: "12px", padding: "8px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px", color: "#166534" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontWeight: 700 }}>Tahap Terpilih:</span>
+              <span>{WORKFLOW_STEPS.find(s => s.key === caseStatusFilter)?.stepNumber}. {WORKFLOW_STEPS.find(s => s.key === caseStatusFilter)?.label}</span>
+              <span style={{ background: "#dcfce7", color: "#15803d", padding: "1px 8px", borderRadius: "8px", fontWeight: 700, fontSize: "11px" }}>
+                {cases.length} Berkas Ditampilkan
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCaseStatusFilter("ALL")}
+              style={{ background: "none", border: "none", color: "var(--dark-green)", textDecoration: "underline", cursor: "pointer", fontWeight: 700, fontSize: "11.5px" }}
+            >
+              Tampilkan Semua Tahapan (Reset Filter)
+            </button>
+          </div>
+        )}
       </div>
 
       {casesLoading ? <SkeletonCaseQueue count={5} /> : cases.length === 0 ? (
@@ -2111,7 +2181,8 @@ export function App() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const renderEvidenceCenter = () => {
     if (!selectedCase) return <EmptyState icon={<FolderOpen size={48}/>} message="Pilih berkas dari antrean" sub="Klik berkas untuk membuka Pusat Telaah Bukti Medis"/>;
@@ -2537,10 +2608,32 @@ export function App() {
       <SectionHeader title="Daftar Klaim &amp; Penyaringan Pra-Pembayaran" subtitle={`${data?.claims.length ?? 0} dari ${data?.summary.total_claims?.toLocaleString("id-ID") ?? "—"} berkas — Sumber: Pangkalan Data Resmi BPJS`}
         action={
           <div className="toolbar-filter-row">
-            <div style={{ position: "relative" }}>
-              <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
-              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchClaims()} placeholder="Cari nomor klaim, dokter, faskes…"
-                style={{ paddingLeft: "32px", padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "185px" }}/>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => fetchClaims(searchQuery)}
+                title="Cari Klaim"
+                style={{ position: "absolute", left: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: searchQuery ? "var(--green)" : "var(--muted)", display: "flex", alignItems: "center" }}
+              >
+                <Search size={14} />
+              </button>
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && fetchClaims(searchQuery)}
+                placeholder="Cari nomor klaim, dokter, faskes…"
+                style={{ padding: "6px 28px 6px 30px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "195px" }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(""); fetchClaims(""); }}
+                  title="Hapus pencarian"
+                  style={{ position: "absolute", right: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "var(--muted)", display: "flex", alignItems: "center" }}
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
             <select value={riskFilter} onChange={e => setRiskFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "11.5px" }}>
               <option value="ALL">Semua Tingkat Risiko</option>
@@ -2570,15 +2663,15 @@ export function App() {
               <option value="AUTO_APPROVE">Lolos Skrining (Auto Approve)</option>
             </select>
             <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "11.5px" }}>
+              <option value="newest">Berkas Terbaru (Paling Baru)</option>
               <option value="fri_desc">Indeks Risiko Tertinggi</option>
               <option value="fri_asc">Indeks Risiko Terendah</option>
               <option value="tariff_desc">Tarif Terbesar</option>
-              <option value="newest">Berkas Terbaru</option>
             </select>
             <button className="button button-secondary" onClick={() => setShowSimulatorModal(true)} title="Simulasi Pengajuan Klaim Baru">
               <PlusCircle size={14}/> Simulasi Klaim Baru
             </button>
-            <button className="button button-secondary" onClick={fetchClaims} disabled={loading}><RefreshCw size={14} className={loading ? "animate-spin" : ""}/></button>
+            <button className="button button-secondary" onClick={() => fetchClaims()} disabled={loading}><RefreshCw size={14} className={loading ? "animate-spin" : ""}/></button>
           </div>
         }
       />
@@ -3514,10 +3607,32 @@ export function App() {
             <SectionHeader title="Buku Catatan Log Audit Terpadu" subtitle="Seluruh aktivitas pemeriksaan, penetapan, dan pengalihan berkas tercatat dengan identitas petugas resmi dan stempel waktu"
               action={
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                  <div style={{ position: "relative" }}>
-                    <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
-                    <input value={auditSearchQuery} onChange={e => setAuditSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchAuditLogs()} placeholder="Cari petugas, aksi, nomor berkas…"
-                      style={{ padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "190px" }}/>
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => fetchAuditLogs(auditSearchQuery)}
+                      title="Cari Log Audit"
+                      style={{ position: "absolute", left: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: auditSearchQuery ? "var(--green)" : "var(--muted)", display: "flex", alignItems: "center" }}
+                    >
+                      <Search size={14} />
+                    </button>
+                    <input
+                      value={auditSearchQuery}
+                      onChange={e => setAuditSearchQuery(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && fetchAuditLogs(auditSearchQuery)}
+                      placeholder="Cari petugas, aksi, nomor berkas…"
+                      style={{ padding: "6px 28px 6px 30px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "190px" }}
+                    />
+                    {auditSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => { setAuditSearchQuery(""); fetchAuditLogs(""); }}
+                        title="Hapus pencarian"
+                        style={{ position: "absolute", right: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "var(--muted)", display: "flex", alignItems: "center" }}
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
                   <select value={auditActionFilter} onChange={e => setAuditActionFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
                     <option value="ALL">Semua Jenis Tindakan</option>
@@ -3533,7 +3648,7 @@ export function App() {
                   <button className="button button-secondary" onClick={exportAuditCsv}>
                     <Download size={14}/> Unduh Rekap Log (CSV)
                   </button>
-                  <button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>
+                  <button className="button button-secondary" onClick={() => fetchAuditLogs()} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>
                 </div>
               }/>
             {!hasPermission(currentUser.role, ["view_audit"]) ? (
@@ -3686,10 +3801,32 @@ export function App() {
                 <SectionHeader title="Buku Catatan Log Audit Terpadu (Seluruh Sistem)" subtitle="Semua aktivitas penting tercatat resmi dengan identitas petugas, stempel waktu, dan detail perubahan"
                   action={
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                      <div style={{ position: "relative" }}>
-                        <Search size={14} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }}/>
-                        <input value={auditSearchQuery} onChange={e => setAuditSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchAuditLogs()} placeholder="Cari petugas, aksi, nomor berkas…"
-                          style={{ padding: "6px 12px 6px 32px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "190px" }}/>
+                      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => fetchAuditLogs(auditSearchQuery)}
+                          title="Cari Log Audit"
+                          style={{ position: "absolute", left: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: auditSearchQuery ? "var(--green)" : "var(--muted)", display: "flex", alignItems: "center" }}
+                        >
+                          <Search size={14} />
+                        </button>
+                        <input
+                          value={auditSearchQuery}
+                          onChange={e => setAuditSearchQuery(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && fetchAuditLogs(auditSearchQuery)}
+                          placeholder="Cari petugas, aksi, nomor berkas…"
+                          style={{ padding: "6px 28px 6px 30px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px", width: "190px" }}
+                        />
+                        {auditSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => { setAuditSearchQuery(""); fetchAuditLogs(""); }}
+                            title="Hapus pencarian"
+                            style={{ position: "absolute", right: "6px", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "var(--muted)", display: "flex", alignItems: "center" }}
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
                       </div>
                       <select value={auditActionFilter} onChange={e => setAuditActionFilter(e.target.value)} style={{ padding: "6px 10px", borderRadius: "12px", border: "1px solid var(--line)", fontSize: "12px" }}>
                         <option value="ALL">Semua Jenis Tindakan</option>
@@ -3705,7 +3842,7 @@ export function App() {
                       <button className="button button-secondary" onClick={exportAuditCsv}>
                         <Download size={14}/> Unduh Rekap Log (CSV)
                       </button>
-                      <button className="button button-secondary" onClick={fetchAuditLogs} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>
+                      <button className="button button-secondary" onClick={() => fetchAuditLogs()} disabled={auditLoading}><RefreshCw size={14} className={auditLoading ? "animate-spin" : ""}/>Segarkan</button>
                     </div>
                   }/>
                 {auditLoading ? (
@@ -3861,7 +3998,7 @@ export function App() {
               }}
             />
           )}
-          <button className="icon-button topbar-refresh-btn" title="Segarkan" onClick={fetchClaims} disabled={loading}>
+          <button className="icon-button topbar-refresh-btn" title="Segarkan" onClick={() => fetchClaims()} disabled={loading}>
             <RefreshCw size={18} className={loading ? "animate-spin text-green" : ""}/>
           </button>
           <button
@@ -4054,7 +4191,7 @@ export function App() {
           </button>
         </nav>
         <nav className="sidebar-group sidebar-bottom">
-          <button title="Pangkalan Data" onClick={fetchClaims}>
+          <button title="Pangkalan Data" onClick={() => fetchClaims()}>
             <Database size={20} strokeWidth={1.6}/><span className="sidebar-tooltip">{data?.summary.total_claims?.toLocaleString("id-ID") ?? "—"} Berkas di Database</span>
           </button>
         </nav>

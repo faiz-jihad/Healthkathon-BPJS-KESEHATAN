@@ -3,6 +3,7 @@ import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../../li
 import { ClaimApiRecord } from "../route";
 import { buildEvidenceChain } from "../../../../lib/evidence-chain";
 import { buildLocalAuditBrief } from "../../../../lib/llm-copilot";
+import { isAssessmentBroken, evaluateAndHealClaim } from "../../../../lib/auto-heal-assessment";
 
 // ==============================================================================
 // GET /api/claims/[claimId]
@@ -85,7 +86,11 @@ export async function GET(
     );
   }
 
-  const ra = c.riskAssessment;
+  let ra = c.riskAssessment;
+  if (isAssessmentBroken(ra)) {
+    ra = await evaluateAndHealClaim(prisma as any, c);
+    c.riskAssessment = ra;
+  }
   const latestReview = c.humanReviews[0];
 
   let analysisStatus: ClaimApiRecord["analysis_status"] = "NOT_ANALYZED";

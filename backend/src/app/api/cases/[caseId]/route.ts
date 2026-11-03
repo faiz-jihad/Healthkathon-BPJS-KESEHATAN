@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth";
 import { buildEvidenceChain } from "@/lib/evidence-chain";
 import { buildLocalAuditBrief } from "@/lib/llm-copilot";
+import { isAssessmentBroken, evaluateAndHealClaim } from "@/lib/auto-heal-assessment";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,11 @@ export async function GET(
     }
 
     const claim: any = caseData.claim;
-    const ra: any = claim?.riskAssessment;
+    let ra: any = claim?.riskAssessment;
+    if (claim && isAssessmentBroken(ra)) {
+      ra = await evaluateAndHealClaim(db, claim);
+      claim.riskAssessment = ra;
+    }
 
     // Build structured Evidence Center response (Phase 4)
     const evidenceCenter = {

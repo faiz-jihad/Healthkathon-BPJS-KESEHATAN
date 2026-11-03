@@ -2,6 +2,7 @@ import { prisma } from "../../../lib/prisma";
 import { getAuthenticatedUser, hasPermission, PERMISSIONS } from "../../../lib/auth";
 import { buildEvidenceChain, EvidenceChain } from "../../../lib/evidence-chain";
 import { AuditBriefPayload, buildLocalAuditBrief } from "../../../lib/llm-copilot";
+import { isAssessmentBroken, evaluateAndHealClaim } from "../../../lib/auto-heal-assessment";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -247,6 +248,10 @@ export async function GET(request: Request) {
         { facilityId: { contains: search, mode: "insensitive" } },
         { patientId: { contains: search, mode: "insensitive" } },
         { icd10Code: { contains: search, mode: "insensitive" } },
+        { doctor: { specialty: { contains: search, mode: "insensitive" } } },
+        { doctor: { sipNumber: { contains: search, mode: "insensitive" } } },
+        { facility: { facilityClass: { contains: search, mode: "insensitive" } } },
+        { patient: { homeRegion: { contains: search, mode: "insensitive" } } },
       ];
     }
 
@@ -307,7 +312,18 @@ export async function GET(request: Request) {
       }),
     ]);
 
-    dbClaims = claimsResult;
+    dbClaims = await Promise.all(
+      claimsResult.map(async (c: any) => {
+        if (isAssessmentBroken(c.riskAssessment)) {
+          try {
+            c.riskAssessment = await evaluateAndHealClaim(prisma as any, c);
+          } catch {
+            // Keep original if healing fails
+          }
+        }
+        return c;
+      })
+    );
 
     summary = {
       total_claims: totalClaimsCount,
@@ -902,7 +918,16 @@ export async function POST(request: Request) {
       return createdClaim;
     });
 
-    const isAssessed = assessmentStatus === "COMPLETED";
+    if (isAssessmentBroken(result.riskAssessment)) {
+      try {
+        const healedRa = await evaluateAndHealClaim(prisma as any, result, aiResult);
+        result.riskAssessment = healedRa;
+      } catch {
+        // Keep transaction assessment if healing fails
+      }
+    }
+    const finalRa = result.riskAssessment;
+    const isAssessed = finalRa?.assessmentStatus === "COMPLETED";
 
     return Response.json(
       {
@@ -923,12 +948,30 @@ export async function POST(request: Request) {
           service_date: result.serviceDate,
           service_time: result.serviceTime,
           ina_cbgs_tariff: result.inaCbgsTariff,
-          fraud_probability: isAssessed ? fraudProbability : null,
-          fraud_risk_index: isAssessed ? fraudRiskIndex : null,
-          risk_level: riskLevel,
-          pre_payment_gate: prePaymentGate,
-          spatiotemporal_metrics: isAssessed ? spatiotemporalMetrics : null,
-          xai_explanation: xaiExplanation,
+          fraud_probability: isAssessed ? (finalRa?.fraudProbability ?? fraudProbability) : null,
+          fraud_risk_index: isAssessed ? (finalRa?.fraudRiskIndex ?? fraudRiskIndex) : null,
+          risk_level: finalRa?.riskLevel ?? riskLevel,
+          pre_payment_gate: finalRa?.prePaymentGate ?? prePaymentGate,
+          spatiotemporal_metrics: isAssessed
+            ? {
+                spatial_conflict_detected: Boolean(finalRa?.spatialConflictDetected ?? spatiotemporalMetrics.spatial_conflict_detected),
+                doctor_daily_volume: Number(finalRa?.doctorDailyVolume ?? spatiotemporalMetrics.doctor_daily_volume),
+                spatiotemporal_risk_score: Number(finalRa?.spatiotemporalRiskScore ?? spatiotemporalMetrics.spatiotemporal_risk_score),
+              }
+            : null,
+          xai_explanation: finalRa
+            ? {
+                primary_fraud_trigger: finalRa.primaryFraudTrigger,
+                evidence_reasons: finalRa.evidenceReasons,
+                subgraph_evidence: finalRa.subgraphEvidence,
+                audit_brief: xaiExplanation.audit_brief,
+              }
+            : xaiExplanation,
+
+
+
+
+
         },
       },
       { status: 201 }
